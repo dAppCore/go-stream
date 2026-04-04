@@ -5,6 +5,10 @@
 package ws
 
 import (
+	"net/http"
+	"sync"
+
+	"dappco.re/go/core"
 	"dappco.re/go/stream"
 	adapterredis "dappco.re/go/stream/adapter/redis"
 	adapterws "dappco.re/go/stream/adapter/ws"
@@ -18,9 +22,6 @@ type Frame = stream.Frame
 
 // Channel preserves the legacy channel name alias.
 type Channel = stream.Channel
-
-// Hub preserves the legacy go-ws Hub type name.
-type Hub = stream.Hub
 
 // HubConfig preserves the legacy go-ws HubConfig type name.
 type HubConfig = stream.HubConfig
@@ -121,9 +122,31 @@ type ReconnectConfig = adapterws.ReconnectConfig
 // RedisBridge preserves the legacy go-ws RedisBridge type name.
 type RedisBridge = adapterredis.Bridge
 
+// Hub preserves the legacy go-ws Hub surface while embedding the new stream hub.
+//
+//	hub := ws.NewHub()
+//	go hub.Run(ctx)
+//	http.Handle("/stream/ws", hub.Handler())
+type Hub struct {
+	*stream.Hub
+
+	adapterOnce sync.Once
+	adapter     *adapterws.Adapter
+}
+
 // NewRedisBridge creates the legacy Redis bridge wrapper.
-func NewRedisBridge(hub *stream.Hub, config adapterredis.Config) (*RedisBridge, error) {
-	return adapterredis.NewBridge(hub, config)
+func NewRedisBridge(hub any, config adapterredis.Config) (*RedisBridge, error) {
+	switch typedHub := hub.(type) {
+	case *Hub:
+		if typedHub == nil {
+			return adapterredis.NewBridge(nil, config)
+		}
+		return adapterredis.NewBridge(typedHub.Hub, config)
+	case *stream.Hub:
+		return adapterredis.NewBridge(typedHub, config)
+	default:
+		return nil, core.E("stream.ws", "unsupported hub type", nil)
+	}
 }
 
 // NewAPIKeyAuth creates the legacy-compatible API key authenticator wrapper.
@@ -133,12 +156,12 @@ func NewAPIKeyAuth(keys map[string]string) *APIKeyAuthenticator {
 
 // NewHub creates a legacy-compatible hub.
 func NewHub() *Hub {
-	return stream.NewHub()
+	return &Hub{Hub: stream.NewHub()}
 }
 
 // NewHubWithConfig creates a legacy-compatible hub with explicit configuration.
 func NewHubWithConfig(config HubConfig) *Hub {
-	return stream.NewHubWithConfig(config)
+	return &Hub{Hub: stream.NewHubWithConfig(config)}
 }
 
 // DefaultHubConfig returns the default hub configuration for legacy callers.
@@ -165,3 +188,38 @@ func New(config Config) *Adapter {
 func NewReconnectingClient(config ReconnectConfig) *adapterws.ReconnectingClient {
 	return adapterws.NewReconnectingClient(config)
 }
+
+// Handler preserves the old hub-bound WebSocket handler entrypoint.
+//
+//	http.Handle("/stream/ws", hub.Handler())
+func (hub *Hub) Handler() http.HandlerFunc {
+	if hub == nil {
+		return func(w http.ResponseWriter, r *http.Request) {
+			http.Error(w, "stream hub not mounted", http.StatusInternalServerError)
+		}
+	}
+	return hub.compatAdapter().Handler()
+}
+
+// HandlerForChannel preserves the old dedicated-channel handler entrypoint.
+//
+//	http.Handle("/stream/hashrate", hub.HandlerForChannel("hashrate"))
+func (hub *Hub) HandlerForChannel(channel string) http.HandlerFunc {
+	if hub == nil {
+		return func(w http.ResponseWriter, r *http.Request) {
+			http.Error(w, "stream hub not mounted", http.StatusInternalServerError)
+		}
+	}
+	return hub.compatAdapter().HandlerForChannel(channel)
+}
+
+func (hub *Hub) compatAdapter() *adapterws.Adapter {
+	hub.adapterOnce.Do(func() {
+		adapter := adapterws.New(adapterws.Config{})
+		adapter.Mount(hub.Hub)
+		hub.adapter = adapter
+	})
+	return hub.adapter
+}
+
+var _ Stream = (*Hub)(nil)

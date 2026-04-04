@@ -4,8 +4,11 @@ package ws
 
 import (
 	"context"
+	"net/http/httptest"
 	"testing"
 	"time"
+
+	"github.com/gorilla/websocket"
 )
 
 func TestCompat_LegacySurface_Good(t *testing.T) {
@@ -102,6 +105,41 @@ func TestCompat_LegacySurface_Ugly(t *testing.T) {
 		t.Fatal("Pipe(nil, nil) returned nil stop function")
 	}
 	stop()
+}
+
+func TestCompat_HubHandler_Good(t *testing.T) {
+	hub := NewHub()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go hub.Run(ctx)
+	waitForRunningHub(t, hub)
+
+	server := httptest.NewServer(hub.Handler())
+	defer server.Close()
+
+	url := "ws" + server.URL[len("http"):] + "?channel=hashrate"
+	connection, _, err := websocket.DefaultDialer.Dial(url, nil)
+	if err != nil {
+		t.Fatalf("Dial() error = %v", err)
+	}
+	defer connection.Close()
+
+	payload := []byte(`{"type":"event","channel":"hashrate","data":{"h":123456},"timestamp":"2026-01-01T00:00:00Z"}`)
+	if err := hub.Publish("hashrate", payload); err != nil {
+		t.Fatalf("Publish() error = %v", err)
+	}
+
+	if err := connection.SetReadDeadline(time.Now().Add(2 * time.Second)); err != nil {
+		t.Fatalf("SetReadDeadline() error = %v", err)
+	}
+	_, frame, err := connection.ReadMessage()
+	if err != nil {
+		t.Fatalf("ReadMessage() error = %v", err)
+	}
+	if string(frame) != string(payload) {
+		t.Fatalf("ReadMessage() frame = %q, want %q", string(frame), string(payload))
+	}
 }
 
 func waitForRunningHub(t *testing.T, hub *Hub) {
