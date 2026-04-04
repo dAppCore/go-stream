@@ -103,6 +103,41 @@ func TestAdapter_Handler_Ugly(t *testing.T) {
 	waitForPeerCount(t, hub, 0)
 }
 
+func TestAdapter_ServeHTTP_Good(t *testing.T) {
+	hub := stream.NewHub()
+	hubContext, hubCancel := context.WithCancel(context.Background())
+	defer hubCancel()
+	go hub.Run(hubContext)
+
+	adapter := New(Config{HeartbeatInterval: 20 * time.Millisecond})
+	adapter.Mount(hub)
+
+	server := httptest.NewServer(adapter)
+	defer server.Close()
+
+	response, err := http.Get(server.URL + "?channel=serve-http")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	defer response.Body.Close()
+
+	waitForPeerCount(t, hub, 1)
+	if err := hub.Publish("serve-http", []byte("ok")); err != nil {
+		t.Fatalf("Publish() error = %v", err)
+	}
+
+	reader := bufio.NewReader(response.Body)
+	for {
+		line, err := reader.ReadString('\n')
+		if err != nil {
+			t.Fatalf("ReadString() error = %v", err)
+		}
+		if strings.TrimSpace(line) == "data: ok" {
+			return
+		}
+	}
+}
+
 func waitForPeerCount(t *testing.T, hub *stream.Hub, expected int) {
 	t.Helper()
 	deadline := time.Now().Add(2 * time.Second)

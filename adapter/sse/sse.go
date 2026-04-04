@@ -43,11 +43,16 @@ func (a *Adapter) Mount(hub *stream.Hub) {
 	a.hub = hub
 }
 
+// ServeHTTP accepts an SSE connection and subscribes it using the channel query params.
+//
+//	http.Handle("/stream/events", adapter)
+func (a *Adapter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	a.serve(w, r, r.URL.Query()["channel"])
+}
+
 // Handler returns an http.HandlerFunc that accepts SSE connections.
 func (a *Adapter) Handler() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		a.serve(w, r, r.URL.Query()["channel"])
-	}
+	return a.ServeHTTP
 }
 
 // HandlerForChannel returns a handler that auto-subscribes all connections to channel.

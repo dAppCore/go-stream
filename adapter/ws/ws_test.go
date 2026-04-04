@@ -148,6 +148,46 @@ func TestAdapter_Handler_Ugly(t *testing.T) {
 	waitForPeerCount(t, hub, 0)
 }
 
+func TestAdapter_ServeHTTP_Good(t *testing.T) {
+	hub := stream.NewHub()
+	hubContext, hubCancel := context.WithCancel(context.Background())
+	defer hubCancel()
+	go hub.Run(hubContext)
+
+	adapter := New(Config{})
+	adapter.Mount(hub)
+
+	server := httptest.NewServer(adapter)
+	defer server.Close()
+
+	conn := dialWebSocket(t, server.URL, nil)
+	defer conn.Close()
+
+	if err := conn.WriteJSON(stream.Message{
+		Type:    stream.TypeSubscribe,
+		Channel: "serve-http",
+	}); err != nil {
+		t.Fatalf("WriteJSON() error = %v", err)
+	}
+
+	waitForChannelSubscriberCount(t, hub, "serve-http", 1)
+
+	if err := hub.Publish("serve-http", []byte("ok")); err != nil {
+		t.Fatalf("Publish() error = %v", err)
+	}
+
+	messageType, payload, err := conn.ReadMessage()
+	if err != nil {
+		t.Fatalf("ReadMessage() error = %v", err)
+	}
+	if messageType != websocket.TextMessage {
+		t.Fatalf("messageType = %d, want %d", messageType, websocket.TextMessage)
+	}
+	if string(payload) != "ok" {
+		t.Fatalf("payload = %q, want %q", string(payload), "ok")
+	}
+}
+
 func dialWebSocket(t *testing.T, serverURL string, header http.Header) *websocket.Conn {
 	t.Helper()
 	conn, resp, err := websocket.DefaultDialer.Dial(websocketURL(serverURL), header)
