@@ -5,17 +5,19 @@ package stream
 import "time"
 
 // msg := stream.Message{Type: stream.TypeEvent, Channel: "hashrate"}
+// frame, _ := core.JSONMarshal(msg)
+// _ = frame
 type MessageType string
 
 const (
-	TypeProcessOutput MessageType = "process_output" // real-time process output line
-	TypeProcessStatus MessageType = "process_status" // process status change (running/exited)
-	TypeEvent         MessageType = "event"          // generic named event
-	TypeError         MessageType = "error"          // error message
-	TypePing          MessageType = "ping"           // client → server keepalive
-	TypePong          MessageType = "pong"           // server → client keepalive response
-	TypeSubscribe     MessageType = "subscribe"      // client requests channel subscription
-	TypeUnsubscribe   MessageType = "unsubscribe"    // client cancels channel subscription
+	TypeProcessOutput MessageType = "process_output" // stream a process line to clients
+	TypeProcessStatus MessageType = "process_status" // signal a process transition such as running or exited
+	TypeEvent         MessageType = "event"          // generic named event payload
+	TypeError         MessageType = "error"          // report an error envelope
+	TypePing          MessageType = "ping"           // client keepalive ping
+	TypePong          MessageType = "pong"           // server keepalive pong
+	TypeSubscribe     MessageType = "subscribe"      // request subscription to a channel
+	TypeUnsubscribe   MessageType = "unsubscribe"    // cancel a channel subscription
 )
 
 //	msg := stream.Message{
@@ -23,6 +25,9 @@ const (
 //	    Channel: "hashrate",
 //	    Data:    map[string]any{"h": 1234567},
 //	}
+//
+// frame, _ := core.JSONMarshal(msg)
+// _ = frame
 type Message struct {
 	Type      MessageType `json:"type"`
 	Channel   string      `json:"channel,omitempty"`
