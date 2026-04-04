@@ -22,7 +22,7 @@ import (
 type Hub struct {
 	peers             map[*Peer]bool
 	broadcastQueue    chan broadcastDelivery
-	deliver           chan delivery
+	publishQueue      chan publishDelivery
 	register          chan *Peer
 	unregister        chan *Peer
 	channels          map[string]map[*Peer]bool
@@ -56,7 +56,7 @@ func NewHubWithConfig(config HubConfig) *Hub {
 	return &Hub{
 		peers:             map[*Peer]bool{},
 		broadcastQueue:    make(chan broadcastDelivery, 256),
-		deliver:           make(chan delivery, 256),
+		publishQueue:      make(chan publishDelivery, 256),
 		register:          make(chan *Peer, 256),
 		unregister:        make(chan *Peer, 256),
 		channels:          map[string]map[*Peer]bool{},
@@ -128,8 +128,8 @@ func (hub *Hub) Run(ctx context.Context) {
 			hub.removePeer(peer)
 		case item := <-hub.broadcastQueue:
 			hub.broadcastToPeers(item.source, item.frame, item.notifyBroadcastSubscribers)
-		case item := <-hub.deliver:
-			hub.processDelivery(item.channel, item.frame, item.notifyPublishSubscribers)
+		case item := <-hub.publishQueue:
+			hub.processPublishDelivery(item.channel, item.frame, item.notifyPublishSubscribers)
 		}
 	}
 }
@@ -180,7 +180,7 @@ func (hub *Hub) sendToChannelFromPeer(source *Peer, channel string, frame []byte
 	for _, peer := range peersToSend {
 		hub.sendToPeer(peer, channel, frame)
 	}
-	hub.enqueueDelivery(channel, frame, notifyPublishSubscribers)
+	hub.enqueuePublishDelivery(channel, frame, notifyPublishSubscribers)
 	return nil
 }
 
@@ -696,7 +696,7 @@ func (hub *Hub) broadcastToPeers(source *Peer, frame []byte, notifyBroadcastSubs
 	}
 }
 
-type delivery struct {
+type publishDelivery struct {
 	channel                  string
 	frame                    []byte
 	notifyPublishSubscribers bool
@@ -708,19 +708,19 @@ type broadcastDelivery struct {
 	notifyBroadcastSubscribers bool
 }
 
-func (hub *Hub) enqueueDelivery(channel string, frame []byte, notifyPublishSubscribers bool) {
+func (hub *Hub) enqueuePublishDelivery(channel string, frame []byte, notifyPublishSubscribers bool) {
 	if hub == nil {
 		return
 	}
-	item := delivery{
+	item := publishDelivery{
 		channel:                  channel,
 		frame:                    append([]byte(nil), frame...),
 		notifyPublishSubscribers: notifyPublishSubscribers,
 	}
 	select {
-	case hub.deliver <- item:
+	case hub.publishQueue <- item:
 	default:
-		go hub.enqueueDeliveryAsync(item)
+		go hub.enqueuePublishDeliveryAsync(item)
 	}
 }
 
@@ -734,17 +734,17 @@ func (hub *Hub) enqueueBroadcast(item broadcastDelivery) {
 	}
 }
 
-func (hub *Hub) enqueueDeliveryAsync(item delivery) {
+func (hub *Hub) enqueuePublishDeliveryAsync(item publishDelivery) {
 	if hub == nil {
 		return
 	}
 	select {
-	case hub.deliver <- item:
+	case hub.publishQueue <- item:
 	case <-hub.done:
 	}
 }
 
-func (hub *Hub) processDelivery(channel string, frame []byte, notifyPublishSubscribers bool) {
+func (hub *Hub) processPublishDelivery(channel string, frame []byte, notifyPublishSubscribers bool) {
 	if hub == nil {
 		return
 	}
