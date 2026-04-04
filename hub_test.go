@@ -123,6 +123,7 @@ func TestHub_Publish_Good(t *testing.T) {
 		t.Fatalf("AddPeer() error = %v", err)
 	}
 	defer hub.RemovePeer(peer)
+	waitForPeerCount(t, hub, 1)
 
 	if err := hub.SubscribePeer(peer, "hashrate"); err != nil {
 		t.Fatalf("SubscribePeer(channel) error = %v", err)
@@ -172,6 +173,90 @@ func TestHub_Publish_Ugly(t *testing.T) {
 	}
 }
 
+func TestHub_Broadcast_Good(t *testing.T) {
+	hub := NewHub()
+	hubContext, hubCancel := context.WithCancel(context.Background())
+	defer hubCancel()
+
+	go hub.Run(hubContext)
+	waitForRunningHub(t, hub)
+
+	peer := NewPeer("ws")
+	if err := hub.AddPeer(peer); err != nil {
+		t.Fatalf("AddPeer() error = %v", err)
+	}
+	defer hub.RemovePeer(peer)
+	waitForPeerCount(t, hub, 1)
+
+	if err := hub.Broadcast([]byte("123456")); err != nil {
+		t.Fatalf("Broadcast() error = %v", err)
+	}
+
+	select {
+	case frame := <-peer.SendQueue():
+		if string(frame) != "123456" {
+			t.Fatalf("received frame = %q, want %q", string(frame), "123456")
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for broadcast frame")
+	}
+}
+
+func TestHub_Broadcast_Bad(t *testing.T) {
+	hub := NewHub()
+
+	if err := hub.Broadcast([]byte("123456")); err != ErrHubNotRunning {
+		t.Fatalf("Broadcast() error = %v, want %v", err, ErrHubNotRunning)
+	}
+}
+
+func TestHub_Broadcast_Ugly(t *testing.T) {
+	hub := NewHub()
+	hubContext, hubCancel := context.WithCancel(context.Background())
+	defer hubCancel()
+
+	go hub.Run(hubContext)
+	waitForRunningHub(t, hub)
+
+	peer := NewPeer("ws")
+	if err := hub.AddPeer(peer); err != nil {
+		t.Fatalf("AddPeer() error = %v", err)
+	}
+	defer hub.RemovePeer(peer)
+	waitForPeerCount(t, hub, 1)
+
+	received := make(chan []byte, 1)
+	unsubscribe := hub.Subscribe("*", func(frame []byte) {
+		received <- append([]byte(nil), frame...)
+	})
+	defer unsubscribe()
+
+	if err := hub.Broadcast([]byte("event")); err != nil {
+		t.Fatalf("Broadcast() error = %v", err)
+	}
+
+	select {
+	case frame := <-received:
+		if string(frame) != "event" {
+			t.Fatalf("received handler frame = %q, want %q", string(frame), "event")
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for broadcast handler")
+	}
+
+	select {
+	case frame := <-peer.SendQueue():
+		if string(frame) != "event" {
+			t.Fatalf("received peer frame = %q, want %q", string(frame), "event")
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for broadcast peer")
+	}
+
+	hubCancel()
+	waitForPeerCount(t, hub, 0)
+}
+
 func waitForRunningHub(t *testing.T, hub *Hub) {
 	t.Helper()
 	deadline := time.Now().Add(2 * time.Second)
@@ -185,4 +270,16 @@ func waitForRunningHub(t *testing.T, hub *Hub) {
 		time.Sleep(10 * time.Millisecond)
 	}
 	t.Fatal("timed out waiting for hub to start")
+}
+
+func waitForPeerCount(t *testing.T, hub *Hub, expected int) {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if hub.PeerCount() == expected {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatalf("PeerCount() = %d, want %d", hub.PeerCount(), expected)
 }

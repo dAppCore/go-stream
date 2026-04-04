@@ -96,23 +96,36 @@ func (h *Hub) Run(ctx context.Context) {
 	h.running = true
 	h.mu.Unlock()
 
-	<-ctx.Done()
+	defer func() {
+		h.mu.Lock()
+		peers := make([]*Peer, 0, len(h.peers))
+		for peer := range h.peers {
+			peers = append(peers, peer)
+		}
+		h.running = false
+		h.mu.Unlock()
 
-	h.mu.Lock()
-	peers := make([]*Peer, 0, len(h.peers))
-	for peer := range h.peers {
-		peers = append(peers, peer)
+		for _, peer := range peers {
+			h.removePeer(peer)
+		}
+
+		h.doneOnce.Do(func() {
+			close(h.done)
+		})
+	}()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case peer := <-h.register:
+			h.addPeer(peer)
+		case peer := <-h.unregister:
+			h.removePeer(peer)
+		case frame := <-h.broadcast:
+			h.broadcastToPeers(frame)
+		}
 	}
-	h.running = false
-	h.mu.Unlock()
-
-	for _, peer := range peers {
-		h.RemovePeer(peer)
-	}
-
-	h.doneOnce.Do(func() {
-		close(h.done)
-	})
 }
 
 // SendToChannel delivers frame to all peers subscribed to channel.
@@ -250,19 +263,16 @@ func (h *Hub) Broadcast(frame []byte) error {
 	}
 	h.mu.RLock()
 	running := h.running
-	peers := make([]*Peer, 0, len(h.peers))
-	for peer := range h.peers {
-		peers = append(peers, peer)
-	}
-	handlers := cloneHandlers(h.handlers["*"])
 	h.mu.RUnlock()
 	if !running {
 		return ErrHubNotRunning
 	}
-	for _, peer := range peers {
-		h.sendBroadcastToPeer(peer, frame)
+	select {
+	case h.broadcast <- append([]byte(nil), frame...):
+		return nil
+	default:
+		h.broadcastToPeers(frame)
 	}
-	h.invokeHandlers(handlers, frame)
 	return nil
 }
 
@@ -407,20 +417,17 @@ func (h *Hub) AddPeer(peer *Peer) error {
 	if peer.subscriptions == nil {
 		peer.subscriptions = map[string]bool{}
 	}
-	h.mu.Lock()
-	if h.peers == nil {
-		h.peers = map[*Peer]bool{}
+	h.mu.RLock()
+	running := h.running
+	h.mu.RUnlock()
+	if running {
+		select {
+		case h.register <- peer:
+			return nil
+		default:
+		}
 	}
-	if h.peers[peer] {
-		h.mu.Unlock()
-		return nil
-	}
-	h.peers[peer] = true
-	onConnect := h.config.OnConnect
-	h.mu.Unlock()
-	if onConnect != nil {
-		onConnect(peer)
-	}
+	h.addPeer(peer)
 	return nil
 }
 
@@ -431,27 +438,17 @@ func (h *Hub) RemovePeer(peer *Peer) {
 	if h == nil || peer == nil {
 		return
 	}
-	h.mu.Lock()
-	if !h.peers[peer] {
-		h.mu.Unlock()
-		return
-	}
-	delete(h.peers, peer)
-	for channel, peers := range h.channels {
-		delete(peers, peer)
-		if len(peers) == 0 {
-			delete(h.channels, channel)
+	h.mu.RLock()
+	running := h.running
+	h.mu.RUnlock()
+	if running {
+		select {
+		case h.unregister <- peer:
+			return
+		default:
 		}
 	}
-	peer.mu.Lock()
-	peer.subscriptions = map[string]bool{}
-	peer.mu.Unlock()
-	onDisconnect := h.config.OnDisconnect
-	h.mu.Unlock()
-	peer.Close()
-	if onDisconnect != nil {
-		onDisconnect(peer)
-	}
+	h.removePeer(peer)
 }
 
 func (h *Hub) sendToPeer(peer *Peer, channel string, frame []byte) {
@@ -485,6 +482,70 @@ func (h *Hub) invokeHandlers(handlers []func([]byte), frame []byte) {
 			fn(frame)
 		}(handler)
 	}
+}
+
+func (h *Hub) addPeer(peer *Peer) {
+	if h == nil || peer == nil {
+		return
+	}
+	h.mu.Lock()
+	if h.peers == nil {
+		h.peers = map[*Peer]bool{}
+	}
+	if h.peers[peer] {
+		h.mu.Unlock()
+		return
+	}
+	h.peers[peer] = true
+	onConnect := h.config.OnConnect
+	h.mu.Unlock()
+	if onConnect != nil {
+		onConnect(peer)
+	}
+}
+
+func (h *Hub) removePeer(peer *Peer) {
+	if h == nil || peer == nil {
+		return
+	}
+	h.mu.Lock()
+	if !h.peers[peer] {
+		h.mu.Unlock()
+		return
+	}
+	delete(h.peers, peer)
+	for channel, peers := range h.channels {
+		delete(peers, peer)
+		if len(peers) == 0 {
+			delete(h.channels, channel)
+		}
+	}
+	peer.mu.Lock()
+	peer.subscriptions = map[string]bool{}
+	peer.mu.Unlock()
+	onDisconnect := h.config.OnDisconnect
+	h.mu.Unlock()
+	peer.Close()
+	if onDisconnect != nil {
+		onDisconnect(peer)
+	}
+}
+
+func (h *Hub) broadcastToPeers(frame []byte) {
+	if h == nil {
+		return
+	}
+	h.mu.RLock()
+	peers := make([]*Peer, 0, len(h.peers))
+	for peer := range h.peers {
+		peers = append(peers, peer)
+	}
+	handlers := cloneHandlers(h.handlers["*"])
+	h.mu.RUnlock()
+	for _, peer := range peers {
+		h.sendBroadcastToPeer(peer, frame)
+	}
+	h.invokeHandlers(handlers, frame)
 }
 
 func (h *Hub) subscribePublished(handler func(string, []byte)) func() {
