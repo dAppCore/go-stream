@@ -48,12 +48,12 @@ type Stream interface {
 	//	hub.Broadcast([]byte(`{"type":"shutdown"}`))
 	Broadcast(frame []byte) error
 
-	// Pipe connects this stream to dst: every frame published here is forwarded to dst.
+	// Pipe connects this stream to destination: every frame published here is forwarded to destination.
 	// Returns a stop function.
 	//
 	//	stop := hub.Pipe(remoteHub)
 	//	defer stop()
-	Pipe(dst Stream) func()
+	Pipe(destination Stream) func()
 
 	// Stats returns a snapshot of current hub state.
 	//
@@ -226,8 +226,8 @@ type Envelope struct {
 //	stop := stream.Pipe(zmqHub, wsHub)
 //	Forward ZMQ frames to WebSocket clients.
 //	defer stop()
-func Pipe(src Stream, dst Stream) func() {
-	if src == nil || dst == nil || src == dst {
+func Pipe(src Stream, destination Stream) func() {
+	if src == nil || destination == nil || src == destination {
 		return func() {}
 	}
 	type publishSubscriber interface {
@@ -239,19 +239,19 @@ func Pipe(src Stream, dst Stream) func() {
 	stops := make([]func(), 0, 2)
 	if publisher, ok := src.(publishSubscriber); ok {
 		stops = append(stops, publisher.SubscribePublished(func(channel string, frame []byte) {
-			_ = dst.Publish(channel, cloneFrame(frame))
+			_ = destination.Publish(channel, cloneFrame(frame))
 		}))
 	}
 	if broadcaster, ok := src.(broadcastSubscriber); ok {
 		stops = append(stops, broadcaster.SubscribeBroadcast(func(frame []byte) {
-			_ = dst.Broadcast(cloneFrame(frame))
+			_ = destination.Broadcast(cloneFrame(frame))
 		}))
 	}
 	if len(stops) == 0 {
 		// Generic Stream implementations do not expose channel names, so fall back
 		// to publishing on the wildcard channel.
 		stop := src.Subscribe("*", func(frame []byte) {
-			_ = dst.Publish("*", cloneFrame(frame))
+			_ = destination.Publish("*", cloneFrame(frame))
 		})
 		var once sync.Once
 		return func() {

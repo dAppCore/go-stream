@@ -359,13 +359,13 @@ func (hub *Hub) broadcastFrameFromPeer(source *Peer, frame []byte, notifyBroadca
 	return nil
 }
 
-// Pipe connects this hub to dst: every frame published here is forwarded to dst.
+// Pipe connects this hub to destination: every frame published here is forwarded to destination.
 // Returns a stop function. Satisfies Stream interface.
 //
 //	stop := hub.Pipe(remoteHub)
 //	defer stop()
-func (hub *Hub) Pipe(dst Stream) func() {
-	return Pipe(hub, dst)
+func (hub *Hub) Pipe(destination Stream) func() {
+	return Pipe(hub, destination)
 }
 
 // Stats returns a snapshot of current hub state.

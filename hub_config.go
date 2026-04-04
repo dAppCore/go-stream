@@ -4,7 +4,7 @@ package stream
 
 import "time"
 
-//	cfg := stream.HubConfig{
+//	config := stream.HubConfig{
 //	    HeartbeatInterval: 30 * time.Second,
 //	    OnConnect:         func(peer *stream.Peer) { metrics.Inc("peers") },
 //	    ChannelAuthoriser: func(peer *stream.Peer, channel string) bool {
@@ -46,7 +46,7 @@ type HubConfig struct {
 
 // DefaultHubConfig returns sensible defaults.
 //
-//	cfg := stream.DefaultHubConfig()
+//	config := stream.DefaultHubConfig()
 func DefaultHubConfig() HubConfig {
 	return HubConfig{
 		HeartbeatInterval: 30 * time.Second,
