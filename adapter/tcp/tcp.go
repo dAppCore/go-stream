@@ -184,17 +184,17 @@ func (adapter *Adapter) handleConn(ctx context.Context, conn net.Conn, hub *stre
 		return
 	}
 
-	result := stream.AuthResult{Valid: true}
+	authResult := stream.AuthResult{Valid: true}
 	if auth := adapter.config.ConnAuthenticator; auth != nil {
-		result = auth.AuthenticateConn(frame)
-		if !result.Valid {
+		authResult = auth.AuthenticateConn(frame)
+		if !authResult.Valid {
 			return
 		}
 	}
 
 	peer := stream.NewPeer("tcp")
-	peer.UserID = result.UserID
-	peer.Claims = result.Claims
+	peer.UserID = authResult.UserID
+	peer.Claims = authResult.Claims
 	peer.SetCloseHook(func() {
 		_ = conn.Close()
 	})

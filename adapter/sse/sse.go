@@ -99,12 +99,12 @@ func (adapter *Adapter) serve(w http.ResponseWriter, r *http.Request, channels [
 		config.RetryMs = 3000
 	}
 
-	result := stream.AuthResult{Valid: true}
+	authResult := stream.AuthResult{Valid: true}
 	if adapter.config.Authenticator != nil {
-		result = adapter.config.Authenticator.Authenticate(r)
-		if !result.Valid {
+		authResult = adapter.config.Authenticator.Authenticate(r)
+		if !authResult.Valid {
 			if adapter.config.OnAuthFailure != nil {
-				adapter.config.OnAuthFailure(r, result)
+				adapter.config.OnAuthFailure(r, authResult)
 			}
 			http.Error(w, "unauthorised", http.StatusUnauthorized)
 			return
@@ -123,8 +123,8 @@ func (adapter *Adapter) serve(w http.ResponseWriter, r *http.Request, channels [
 	header.Set("X-Accel-Buffering", "no")
 
 	peer := stream.NewPeer("sse")
-	peer.UserID = result.UserID
-	peer.Claims = result.Claims
+	peer.UserID = authResult.UserID
+	peer.Claims = authResult.Claims
 	done := make(chan struct{})
 	var doneOnce sync.Once
 	peer.SetCloseHook(func() {

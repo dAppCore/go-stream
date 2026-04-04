@@ -98,12 +98,12 @@ func (adapter *Adapter) serveHTTP(w http.ResponseWriter, r *http.Request, channe
 		return
 	}
 
-	result := stream.AuthResult{Valid: true}
+	authResult := stream.AuthResult{Valid: true}
 	if adapter.config.Authenticator != nil {
-		result = adapter.config.Authenticator.Authenticate(r)
-		if !result.Valid {
+		authResult = adapter.config.Authenticator.Authenticate(r)
+		if !authResult.Valid {
 			if adapter.config.OnAuthFailure != nil {
-				adapter.config.OnAuthFailure(r, result)
+				adapter.config.OnAuthFailure(r, authResult)
 			}
 			http.Error(w, "unauthorised", http.StatusUnauthorized)
 			return
@@ -128,8 +128,8 @@ func (adapter *Adapter) serveHTTP(w http.ResponseWriter, r *http.Request, channe
 	}
 
 	peer := stream.NewPeer("ws")
-	peer.UserID = result.UserID
-	peer.Claims = result.Claims
+	peer.UserID = authResult.UserID
+	peer.Claims = authResult.Claims
 	peer.SetCloseHook(func() {
 		_ = conn.Close()
 	})

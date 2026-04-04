@@ -8,7 +8,7 @@ import (
 	"dappco.re/go/core"
 )
 
-// Authenticator checks an HTTP request during connection setup.
+// Authenticator validates an HTTP request during connection setup.
 //
 //	authenticator := stream.NewAPIKeyAuth(map[string]string{"sk-prod-1": "user-42"})
 //	result := authenticator.Authenticate(request)

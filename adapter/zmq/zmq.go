@@ -158,8 +158,8 @@ func (adapter *Adapter) Start(ctx context.Context) error {
 		if len(handshake.Bytes()) > maxHandshakeFrameSize {
 			return stream.ErrAuthRejected
 		}
-		result := adapter.config.ConnAuthenticator.AuthenticateConn(handshake.Bytes())
-		if !result.Valid {
+		authResult := adapter.config.ConnAuthenticator.AuthenticateConn(handshake.Bytes())
+		if !authResult.Valid {
 			return stream.ErrAuthRejected
 		}
 	}
