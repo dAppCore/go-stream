@@ -9,11 +9,17 @@ import (
 	"dappco.re/go/stream/adapter/redis"
 )
 
+// Stream preserves the transport-agnostic stream interface for legacy callers.
+type Stream = stream.Stream
+
 // Hub preserves the legacy go-ws Hub type name.
 type Hub = stream.Hub
 
 // HubConfig preserves the legacy go-ws HubConfig type name.
 type HubConfig = stream.HubConfig
+
+// HubStats preserves the legacy hub stats type name.
+type HubStats = stream.HubStats
 
 // Peer preserves the transport-agnostic peer type under the legacy package.
 type Peer = stream.Peer
@@ -30,11 +36,23 @@ type AuthenticatorFunc = stream.AuthenticatorFunc
 // AuthResult preserves the legacy go-ws AuthResult type name.
 type AuthResult = stream.AuthResult
 
+// APIKeyAuthenticator preserves the legacy API key authenticator type name.
+type APIKeyAuthenticator = stream.APIKeyAuthenticator
+
+// BearerTokenAuth preserves the legacy bearer-token authenticator type name.
+type BearerTokenAuth = stream.BearerTokenAuth
+
+// QueryTokenAuth preserves the legacy query-token authenticator type name.
+type QueryTokenAuth = stream.QueryTokenAuth
+
 // ConnAuthenticator preserves the legacy raw-connection authenticator name.
 type ConnAuthenticator = stream.ConnAuthenticator
 
 // ConnAuthenticatorFunc preserves the legacy raw-connection helper name.
 type ConnAuthenticatorFunc = stream.ConnAuthenticatorFunc
+
+// ConnectionState preserves the reconnecting client connection state type.
+type ConnectionState = stream.ConnectionState
 
 // Message preserves the legacy go-ws WebSocket message envelope.
 type Message = stream.Message
@@ -59,6 +77,29 @@ const (
 	TypeSubscribe = stream.TypeSubscribe
 	// TypeUnsubscribe preserves the legacy message type constant.
 	TypeUnsubscribe = stream.TypeUnsubscribe
+	// StateDisconnected preserves the reconnecting client disconnected state.
+	StateDisconnected = stream.StateDisconnected
+	// StateConnecting preserves the reconnecting client connecting state.
+	StateConnecting = stream.StateConnecting
+	// StateConnected preserves the reconnecting client connected state.
+	StateConnected = stream.StateConnected
+)
+
+var (
+	// ErrMissingAuthHeader preserves the legacy missing-header sentinel error.
+	ErrMissingAuthHeader = stream.ErrMissingAuthHeader
+	// ErrMalformedAuthHeader preserves the legacy malformed-header sentinel error.
+	ErrMalformedAuthHeader = stream.ErrMalformedAuthHeader
+	// ErrInvalidAPIKey preserves the legacy invalid API key sentinel error.
+	ErrInvalidAPIKey = stream.ErrInvalidAPIKey
+	// ErrHandshakeTimeout preserves the legacy handshake timeout sentinel error.
+	ErrHandshakeTimeout = stream.ErrHandshakeTimeout
+	// ErrAuthRejected preserves the legacy authenticator rejection sentinel error.
+	ErrAuthRejected = stream.ErrAuthRejected
+	// ErrHubNotRunning preserves the legacy hub lifecycle sentinel error.
+	ErrHubNotRunning = stream.ErrHubNotRunning
+	// ErrEmptyChannel preserves the legacy empty-channel sentinel error.
+	ErrEmptyChannel = stream.ErrEmptyChannel
 )
 
 // RedisBridge preserves the legacy go-ws RedisBridge type name.
@@ -67,6 +108,11 @@ type RedisBridge = redis.Bridge
 // NewRedisBridge creates the legacy Redis bridge wrapper.
 func NewRedisBridge(hub *stream.Hub, config redis.Config) (*RedisBridge, error) {
 	return redis.NewBridge(hub, config)
+}
+
+// NewAPIKeyAuth creates the legacy-compatible API key authenticator wrapper.
+func NewAPIKeyAuth(keys map[string]string) *APIKeyAuthenticator {
+	return stream.NewAPIKeyAuth(keys)
 }
 
 // NewHub creates a legacy-compatible hub.
@@ -82,4 +128,14 @@ func NewHubWithConfig(config HubConfig) *Hub {
 // DefaultHubConfig returns the default hub configuration for legacy callers.
 func DefaultHubConfig() HubConfig {
 	return stream.DefaultHubConfig()
+}
+
+// NewPeer creates a legacy-compatible peer with a buffered send queue.
+func NewPeer(transport string) *Peer {
+	return stream.NewPeer(transport)
+}
+
+// Pipe preserves the legacy stream pipe composition helper.
+func Pipe(src Stream, dst Stream) func() {
+	return stream.Pipe(src, dst)
 }
