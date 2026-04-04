@@ -53,3 +53,17 @@ func DefaultHubConfig() HubConfig {
 		WriteTimeout:      10 * time.Second,
 	}
 }
+
+func normalizeHubConfig(config HubConfig) HubConfig {
+	defaults := DefaultHubConfig()
+	if config.HeartbeatInterval == 0 {
+		config.HeartbeatInterval = defaults.HeartbeatInterval
+	}
+	if config.PongTimeout == 0 {
+		config.PongTimeout = defaults.PongTimeout
+	}
+	if config.WriteTimeout == 0 {
+		config.WriteTimeout = defaults.WriteTimeout
+	}
+	return config
+}

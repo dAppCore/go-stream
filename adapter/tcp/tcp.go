@@ -175,7 +175,7 @@ func (a *Adapter) handleConn(ctx context.Context, conn net.Conn, hub *stream.Hub
 	_ = hub.SubscribePeer(peer, "*")
 	defer hub.RemovePeer(peer)
 
-	go a.writePump(ctx, conn, peer)
+	go a.writePump(ctx, conn, peer, hub.Config().WriteTimeout)
 
 	for {
 		channel, frame, err := readFrame(conn, 0)
@@ -192,7 +192,7 @@ func (a *Adapter) handleConn(ctx context.Context, conn net.Conn, hub *stream.Hub
 
 func (a *Adapter) pipePeer(ctx context.Context, conn net.Conn, peer *stream.Peer, hub *stream.Hub) {
 	defer conn.Close()
-	go a.writePump(ctx, conn, peer)
+	go a.writePump(ctx, conn, peer, hub.Config().WriteTimeout)
 	for {
 		channel, frame, err := readFrame(conn, 0)
 		if err != nil {
@@ -207,7 +207,7 @@ func (a *Adapter) pipePeer(ctx context.Context, conn net.Conn, peer *stream.Peer
 	}
 }
 
-func (a *Adapter) writePump(ctx context.Context, conn net.Conn, peer *stream.Peer) {
+func (a *Adapter) writePump(ctx context.Context, conn net.Conn, peer *stream.Peer, writeTimeout time.Duration) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -215,6 +215,9 @@ func (a *Adapter) writePump(ctx context.Context, conn net.Conn, peer *stream.Pee
 		case frame, ok := <-peer.SendQueue():
 			if !ok {
 				return
+			}
+			if writeTimeout > 0 {
+				_ = conn.SetWriteDeadline(time.Now().Add(writeTimeout))
 			}
 			if _, err := conn.Write(frame); err != nil {
 				return

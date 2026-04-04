@@ -123,13 +123,15 @@ func (a *Adapter) Handler() http.HandlerFunc {
 		defer a.hub.RemovePeer(peer)
 		defer conn.Close()
 
-		go func() {
-			for frame := range peer.SendQueue() {
-				if err := conn.WriteMessage(websocket.TextMessage, frame); err != nil {
-					return
-				}
-			}
-		}()
+		hubConfig := a.hub.Config()
+		if hubConfig.PongTimeout > 0 {
+			_ = conn.SetReadDeadline(time.Now().Add(hubConfig.PongTimeout))
+			conn.SetPongHandler(func(string) error {
+				return conn.SetReadDeadline(time.Now().Add(hubConfig.PongTimeout))
+			})
+		}
+
+		go a.writePump(conn, peer, hubConfig.WriteTimeout, hubConfig.HeartbeatInterval)
 
 		conn.SetReadLimit(1 << 20)
 		for {
@@ -160,5 +162,36 @@ func (a *Adapter) Handler() http.HandlerFunc {
 		}
 
 		peer.Close()
+	}
+}
+
+func (a *Adapter) writePump(conn *websocket.Conn, peer *stream.Peer, writeTimeout, heartbeatInterval time.Duration) {
+	var ticker *time.Ticker
+	var heartbeat <-chan time.Time
+	if heartbeatInterval > 0 {
+		ticker = time.NewTicker(heartbeatInterval)
+		defer ticker.Stop()
+		heartbeat = ticker.C
+	}
+	for {
+		select {
+		case <-heartbeat:
+			if writeTimeout > 0 {
+				_ = conn.SetWriteDeadline(time.Now().Add(writeTimeout))
+			}
+			if err := conn.WriteMessage(websocket.PingMessage, nil); err != nil {
+				return
+			}
+		case frame, ok := <-peer.SendQueue():
+			if !ok {
+				return
+			}
+			if writeTimeout > 0 {
+				_ = conn.SetWriteDeadline(time.Now().Add(writeTimeout))
+			}
+			if err := conn.WriteMessage(websocket.TextMessage, frame); err != nil {
+				return
+			}
+		}
 	}
 }

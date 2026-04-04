@@ -50,15 +50,7 @@ func NewHub() *Hub {
 //	    OnConnect: func(p *stream.Peer) { log.Println("connected", p.ID) },
 //	})
 func NewHubWithConfig(config HubConfig) *Hub {
-	if config.HeartbeatInterval == 0 {
-		config.HeartbeatInterval = DefaultHubConfig().HeartbeatInterval
-	}
-	if config.PongTimeout == 0 {
-		config.PongTimeout = DefaultHubConfig().PongTimeout
-	}
-	if config.WriteTimeout == 0 {
-		config.WriteTimeout = DefaultHubConfig().WriteTimeout
-	}
+	config = normalizeHubConfig(config)
 	return &Hub{
 		peers:      map[*Peer]bool{},
 		broadcast:  make(chan []byte, 256),
@@ -70,6 +62,19 @@ func NewHubWithConfig(config HubConfig) *Hub {
 		config:     config,
 		done:       make(chan struct{}),
 	}
+}
+
+// Config returns a normalised copy of the hub configuration.
+//
+//	cfg := hub.Config()
+func (h *Hub) Config() HubConfig {
+	if h == nil {
+		return DefaultHubConfig()
+	}
+	h.mu.RLock()
+	config := h.config
+	h.mu.RUnlock()
+	return normalizeHubConfig(config)
 }
 
 // Run starts the hub's select loop. Call in a goroutine. Exits when ctx is cancelled.
