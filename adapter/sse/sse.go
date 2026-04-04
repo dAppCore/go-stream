@@ -61,6 +61,7 @@ func (adapter *Adapter) Mount(hub *stream.Hub) {
 // ServeHTTP accepts an SSE connection and subscribes it using the channel query params.
 //
 //	http.Handle("/stream/events", adapter.Handler())
+//	http.Get("http://127.0.0.1:8080/stream/events?channel=hashrate")
 func (adapter *Adapter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	adapter.serve(w, r, r.URL.Query()["channel"])
 }

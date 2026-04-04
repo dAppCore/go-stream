@@ -191,12 +191,10 @@ func (adapter *Adapter) serveHTTP(w http.ResponseWriter, r *http.Request, channe
 }
 
 // Handler returns an http.HandlerFunc for WebSocket connections.
-// Compatible with net/http and gin (use gin.WrapF).
 //
 //	http.Handle("/stream/ws", adapter.Handler())
-//
-//	// Gin:
 //	r.GET("/stream/ws", gin.WrapF(adapter.Handler()))
+//
 func (adapter *Adapter) Handler() http.HandlerFunc {
 	return adapter.ServeHTTP
 }

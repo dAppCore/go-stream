@@ -8,8 +8,7 @@ import (
 	"dappco.re/go/core"
 )
 
-// Authenticator validates an HTTP request during the WebSocket upgrade or SSE
-// connection.
+// Authenticator checks an HTTP request during connection setup.
 //
 //	auth := stream.NewAPIKeyAuth(map[string]string{"sk-prod-1": "user-42"})
 //	result := auth.Authenticate(r)
@@ -17,7 +16,7 @@ type Authenticator interface {
 	Authenticate(r *http.Request) AuthResult
 }
 
-// AuthResult holds the outcome of an authentication attempt.
+// AuthResult is the outcome of an authentication attempt.
 type AuthResult struct {
 	// Valid indicates whether authentication succeeded.
 	Valid bool
@@ -72,6 +71,7 @@ func NewAPIKeyAuth(keys map[string]string) *APIKeyAuthenticator {
 }
 
 // auth := stream.NewAPIKeyAuth(map[string]string{"sk-prod-1": "user-42"})
+// r.Header.Set("Authorization", "Bearer sk-prod-1")
 // result := auth.Authenticate(r)
 func (a *APIKeyAuthenticator) Authenticate(r *http.Request) AuthResult {
 	if a == nil || r == nil {
