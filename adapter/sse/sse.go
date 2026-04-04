@@ -68,6 +68,14 @@ func (adapter *Adapter) serve(w http.ResponseWriter, r *http.Request, channels [
 		return
 	}
 
+	config := adapter.config
+	if config.HeartbeatInterval == 0 {
+		config.HeartbeatInterval = 15 * time.Second
+	}
+	if config.RetryMs == 0 {
+		config.RetryMs = 3000
+	}
+
 	result := stream.AuthResult{Valid: true}
 	if adapter.config.Authenticator != nil {
 		result = adapter.config.Authenticator.Authenticate(r)
@@ -101,10 +109,10 @@ func (adapter *Adapter) serve(w http.ResponseWriter, r *http.Request, channels [
 		_ = adapter.hub.SubscribePeer(peer, channel)
 	}
 
-	_, _ = io.WriteString(w, "retry: "+strconv.Itoa(adapter.config.RetryMs)+"\n\n")
+	_, _ = io.WriteString(w, "retry: "+strconv.Itoa(config.RetryMs)+"\n\n")
 	flusher.Flush()
 
-	ticker := time.NewTicker(adapter.config.HeartbeatInterval)
+	ticker := time.NewTicker(config.HeartbeatInterval)
 	defer ticker.Stop()
 
 	done := r.Context().Done()

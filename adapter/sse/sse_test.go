@@ -49,6 +49,41 @@ func TestAdapter_Handler_Good(t *testing.T) {
 	}
 }
 
+func TestAdapter_Handler_ZeroValueConfig_Good(t *testing.T) {
+	hub := stream.NewHub()
+	hubContext, hubCancel := context.WithCancel(context.Background())
+	defer hubCancel()
+	go hub.Run(hubContext)
+
+	adapter := &Adapter{}
+	adapter.Mount(hub)
+
+	server := httptest.NewServer(http.HandlerFunc(adapter.Handler()))
+	defer server.Close()
+
+	response, err := http.Get(server.URL + "?channel=hashrate")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	defer response.Body.Close()
+
+	waitForPeerCount(t, hub, 1)
+	if err := hub.Publish("hashrate", []byte("123456")); err != nil {
+		t.Fatalf("Publish() error = %v", err)
+	}
+
+	reader := bufio.NewReader(response.Body)
+	for {
+		line, err := reader.ReadString('\n')
+		if err != nil {
+			t.Fatalf("ReadString() error = %v", err)
+		}
+		if strings.TrimSpace(line) == "data: 123456" {
+			return
+		}
+	}
+}
+
 func TestAdapter_Handler_Bad(t *testing.T) {
 	hub := stream.NewHub()
 	hubContext, hubCancel := context.WithCancel(context.Background())
