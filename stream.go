@@ -240,8 +240,10 @@ func Pipe(src Stream, dst Stream) func() {
 		}))
 	}
 	if len(stops) == 0 {
+		// Generic Stream implementations do not expose channel names, so fall back
+		// to forwarding the frame as a broadcast.
 		return src.Subscribe("*", func(frame []byte) {
-			_ = dst.Publish("*", frame)
+			_ = dst.Broadcast(frame)
 		})
 	}
 	return func() {
