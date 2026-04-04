@@ -47,7 +47,9 @@ func (authenticatorFunc AuthenticatorFunc) Authenticate(request *http.Request) A
 }
 
 // auth := stream.NewAPIKeyAuth(map[string]string{"sk-live": "user-42"})
-// result := auth.Authenticate(r)
+// request := httptest.NewRequest("GET", "/stream/ws", nil)
+// request.Header.Set("Authorization", "Bearer sk-live")
+// result := auth.Authenticate(request)
 type APIKeyAuthenticator struct {
 	Keys map[string]string
 }
