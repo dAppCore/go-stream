@@ -165,7 +165,7 @@ func (rc *ReconnectingTCP) readLoop(ctx context.Context, conn net.Conn) error {
 			return ctx.Err()
 		default:
 		}
-		channel, frame, err := readFrame(conn, 0)
+		channel, frame, err := readFrame(conn, 0, MaxFrameSize)
 		if err != nil {
 			return err
 		}

@@ -140,6 +140,9 @@ func (h *Hub) SendToChannel(channel string, frame []byte) error {
 	running := h.running
 	handlers := cloneHandlers(h.handlers[channel])
 	wildcardHandlers := cloneHandlers(h.handlers["*"])
+	if channel == "*" {
+		wildcardHandlers = nil
+	}
 	publishers := clonePublishHandlers(h.publishers)
 	peersToSend := h.collectChannelPeersLocked(channel)
 	h.mu.RUnlock()

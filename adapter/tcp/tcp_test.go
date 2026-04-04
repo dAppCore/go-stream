@@ -125,6 +125,38 @@ func TestTCP_Listen_Ugly(t *testing.T) {
 	waitForPeerCount(t, hub, 0)
 }
 
+func TestTCP_Listen_HandshakeTooLarge_Good(t *testing.T) {
+	hub := stream.NewHub()
+	hubContext, hubCancel := context.WithCancel(context.Background())
+	defer hubCancel()
+	go hub.Run(hubContext)
+
+	adapter := New(Config{
+		Addr: "127.0.0.1:0",
+	})
+	adapter.Mount(hub)
+
+	listenContext, listenCancel := context.WithCancel(context.Background())
+	defer listenCancel()
+	go func() {
+		_ = adapter.Listen(listenContext)
+	}()
+
+	address := waitForListenerAddress(t, adapter)
+	connection, err := net.Dial("tcp", address)
+	if err != nil {
+		t.Fatalf("Dial() error = %v", err)
+	}
+	defer connection.Close()
+
+	tooLargeHandshake := make([]byte, maxHandshakeFrameSize+1)
+	if _, err := connection.Write(encodeFrame("", tooLargeHandshake)); err != nil {
+		t.Fatalf("Write() error = %v", err)
+	}
+
+	waitForPeerCount(t, hub, 0)
+}
+
 func waitForListenerAddress(t *testing.T, adapter *Adapter) string {
 	t.Helper()
 	deadline := time.Now().Add(2 * time.Second)

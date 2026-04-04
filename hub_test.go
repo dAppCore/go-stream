@@ -257,6 +257,37 @@ func TestHub_Broadcast_Ugly(t *testing.T) {
 	waitForPeerCount(t, hub, 0)
 }
 
+func TestHub_SendToChannel_Wildcard_Good(t *testing.T) {
+	hub := NewHub()
+	hubContext, hubCancel := context.WithCancel(context.Background())
+	defer hubCancel()
+
+	go hub.Run(hubContext)
+	waitForRunningHub(t, hub)
+
+	count := 0
+	unsubscribe := hub.Subscribe("*", func(frame []byte) {
+		if string(frame) == "event" {
+			count++
+		}
+	})
+	defer unsubscribe()
+
+	if err := hub.Publish("*", []byte("event")); err != nil {
+		t.Fatalf("Publish() error = %v", err)
+	}
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if count == 1 {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	t.Fatalf("wildcard handler count = %d, want 1", count)
+}
+
 func waitForRunningHub(t *testing.T, hub *Hub) {
 	t.Helper()
 	deadline := time.Now().Add(2 * time.Second)

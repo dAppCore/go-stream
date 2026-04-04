@@ -21,6 +21,8 @@ import (
 // MaxFrameSize is the maximum allowed frame size in bytes.
 const MaxFrameSize = 65535
 
+const maxHandshakeFrameSize = 4 << 10
+
 // Config configures the TCP adapter.
 type Config struct {
 	Addr              string
@@ -164,7 +166,7 @@ func (a *Adapter) dial(ctx context.Context) (net.Conn, error) {
 func (a *Adapter) handleConn(ctx context.Context, conn net.Conn, hub *stream.Hub) {
 	defer conn.Close()
 
-	_, handshake, err := readFrame(conn, a.config.HandshakeTimeout)
+	_, handshake, err := readFrame(conn, a.config.HandshakeTimeout, maxHandshakeFrameSize)
 	if err != nil {
 		return
 	}
@@ -187,7 +189,7 @@ func (a *Adapter) handleConn(ctx context.Context, conn net.Conn, hub *stream.Hub
 	go a.writePump(ctx, conn, peer, hub.Config().WriteTimeout)
 
 	for {
-		channel, frame, err := readFrame(conn, 0)
+		channel, frame, err := readFrame(conn, 0, MaxFrameSize)
 		if err != nil {
 			return
 		}
@@ -203,7 +205,7 @@ func (a *Adapter) pipePeer(ctx context.Context, conn net.Conn, peer *stream.Peer
 	defer conn.Close()
 	go a.writePump(ctx, conn, peer, hub.Config().WriteTimeout)
 	for {
-		channel, frame, err := readFrame(conn, 0)
+		channel, frame, err := readFrame(conn, 0, MaxFrameSize)
 		if err != nil {
 			hub.RemovePeer(peer)
 			return
@@ -235,7 +237,7 @@ func (a *Adapter) writePump(ctx context.Context, conn net.Conn, peer *stream.Pee
 	}
 }
 
-func readFrame(conn net.Conn, timeout time.Duration) (string, []byte, error) {
+func readFrame(conn net.Conn, timeout time.Duration, maxFrameSize int) (string, []byte, error) {
 	if timeout > 0 {
 		_ = conn.SetReadDeadline(time.Now().Add(timeout))
 	} else {
@@ -248,7 +250,7 @@ func readFrame(conn net.Conn, timeout time.Duration) (string, []byte, error) {
 		}
 		return "", nil, err
 	}
-	if length > MaxFrameSize {
+	if maxFrameSize > 0 && length > uint32(maxFrameSize) {
 		return "", nil, core.E("stream.tcp", "frame too large", nil)
 	}
 	payload := make([]byte, length)
