@@ -62,6 +62,50 @@ func TestTCP_Listen_Good(t *testing.T) {
 	waitForPeerCount(t, hub, 1)
 }
 
+func TestTCP_Listen_NoAuthenticator_Good(t *testing.T) {
+	hub := stream.NewHub()
+	hubContext, hubCancel := context.WithCancel(context.Background())
+	defer hubCancel()
+	go hub.Run(hubContext)
+
+	adapter := New(Config{
+		Addr: "127.0.0.1:0",
+	})
+	adapter.Mount(hub)
+
+	listenContext, listenCancel := context.WithCancel(context.Background())
+	defer listenCancel()
+	go func() {
+		_ = adapter.Listen(listenContext)
+	}()
+
+	address := waitForListenerAddress(t, adapter)
+	connection, err := net.Dial("tcp", address)
+	if err != nil {
+		t.Fatalf("Dial() error = %v", err)
+	}
+	defer connection.Close()
+
+	received := make(chan []byte, 1)
+	unsubscribe := hub.Subscribe("block", func(frame []byte) {
+		received <- append([]byte(nil), frame...)
+	})
+	defer unsubscribe()
+
+	if _, err := connection.Write(encodeFrame("block", []byte("template"))); err != nil {
+		t.Fatalf("Write() error = %v", err)
+	}
+
+	select {
+	case frame := <-received:
+		if string(frame) != "template" {
+			t.Fatalf("received frame = %q, want %q", string(frame), "template")
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for unauthenticated frame")
+	}
+}
+
 func TestTCP_Listen_Bad(t *testing.T) {
 	hub := stream.NewHub()
 	hubContext, hubCancel := context.WithCancel(context.Background())
@@ -103,7 +147,10 @@ func TestTCP_Listen_Ugly(t *testing.T) {
 	go hub.Run(hubContext)
 
 	adapter := New(Config{
-		Addr:             "127.0.0.1:0",
+		Addr: "127.0.0.1:0",
+		ConnAuthenticator: stream.ConnAuthenticatorFunc(func(handshake []byte) stream.AuthResult {
+			return stream.AuthResult{Valid: true}
+		}),
 		HandshakeTimeout: 50 * time.Millisecond,
 	})
 	adapter.Mount(hub)

@@ -116,7 +116,6 @@ func (adapter *Adapter) Dial(ctx context.Context, hub *stream.Hub) (*stream.Peer
 	if err != nil {
 		return nil, err
 	}
-	_, _ = conn.Write(encodeFrame("", nil))
 	peer := stream.NewPeer("tcp")
 	_ = hub.AddPeer(peer)
 	_ = hub.SubscribePeer(peer, "*")
@@ -166,13 +165,12 @@ func (adapter *Adapter) dial(ctx context.Context) (net.Conn, error) {
 func (adapter *Adapter) handleConn(ctx context.Context, conn net.Conn, hub *stream.Hub) {
 	defer conn.Close()
 
-	_, handshake, err := readFrame(conn, adapter.config.HandshakeTimeout, maxHandshakeFrameSize)
-	if err != nil {
-		return
-	}
-
 	result := stream.AuthResult{Valid: true}
 	if auth := adapter.config.ConnAuthenticator; auth != nil {
+		_, handshake, err := readFrame(conn, adapter.config.HandshakeTimeout, maxHandshakeFrameSize)
+		if err != nil {
+			return
+		}
 		result = auth.AuthenticateConn(handshake)
 		if !result.Valid {
 			return
