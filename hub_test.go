@@ -110,6 +110,68 @@ func TestHub_Pipe_Ugly(t *testing.T) {
 	}
 }
 
+func TestHub_Publish_Good(t *testing.T) {
+	hub := NewHub()
+	hubContext, hubCancel := context.WithCancel(context.Background())
+	defer hubCancel()
+
+	go hub.Run(hubContext)
+	waitForRunningHub(t, hub)
+
+	peer := NewPeer("ws")
+	if err := hub.AddPeer(peer); err != nil {
+		t.Fatalf("AddPeer() error = %v", err)
+	}
+	defer hub.RemovePeer(peer)
+
+	if err := hub.SubscribePeer(peer, "hashrate"); err != nil {
+		t.Fatalf("SubscribePeer(channel) error = %v", err)
+	}
+	if err := hub.SubscribePeer(peer, "*"); err != nil {
+		t.Fatalf("SubscribePeer(wildcard) error = %v", err)
+	}
+
+	if err := hub.Publish("hashrate", []byte("123456")); err != nil {
+		t.Fatalf("Publish() error = %v", err)
+	}
+
+	select {
+	case frame := <-peer.SendQueue():
+		if string(frame) != "123456" {
+			t.Fatalf("received frame = %q, want %q", string(frame), "123456")
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for published frame")
+	}
+
+	select {
+	case frame := <-peer.SendQueue():
+		t.Fatalf("received duplicate frame = %q", string(frame))
+	case <-time.After(200 * time.Millisecond):
+	}
+}
+
+func TestHub_Publish_Bad(t *testing.T) {
+	hub := NewHub()
+	hubContext, hubCancel := context.WithCancel(context.Background())
+	defer hubCancel()
+
+	go hub.Run(hubContext)
+	waitForRunningHub(t, hub)
+
+	if err := hub.Publish("hashrate", []byte("123456")); err != nil {
+		t.Fatalf("Publish() error = %v, want nil", err)
+	}
+}
+
+func TestHub_Publish_Ugly(t *testing.T) {
+	hub := NewHub()
+
+	if err := hub.Publish("hashrate", []byte("123456")); err != ErrHubNotRunning {
+		t.Fatalf("Publish() error = %v, want %v", err, ErrHubNotRunning)
+	}
+}
+
 func waitForRunningHub(t *testing.T, hub *Hub) {
 	t.Helper()
 	deadline := time.Now().Add(2 * time.Second)

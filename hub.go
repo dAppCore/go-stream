@@ -5,6 +5,7 @@ package stream
 import (
 	"context"
 	"iter"
+	"sort"
 	"sync"
 
 	"dappco.re/go/core"
@@ -124,27 +125,18 @@ func (h *Hub) SendToChannel(channel string, frame []byte) error {
 	}
 	h.mu.RLock()
 	running := h.running
-	peers := h.channels[channel]
-	wildcardPeers := h.channels["*"]
-	if channel == "*" {
-		wildcardPeers = nil
-	}
 	handlers := cloneHandlers(h.handlers[channel])
 	wildcardHandlers := cloneHandlers(h.handlers["*"])
 	publishers := clonePublishHandlers(h.publishers)
-	peersToSend := clonePeers(peers)
-	wildcardPeersToSend := clonePeers(wildcardPeers)
+	peersToSend := h.collectChannelPeersLocked(channel)
 	h.mu.RUnlock()
 	if !running {
 		return ErrHubNotRunning
 	}
-	if len(peersToSend) == 0 && len(wildcardPeersToSend) == 0 && len(handlers) == 0 && len(wildcardHandlers) == 0 && len(publishers) == 0 {
+	if len(peersToSend) == 0 && len(handlers) == 0 && len(wildcardHandlers) == 0 && len(publishers) == 0 {
 		return nil
 	}
 	for _, peer := range peersToSend {
-		h.sendToPeer(peer, channel, frame)
-	}
-	for _, peer := range wildcardPeersToSend {
 		h.sendToPeer(peer, channel, frame)
 	}
 	h.invokeHandlers(handlers, frame)
@@ -389,6 +381,7 @@ func (h *Hub) AllChannels() iter.Seq[string] {
 		channels = append(channels, channel)
 	}
 	h.mu.RUnlock()
+	sort.Strings(channels)
 	return func(yield func(string) bool) {
 		for _, channel := range channels {
 			if !yield(channel) {
@@ -523,6 +516,23 @@ func (h *Hub) invokePublishHandlers(handlers []func(string, []byte), channel str
 			fn(channel, frame)
 		}(handler)
 	}
+}
+
+func (h *Hub) collectChannelPeersLocked(channel string) []*Peer {
+	combined := map[*Peer]struct{}{}
+	for peer := range h.channels[channel] {
+		combined[peer] = struct{}{}
+	}
+	if channel != "*" {
+		for peer := range h.channels["*"] {
+			combined[peer] = struct{}{}
+		}
+	}
+	peers := make([]*Peer, 0, len(combined))
+	for peer := range combined {
+		peers = append(peers, peer)
+	}
+	return peers
 }
 
 func cloneHandlers(handlers map[uint64]func([]byte)) []func([]byte) {

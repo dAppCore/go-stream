@@ -66,6 +66,9 @@ func (b *Bridge) Start(ctx context.Context) error {
 	if b == nil {
 		return core.E("stream.redis", "nil bridge", nil)
 	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	b.mu.Lock()
 	if b.running {
 		b.mu.Unlock()

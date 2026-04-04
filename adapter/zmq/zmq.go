@@ -72,6 +72,9 @@ func (a *Adapter) Start(ctx context.Context) error {
 	if a == nil {
 		return core.E("stream.zmq", "nil adapter", nil)
 	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	if a.config.Endpoint == "" {
 		return core.E("stream.zmq", "empty endpoint", nil)
 	}

@@ -56,6 +56,9 @@ func (a *Adapter) Listen(ctx context.Context) error {
 	if a == nil {
 		return core.E("stream.tcp", "nil adapter", nil)
 	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	if a.hub == nil {
 		return core.E("stream.tcp", "stream hub not mounted", nil)
 	}

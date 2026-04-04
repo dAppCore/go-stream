@@ -98,6 +98,8 @@ func (rc *ReconnectingClient) Connect(ctx context.Context) error {
 		rc.conn = conn
 		rc.state = stream.StateConnected
 		rc.mu.Unlock()
+		backoff = rc.config.InitialBackoff
+		attempt = 0
 		if rc.config.OnConnect != nil {
 			rc.config.OnConnect()
 		}

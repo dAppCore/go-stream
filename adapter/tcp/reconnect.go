@@ -78,6 +78,8 @@ func (rc *ReconnectingTCP) Connect(ctx context.Context) error {
 		}
 
 		rc.setConn(conn)
+		backoff = rc.config.InitialBackoff
+		attempt = 0
 		if rc.config.OnConnect != nil {
 			rc.config.OnConnect()
 		}
