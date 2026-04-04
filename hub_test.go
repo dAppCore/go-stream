@@ -441,6 +441,37 @@ func TestHub_SubscribeE_Good(t *testing.T) {
 	}
 }
 
+func TestHub_SubscribeWithError_Good(t *testing.T) {
+	hub := NewHub()
+	hubContext, hubCancel := context.WithCancel(context.Background())
+	defer hubCancel()
+
+	go hub.Run(hubContext)
+	waitForRunningHub(t, hub)
+
+	received := make(chan []byte, 1)
+	unsubscribe, err := hub.SubscribeWithError("block", func(frame []byte) {
+		received <- append([]byte(nil), frame...)
+	})
+	if err != nil {
+		t.Fatalf("SubscribeWithError() error = %v", err)
+	}
+	defer unsubscribe()
+
+	if err := hub.Publish("block", []byte("template")); err != nil {
+		t.Fatalf("Publish() error = %v", err)
+	}
+
+	select {
+	case frame := <-received:
+		if string(frame) != "template" {
+			t.Fatalf("received frame = %q, want %q", string(frame), "template")
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for subscribed frame")
+	}
+}
+
 func TestHub_SubscribeE_Bad(t *testing.T) {
 	hub := NewHub()
 

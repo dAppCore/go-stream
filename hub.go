@@ -185,14 +185,15 @@ func (hub *Hub) sendToChannelFromPeer(source *Peer, channel string, frame []byte
 	return nil
 }
 
-// SubscribeE registers a handler function invoked for every frame arriving on channel.
-// Returns an unsubscribe function and an error for invalid input. Multiple handlers
-// per channel are allowed. Handlers run in the hub's goroutine — keep them non-blocking.
+// SubscribeWithError registers a handler function invoked for every frame arriving
+// on channel. Returns an unsubscribe function and an error for invalid input.
+// Multiple handlers per channel are allowed. Handlers run in the hub's goroutine —
+// keep them non-blocking.
 //
-//	unsub, err := hub.SubscribeE("block", func(f []byte) { ... })
+//	unsub, err := hub.SubscribeWithError("block", func(frame []byte) { ... })
 //	if err != nil { return err }
 //	defer unsub()
-func (hub *Hub) SubscribeE(channel string, handler func([]byte)) (func(), error) {
+func (hub *Hub) SubscribeWithError(channel string, handler func([]byte)) (func(), error) {
 	if hub == nil {
 		return func() {}, core.E("stream.hub", "nil hub", nil)
 	}
@@ -229,6 +230,13 @@ func (hub *Hub) SubscribeE(channel string, handler func([]byte)) (func(), error)
 	}, nil
 }
 
+// SubscribeE is a compatibility alias for SubscribeWithError.
+//
+//	unsub, err := hub.SubscribeE("block", func(frame []byte) { ... })
+func (hub *Hub) SubscribeE(channel string, handler func([]byte)) (func(), error) {
+	return hub.SubscribeWithError(channel, handler)
+}
+
 // Subscribe registers a handler function invoked for every frame arriving on channel.
 // Returns an unsubscribe function. Multiple handlers per channel are allowed.
 // Handlers run in the hub's goroutine — keep them non-blocking.
@@ -236,7 +244,7 @@ func (hub *Hub) SubscribeE(channel string, handler func([]byte)) (func(), error)
 //	unsub := hub.Subscribe("block", func(f []byte) { ... })
 //	defer unsub()
 func (hub *Hub) Subscribe(channel string, handler func([]byte)) func() {
-	unsub, _ := hub.SubscribeE(channel, handler)
+	unsub, _ := hub.SubscribeWithError(channel, handler)
 	return unsub
 }
 
