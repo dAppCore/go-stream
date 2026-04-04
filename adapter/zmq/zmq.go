@@ -38,6 +38,13 @@ const (
 )
 
 // Config configures the ZMQ adapter.
+//
+//	cfg := zmq.Config{
+//	    Mode:     zmq.ModePubSub,
+//	    Endpoint: "tcp://127.0.0.1:5555",
+//	    Role:     zmq.RoleSubscriber,
+//	}
+//	adapter := zmq.New(cfg)
 type Config struct {
 	Mode     Mode
 	Endpoint string
