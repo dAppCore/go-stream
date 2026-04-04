@@ -4,9 +4,7 @@ package stream
 
 import "time"
 
-// msg := stream.Message{Type: stream.TypeEvent, Channel: "hashrate"}
-// frame, _ := core.JSONMarshal(msg)
-// _ = frame
+// messageType := stream.TypeEvent
 type MessageType string
 
 const (
@@ -21,9 +19,10 @@ const (
 )
 
 //	msg := stream.Message{
-//	    Type:    stream.TypeEvent,
-//	    Channel: "hashrate",
-//	    Data:    map[string]any{"h": 1234567},
+//	    Type:      stream.TypeEvent,
+//	    Channel:   "hashrate",
+//	    Data:      map[string]any{"h": 1234567},
+//	    Timestamp: time.Now().UTC(),
 //	}
 //
 // frame, _ := core.JSONMarshal(msg)

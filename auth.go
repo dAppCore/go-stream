@@ -16,18 +16,22 @@ type Authenticator interface {
 	Authenticate(request *http.Request) AuthResult
 }
 
-// result := stream.AuthResult{Valid: true, UserID: "user-42", Claims: map[string]any{"role": "admin"}}
+//	result := stream.AuthResult{
+//	    Valid:  true,
+//	    UserID: "user-42",
+//	    Claims: map[string]any{"role": "admin"},
+//	}
 type AuthResult struct {
-	// Valid indicates whether authentication succeeded.
+	// result := stream.AuthResult{Valid: true}
 	Valid bool
 
-	// UserID is the authenticated user's identifier.
+	// result := stream.AuthResult{UserID: "user-42"}
 	UserID string
 
-	// Claims holds arbitrary metadata (roles, scopes, tenant ID).
+	// result := stream.AuthResult{Claims: map[string]any{"role": "admin"}}
 	Claims map[string]any
 
-	// Error holds the reason for failure, if any.
+	// result := stream.AuthResult{Error: ErrInvalidAPIKey}
 	Error error
 }
 
@@ -43,13 +47,13 @@ func (authenticatorFunc AuthenticatorFunc) Authenticate(request *http.Request) A
 	return authenticatorFunc(request)
 }
 
-//	auth := stream.NewAPIKeyAuth(map[string]string{"sk-live": "user-42"})
-//	result := auth.Authenticate(r)
+// auth := stream.NewAPIKeyAuth(map[string]string{"sk-live": "user-42"})
+// result := auth.Authenticate(r)
 type APIKeyAuthenticator struct {
 	Keys map[string]string
 }
 
-//	authenticator := stream.NewAPIKeyAuth(map[string]string{"sk-live": "user-42"})
+// authenticator := stream.NewAPIKeyAuth(map[string]string{"sk-live": "user-42"})
 func NewAPIKeyAuth(keys map[string]string) *APIKeyAuthenticator {
 	if keys == nil {
 		keys = map[string]string{}
@@ -61,9 +65,9 @@ func NewAPIKeyAuth(keys map[string]string) *APIKeyAuthenticator {
 	return &APIKeyAuthenticator{Keys: copied}
 }
 
-//	authenticator := stream.NewAPIKeyAuth(map[string]string{"sk-live": "user-42"})
-//	request.Header.Set("Authorization", "Bearer sk-live")
-//	result := authenticator.Authenticate(request)
+// authenticator := stream.NewAPIKeyAuth(map[string]string{"sk-live": "user-42"})
+// request.Header.Set("Authorization", "Bearer sk-live")
+// result := authenticator.Authenticate(request)
 func (authenticator *APIKeyAuthenticator) Authenticate(request *http.Request) AuthResult {
 	if authenticator == nil || request == nil {
 		return AuthResult{Valid: false}

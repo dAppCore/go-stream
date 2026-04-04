@@ -6,40 +6,40 @@ import "time"
 
 //	cfg := stream.HubConfig{
 //	    HeartbeatInterval: 30 * time.Second,
+//	    PongTimeout:       60 * time.Second,
+//	    WriteTimeout:      10 * time.Second,
 //	    OnConnect: func(peer *stream.Peer) {
 //	        metrics.Inc("peers")
 //	    },
-//	    ChannelAuthoriser: func(peer *stream.Peer, channel string) bool {
-//	        return peer.Claims["role"] == "admin" || channel == "public"
-//	    },
 //	}
 type HubConfig struct {
-	// HeartbeatInterval: 30 * time.Second keeps WebSocket clients alive.
-	// Ignored by SSE and TCP adapters.
+	// stream.NewHubWithConfig(stream.HubConfig{HeartbeatInterval: 30 * time.Second})
+	// Keeps WebSocket peers alive. SSE and TCP adapters ignore it.
 	HeartbeatInterval time.Duration
 
-	// PongTimeout: 60 * time.Second closes stale WebSocket peers after a ping.
-	// Must be greater than HeartbeatInterval.
+	// stream.NewHubWithConfig(stream.HubConfig{PongTimeout: 60 * time.Second})
+	// Closes stale WebSocket peers after a ping. Keep it above HeartbeatInterval.
 	PongTimeout time.Duration
 
-	// WriteTimeout: 10 * time.Second bounds each WebSocket or TCP write.
+	// stream.NewHubWithConfig(stream.HubConfig{WriteTimeout: 10 * time.Second})
+	// Bounds each WebSocket or TCP write.
 	WriteTimeout time.Duration
 
-	// OnConnect: func(peer *stream.Peer) { metrics.Inc("peers") }.
-	//
-	//		OnConnect: func(peer *stream.Peer) { metrics.Inc("peers") },
+	// stream.NewHubWithConfig(stream.HubConfig{
+	//     OnConnect: func(peer *stream.Peer) { metrics.Inc("peers") },
+	// })
 	OnConnect func(peer *Peer)
 
-	// OnDisconnect: func(peer *stream.Peer) { metrics.Dec("peers") }.
+	// stream.NewHubWithConfig(stream.HubConfig{
+	//     OnDisconnect: func(peer *stream.Peer) { metrics.Dec("peers") },
+	// })
 	OnDisconnect func(peer *Peer)
 
-	// ChannelAuthoriser: func(peer *stream.Peer, channel string) bool {
-	//     return peer.Claims["role"] == "admin" || channel == "public"
-	// }.
-	//
-	//		ChannelAuthoriser: func(peer *stream.Peer, channel string) bool {
-	//		    return peer.Claims["role"] == "admin" || channel == "public"
-	//		},
+	// stream.NewHubWithConfig(stream.HubConfig{
+	//     ChannelAuthoriser: func(peer *stream.Peer, channel string) bool {
+	//         return peer.Claims["role"] == "admin" || channel == "public"
+	//     },
+	// })
 	// When nil, all subscriptions are allowed.
 	ChannelAuthoriser func(peer *Peer, channel string) bool
 }
