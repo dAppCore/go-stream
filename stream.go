@@ -14,7 +14,11 @@ package stream
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/binary"
+	"encoding/hex"
 	"iter"
+	"sort"
 	"sync"
 	"time"
 )
@@ -92,24 +96,85 @@ type Peer struct {
 	closeOnce     sync.Once
 }
 
+// NewPeer creates a peer with a generated identifier and a buffered send queue.
+//
+//	peer := stream.NewPeer("ws")
+func NewPeer(transport string) *Peer {
+	return &Peer{
+		ID:            randomID(),
+		Transport:     transport,
+		send:          make(chan []byte, 256),
+		subscriptions: map[string]bool{},
+	}
+}
+
 // Subscriptions returns a copy of this peer's current channel subscriptions.
 //
 //	channels := peer.Subscriptions()   // ["hashrate", "block"]
 func (p *Peer) Subscriptions() []string {
-	return nil
+	if p == nil {
+		return nil
+	}
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	channels := make([]string, 0, len(p.subscriptions))
+	for channel := range p.subscriptions {
+		channels = append(channels, channel)
+	}
+	sort.Strings(channels)
+	return channels
 }
 
 // Send enqueues frame for delivery. Non-blocking: drops and returns false if buffer full.
 //
 //	ok := peer.Send(frame)
 func (p *Peer) Send(frame []byte) bool {
-	return false
+	if p == nil {
+		return false
+	}
+	defer func() {
+		_ = recover()
+	}()
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	if p.send == nil {
+		return false
+	}
+	payload := append([]byte(nil), frame...)
+	select {
+	case p.send <- payload:
+		return true
+	default:
+		return false
+	}
 }
 
 // Close signals the transport adapter to shut down this connection.
 //
 //	peer.Close()
 func (p *Peer) Close() {
+	if p == nil {
+		return
+	}
+	p.closeOnce.Do(func() {
+		p.mu.Lock()
+		defer p.mu.Unlock()
+		if p.send != nil {
+			close(p.send)
+		}
+	})
+}
+
+// SendQueue returns the peer's outgoing frame queue.
+//
+//	for frame := range peer.SendQueue() { ... }
+func (p *Peer) SendQueue() <-chan []byte {
+	if p == nil {
+		return nil
+	}
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	return p.send
 }
 
 // ConnectionState represents the lifecycle state of a reconnecting client.
@@ -134,7 +199,13 @@ type Envelope struct {
 //	stop := stream.Pipe(zmqHub, wsHub)
 //	defer stop()
 func Pipe(src Stream, dst Stream) func() {
-	return nil
+	if src == nil || dst == nil || src == dst {
+		return func() {}
+	}
+	stop := src.Subscribe("*", func(frame []byte) {
+		_ = dst.Broadcast(frame)
+	})
+	return stop
 }
 
 // Ensure Hub satisfies Stream at compile time.
@@ -147,3 +218,24 @@ var (
 	_ sync.Once
 	_ time.Duration
 )
+
+func randomID() string {
+	var raw [16]byte
+	_, _ = rand.Read(raw[:])
+	return hex.EncodeToString(raw[:4]) + "-" +
+		hex.EncodeToString(raw[4:6]) + "-" +
+		hex.EncodeToString(raw[6:8]) + "-" +
+		hex.EncodeToString(raw[8:10]) + "-" +
+		hex.EncodeToString(raw[10:])
+}
+
+func encodeTCPFrame(channel string, frame []byte) []byte {
+	channelBytes := []byte(channel)
+	payloadLength := uint32(4 + len(channelBytes) + len(frame))
+	output := make([]byte, 4+payloadLength)
+	binary.BigEndian.PutUint32(output[:4], payloadLength)
+	binary.BigEndian.PutUint32(output[4:8], uint32(len(channelBytes)))
+	copy(output[8:8+len(channelBytes)], channelBytes)
+	copy(output[8+len(channelBytes):], frame)
+	return output
+}

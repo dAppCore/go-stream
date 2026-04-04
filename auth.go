@@ -2,7 +2,11 @@
 
 package stream
 
-import "net/http"
+import (
+	"net/http"
+
+	"dappco.re/go/core"
+)
 
 // Authenticator validates an HTTP request during the WebSocket upgrade or SSE
 // connection. Implementations may inspect headers, query parameters, or cookies.
@@ -50,12 +54,37 @@ type APIKeyAuthenticator struct {
 //
 //	auth := stream.NewAPIKeyAuth(map[string]string{"sk-prod-1": "user-42"})
 func NewAPIKeyAuth(keys map[string]string) *APIKeyAuthenticator {
-	return nil
+	if keys == nil {
+		keys = map[string]string{}
+	}
+	copied := make(map[string]string, len(keys))
+	for key, userID := range keys {
+		copied[key] = userID
+	}
+	return &APIKeyAuthenticator{Keys: copied}
 }
 
 // Authenticate validates the request's Authorization Bearer token against the key map.
 func (a *APIKeyAuthenticator) Authenticate(r *http.Request) AuthResult {
-	return AuthResult{}
+	if a == nil {
+		return AuthResult{Valid: false}
+	}
+	header := r.Header.Get("Authorization")
+	if header == "" {
+		return AuthResult{Valid: false, Error: ErrMissingAuthHeader}
+	}
+	if !core.HasPrefix(header, "Bearer ") {
+		return AuthResult{Valid: false, Error: ErrMalformedAuthHeader}
+	}
+	token := core.TrimPrefix(header, "Bearer ")
+	if token == "" {
+		return AuthResult{Valid: false, Error: ErrMalformedAuthHeader}
+	}
+	userID, ok := a.Keys[token]
+	if !ok {
+		return AuthResult{Valid: false, Error: ErrInvalidAPIKey}
+	}
+	return AuthResult{Valid: true, UserID: userID}
 }
 
 // BearerTokenAuth delegates bearer token validation to a caller-supplied function.
@@ -73,7 +102,21 @@ type BearerTokenAuth struct {
 
 // Authenticate extracts the Bearer token and delegates to Validate.
 func (b *BearerTokenAuth) Authenticate(r *http.Request) AuthResult {
-	return AuthResult{}
+	if b == nil || b.Validate == nil {
+		return AuthResult{Valid: false}
+	}
+	header := r.Header.Get("Authorization")
+	if header == "" {
+		return AuthResult{Valid: false, Error: ErrMissingAuthHeader}
+	}
+	if !core.HasPrefix(header, "Bearer ") {
+		return AuthResult{Valid: false, Error: ErrMalformedAuthHeader}
+	}
+	token := core.TrimPrefix(header, "Bearer ")
+	if token == "" {
+		return AuthResult{Valid: false, Error: ErrMalformedAuthHeader}
+	}
+	return b.Validate(token)
 }
 
 // QueryTokenAuth extracts a ?token= query parameter and validates via caller function.
@@ -88,7 +131,14 @@ type QueryTokenAuth struct {
 
 // Authenticate extracts the token query parameter and delegates to Validate.
 func (q *QueryTokenAuth) Authenticate(r *http.Request) AuthResult {
-	return AuthResult{}
+	if q == nil || q.Validate == nil {
+		return AuthResult{Valid: false}
+	}
+	token := r.URL.Query().Get("token")
+	if token == "" {
+		return AuthResult{Valid: false}
+	}
+	return q.Validate(token)
 }
 
 // ConnAuthenticator validates a raw connection handshake for TCP and ZMQ adapters.
