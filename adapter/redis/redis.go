@@ -46,7 +46,9 @@ type envelope struct {
 	Frame    []byte `json:"f"`
 }
 
-// NewBridge creates and validates the Redis connection. Does not start listening.
+// NewBridge creates and validates the Redis connection.
+//
+//	bridge, err := redis.NewBridge(hub, redis.Config{Addr: "redis:6379", Prefix: "pool"})
 func NewBridge(hub *stream.Hub, config Config) (*Bridge, error) {
 	if hub == nil {
 		return nil, core.E("stream.redis", "nil hub", nil)
@@ -73,7 +75,9 @@ func NewBridge(hub *stream.Hub, config Config) (*Bridge, error) {
 	}, nil
 }
 
-// Start begins the Redis pub/sub listener. Blocks in a goroutine until Stop() or ctx cancel.
+// Start begins the Redis pub/sub listener.
+//
+//	go bridge.Start(ctx)
 func (bridge *Bridge) Start(ctx context.Context) error {
 	if bridge == nil {
 		return core.E("stream.redis", "nil bridge", nil)
@@ -159,7 +163,9 @@ func (bridge *Bridge) Start(ctx context.Context) error {
 	}
 }
 
-// Stop cleanly shuts down the bridge. Closes the pub/sub subscription and Redis client.
+// Stop cleanly shuts down the bridge.
+//
+//	defer bridge.Stop()
 func (bridge *Bridge) Stop() error {
 	if bridge == nil {
 		return nil
@@ -197,6 +203,8 @@ func (bridge *Bridge) Stop() error {
 }
 
 // PublishToChannel publishes frame to a specific hub channel via Redis.
+//
+//	_ = bridge.PublishToChannel("block", templateBytes)
 func (bridge *Bridge) PublishToChannel(channel string, frame []byte) error {
 	if bridge == nil {
 		return core.E("stream.redis", "nil bridge", nil)
@@ -209,6 +217,8 @@ func (bridge *Bridge) PublishToChannel(channel string, frame []byte) error {
 }
 
 // PublishBroadcast publishes frame as a broadcast via Redis.
+//
+//	_ = bridge.PublishBroadcast(shutdownFrame)
 func (bridge *Bridge) PublishBroadcast(frame []byte) error {
 	if bridge == nil {
 		return core.E("stream.redis", "nil bridge", nil)

@@ -26,6 +26,8 @@ type ReconnectConfig struct {
 }
 
 // ReconnectingTCP connects to a TCP stream endpoint with automatic reconnection.
+//
+//	client := tcp.NewReconnectingTCP(tcp.ReconnectConfig{Addr: "10.69.69.165:9000"})
 type ReconnectingTCP struct {
 	config ReconnectConfig
 
@@ -48,7 +50,9 @@ func NewReconnectingTCP(config ReconnectConfig) *ReconnectingTCP {
 	return &ReconnectingTCP{config: config}
 }
 
-// Connect starts the connection loop. Blocks until ctx is cancelled.
+// Connect starts the connection loop.
+//
+//	err := client.Connect(ctx)
 func (client *ReconnectingTCP) Connect(ctx context.Context) error {
 	if client == nil {
 		return core.E("stream.tcp", "nil reconnecting tcp", nil)
@@ -111,6 +115,8 @@ func (client *ReconnectingTCP) Connect(ctx context.Context) error {
 }
 
 // Send transmits frame on channel through the TCP connection.
+//
+//	_ = client.Send("vpn:peer-abc123", encryptedPacket)
 func (client *ReconnectingTCP) Send(channel string, frame []byte) error {
 	if client == nil {
 		return core.E("stream.tcp", "nil reconnecting tcp", nil)
@@ -126,6 +132,8 @@ func (client *ReconnectingTCP) Send(channel string, frame []byte) error {
 }
 
 // Close shuts down the reconnecting client.
+//
+//	_ = client.Close()
 func (client *ReconnectingTCP) Close() error {
 	if client == nil {
 		return nil

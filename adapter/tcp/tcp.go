@@ -40,7 +40,9 @@ type Adapter struct {
 	listener net.Listener
 }
 
-// New creates a TCP adapter. Call Mount before Listen or Dial.
+// New creates a TCP adapter.
+//
+//	adapter := tcp.New(tcp.Config{Addr: ":9000", ConnAuthenticator: auth})
 func New(config Config) *Adapter {
 	if config.HandshakeTimeout == 0 {
 		config.HandshakeTimeout = 5 * time.Second
@@ -49,11 +51,15 @@ func New(config Config) *Adapter {
 }
 
 // Mount wires the adapter to a hub.
+//
+//	adapter.Mount(hub)
 func (adapter *Adapter) Mount(hub *stream.Hub) {
 	adapter.hub = hub
 }
 
 // Listen starts the TCP accept loop. Blocks until ctx cancelled.
+//
+//	go adapter.Listen(ctx)
 func (adapter *Adapter) Listen(ctx context.Context) error {
 	if adapter == nil {
 		return core.E("stream.tcp", "nil adapter", nil)
@@ -101,7 +107,9 @@ func (adapter *Adapter) Listen(ctx context.Context) error {
 	}
 }
 
-// Dial connects to a remote TCP stream endpoint. Returns a Peer that can send/receive.
+// Dial connects to a remote TCP stream endpoint.
+//
+//	peer, err := adapter.Dial(ctx, hub)
 func (adapter *Adapter) Dial(ctx context.Context, hub *stream.Hub) (*stream.Peer, error) {
 	if adapter == nil {
 		return nil, core.E("stream.tcp", "nil adapter", nil)

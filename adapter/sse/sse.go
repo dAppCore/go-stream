@@ -28,7 +28,7 @@ type Adapter struct {
 	config Config
 }
 
-// New creates an SSE adapter. Call Mount before serving requests.
+// New creates an SSE adapter.
 func New(config Config) *Adapter {
 	if config.HeartbeatInterval == 0 {
 		config.HeartbeatInterval = 15 * time.Second
@@ -39,24 +39,28 @@ func New(config Config) *Adapter {
 	return &Adapter{config: config}
 }
 
-// Mount wires the adapter to a hub. Must be called before Handler().
+// Mount wires the adapter to a hub.
 func (adapter *Adapter) Mount(hub *stream.Hub) {
 	adapter.hub = hub
 }
 
 // ServeHTTP accepts an SSE connection and subscribes it using the channel query params.
 //
-//	http.Handle("/stream/events", adapter)
+//	http.Handle("/stream/events", adapter.Handler())
 func (adapter *Adapter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	adapter.serve(w, r, r.URL.Query()["channel"])
 }
 
 // Handler returns an http.HandlerFunc that accepts SSE connections.
+//
+//	http.Handle("/stream/events", adapter.Handler())
 func (adapter *Adapter) Handler() http.HandlerFunc {
 	return adapter.ServeHTTP
 }
 
 // HandlerForChannel returns a handler that auto-subscribes all connections to channel.
+//
+//	http.Handle("/stream/hashrate", adapter.HandlerForChannel("hashrate"))
 func (adapter *Adapter) HandlerForChannel(channel string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		adapter.serve(w, r, []string{channel})

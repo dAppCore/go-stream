@@ -40,6 +40,8 @@ type ReconnectingClient struct {
 }
 
 // NewReconnectingClient creates a reconnecting WebSocket client.
+//
+//	client := ws.NewReconnectingClient(ws.ReconnectConfig{URL: "ws://localhost:8080/stream/ws"})
 func NewReconnectingClient(config ReconnectConfig) *ReconnectingClient {
 	if config.InitialBackoff == 0 {
 		config.InitialBackoff = 500 * time.Millisecond
@@ -53,7 +55,9 @@ func NewReconnectingClient(config ReconnectConfig) *ReconnectingClient {
 	return &ReconnectingClient{config: config, state: stream.StateDisconnected}
 }
 
-// Connect starts the connection loop. Blocks until ctx is cancelled.
+// Connect starts the connection loop.
+//
+//	err := client.Connect(ctx)
 func (client *ReconnectingClient) Connect(ctx context.Context) error {
 	if client == nil {
 		return core.E("stream.ws", "nil reconnecting client", nil)
@@ -139,6 +143,8 @@ func (client *ReconnectingClient) Connect(ctx context.Context) error {
 }
 
 // Send marshals and sends a message through the WebSocket connection.
+//
+//	_ = client.Send(stream.Message{Type: stream.TypeEvent, Channel: "hashrate", Data: map[string]any{"h": 1234567}})
 func (client *ReconnectingClient) Send(msg stream.Message) error {
 	if client == nil {
 		return core.E("stream.ws", "nil reconnecting client", nil)
@@ -179,6 +185,8 @@ func (client *ReconnectingClient) State() stream.ConnectionState {
 }
 
 // Close shuts down the reconnecting client.
+//
+//	_ = client.Close()
 func (client *ReconnectingClient) Close() error {
 	if client == nil {
 		return nil

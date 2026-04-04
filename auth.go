@@ -9,7 +9,10 @@ import (
 )
 
 // Authenticator validates an HTTP request during the WebSocket upgrade or SSE
-// connection. Implementations may inspect headers, query parameters, or cookies.
+// connection.
+//
+//	auth := stream.NewAPIKeyAuth(map[string]string{"sk-prod-1": "user-42"})
+//	result := auth.Authenticate(r)
 type Authenticator interface {
 	Authenticate(r *http.Request) AuthResult
 }
@@ -33,19 +36,22 @@ type AuthResult struct {
 //
 //	auth := stream.AuthenticatorFunc(func(r *http.Request) stream.AuthResult {
 //	    token := r.Header.Get("X-Api-Key")
-//	    if token == "" { return stream.AuthResult{Valid: false} }
+//	    if token == "" {
+//	        return stream.AuthResult{Valid: false}
+//	    }
 //	    return stream.AuthResult{Valid: true, UserID: lookupUser(token)}
 //	})
 type AuthenticatorFunc func(r *http.Request) AuthResult
 
-// Authenticate calls f(r).
+// Authenticate calls the wrapped function.
 func (f AuthenticatorFunc) Authenticate(r *http.Request) AuthResult {
 	return f(r)
 }
 
-// APIKeyAuthenticator validates Authorization: Bearer <key> against a static map.
+// APIKeyAuthenticator validates `Authorization: Bearer <key>` against a static map.
 //
 //	auth := stream.NewAPIKeyAuth(map[string]string{"sk-prod-1": "user-42"})
+//	result := auth.Authenticate(r)
 type APIKeyAuthenticator struct {
 	Keys map[string]string
 }
@@ -64,7 +70,10 @@ func NewAPIKeyAuth(keys map[string]string) *APIKeyAuthenticator {
 	return &APIKeyAuthenticator{Keys: copied}
 }
 
-// Authenticate validates the request's Authorization Bearer token against the key map.
+// Authenticate validates the request's `Authorization: Bearer <key>` header.
+//
+//	auth := stream.NewAPIKeyAuth(map[string]string{"sk-prod-1": "user-42"})
+//	result := auth.Authenticate(r)
 func (a *APIKeyAuthenticator) Authenticate(r *http.Request) AuthResult {
 	if a == nil {
 		return AuthResult{Valid: false}
@@ -92,7 +101,9 @@ func (a *APIKeyAuthenticator) Authenticate(r *http.Request) AuthResult {
 //	auth := &stream.BearerTokenAuth{
 //	    Validate: func(token string) stream.AuthResult {
 //	        claims, err := jwt.Parse(token, keyFunc)
-//	        if err != nil { return stream.AuthResult{Valid: false, Error: err} }
+//	        if err != nil {
+//	            return stream.AuthResult{Valid: false, Error: err}
+//	        }
 //	        return stream.AuthResult{Valid: true, UserID: claims.Subject}
 //	    },
 //	}
@@ -100,7 +111,10 @@ type BearerTokenAuth struct {
 	Validate func(token string) AuthResult
 }
 
-// Authenticate extracts the Bearer token and delegates to Validate.
+// Authenticate extracts the bearer token and delegates to Validate.
+//
+//	auth := &stream.BearerTokenAuth{Validate: validateJWT}
+//	result := auth.Authenticate(r)
 func (b *BearerTokenAuth) Authenticate(r *http.Request) AuthResult {
 	if b == nil || b.Validate == nil {
 		return AuthResult{Valid: false}
@@ -119,17 +133,21 @@ func (b *BearerTokenAuth) Authenticate(r *http.Request) AuthResult {
 	return b.Validate(token)
 }
 
-// QueryTokenAuth extracts a ?token= query parameter and validates via caller function.
-// Use when browser clients cannot set headers (native WebSocket API).
+// QueryTokenAuth extracts a `?token=` query parameter and validates via a caller function.
 //
 //	auth := &stream.QueryTokenAuth{
-//	    Validate: func(token string) stream.AuthResult { ... },
+//	    Validate: func(token string) stream.AuthResult {
+//	        return lookupToken(token)
+//	    },
 //	}
 type QueryTokenAuth struct {
 	Validate func(token string) AuthResult
 }
 
-// Authenticate extracts the token query parameter and delegates to Validate.
+// Authenticate extracts the `token` query parameter and delegates to Validate.
+//
+//	auth := &stream.QueryTokenAuth{Validate: lookupToken}
+//	result := auth.Authenticate(r)
 func (q *QueryTokenAuth) Authenticate(r *http.Request) AuthResult {
 	if q == nil || q.Validate == nil {
 		return AuthResult{Valid: false}
@@ -142,7 +160,6 @@ func (q *QueryTokenAuth) Authenticate(r *http.Request) AuthResult {
 }
 
 // ConnAuthenticator validates a raw connection handshake for TCP and ZMQ adapters.
-// The handshake is the first message received on the connection (up to 4 KB).
 //
 //	auth := stream.ConnAuthenticatorFunc(func(handshake []byte) stream.AuthResult {
 //	    var h tcp.Handshake
@@ -158,7 +175,7 @@ type ConnAuthenticator interface {
 // ConnAuthenticatorFunc adapts a plain function to ConnAuthenticator.
 type ConnAuthenticatorFunc func(handshake []byte) AuthResult
 
-// AuthenticateConn calls f(handshake).
+// AuthenticateConn calls the wrapped function.
 func (f ConnAuthenticatorFunc) AuthenticateConn(handshake []byte) AuthResult {
 	return f(handshake)
 }

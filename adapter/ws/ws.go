@@ -53,7 +53,7 @@ type Adapter struct {
 	config Config
 }
 
-// New creates a WebSocket adapter. Call Mount before serving requests.
+// New creates a WebSocket adapter.
 //
 //	adapter := ws.New(ws.Config{Authenticator: auth})
 func New(config Config) *Adapter {
@@ -66,7 +66,7 @@ func New(config Config) *Adapter {
 	return &Adapter{config: config}
 }
 
-// Mount wires the adapter to a hub. Must be called before Handler().
+// Mount wires the adapter to a hub.
 //
 //	adapter.Mount(hub)
 func (adapter *Adapter) Mount(hub *stream.Hub) {
@@ -75,7 +75,10 @@ func (adapter *Adapter) Mount(hub *stream.Hub) {
 
 // ServeHTTP upgrades the request to WebSocket and binds the connection to the mounted hub.
 //
-//	http.Handle("/stream/ws", adapter)
+//	http.Handle("/stream/ws", adapter.Handler())
+//
+//	// Gin:
+//	r.GET("/stream/ws", gin.WrapF(adapter.Handler()))
 func (adapter *Adapter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	adapter.serveHTTP(w, r, r.URL.Query()["channel"])
 }

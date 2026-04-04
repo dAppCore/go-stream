@@ -62,7 +62,9 @@ type Adapter struct {
 	cancel  context.CancelFunc
 }
 
-// New creates a ZMQ adapter. Call Mount and Start before use.
+// New creates a ZMQ adapter.
+//
+//	adapter := zmq.New(zmq.Config{Mode: zmq.ModePubSub, Endpoint: "tcp://127.0.0.1:5555", Role: zmq.RoleSubscriber})
 func New(config Config) *Adapter {
 	if config.HandshakeTimeout == 0 {
 		config.HandshakeTimeout = 5 * time.Second
@@ -71,11 +73,15 @@ func New(config Config) *Adapter {
 }
 
 // Mount wires the adapter to a hub.
+//
+//	adapter.Mount(hub)
 func (adapter *Adapter) Mount(hub *stream.Hub) {
 	adapter.hub = hub
 }
 
 // Start opens the ZMQ socket and begins receive/dispatch. Blocks until ctx cancelled.
+//
+//	go adapter.Start(ctx)
 func (adapter *Adapter) Start(ctx context.Context) error {
 	if adapter == nil {
 		return core.E("stream.zmq", "nil adapter", nil)
@@ -168,6 +174,8 @@ func (adapter *Adapter) Start(ctx context.Context) error {
 }
 
 // Publish sends frame with topic (channel name) via the ZMQ socket.
+//
+//	_ = adapter.Publish("block", templateBytes)
 func (adapter *Adapter) Publish(channel string, frame []byte) error {
 	if adapter == nil {
 		return core.E("stream.zmq", "nil adapter", nil)
