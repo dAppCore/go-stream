@@ -160,14 +160,17 @@ func (a *Adapter) handleConn(ctx context.Context, conn net.Conn, hub *stream.Hub
 		return
 	}
 
+	result := stream.AuthResult{Valid: true}
 	if auth := a.config.ConnAuthenticator; auth != nil {
-		result := auth.AuthenticateConn(handshake)
+		result = auth.AuthenticateConn(handshake)
 		if !result.Valid {
 			return
 		}
 	}
 
 	peer := stream.NewPeer("tcp")
+	peer.UserID = result.UserID
+	peer.Claims = result.Claims
 	_ = hub.AddPeer(peer)
 	_ = hub.SubscribePeer(peer, "*")
 	defer hub.RemovePeer(peer)

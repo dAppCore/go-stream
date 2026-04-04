@@ -202,6 +202,14 @@ func Pipe(src Stream, dst Stream) func() {
 	if src == nil || dst == nil || src == dst {
 		return func() {}
 	}
+	type publishSubscriber interface {
+		subscribePublished(handler func(string, []byte)) func()
+	}
+	if publisher, ok := src.(publishSubscriber); ok {
+		return publisher.subscribePublished(func(channel string, frame []byte) {
+			_ = dst.Publish(channel, frame)
+		})
+	}
 	stop := src.Subscribe("*", func(frame []byte) {
 		_ = dst.Broadcast(frame)
 	})

@@ -26,6 +26,7 @@ type Hub struct {
 	unregister chan *Peer
 	channels   map[string]map[*Peer]bool
 	handlers   map[string]map[uint64]func([]byte)
+	publishers map[uint64]func(string, []byte)
 	nextID     uint64
 	config     HubConfig
 	done       chan struct{}
@@ -65,6 +66,7 @@ func NewHubWithConfig(config HubConfig) *Hub {
 		unregister: make(chan *Peer, 256),
 		channels:   map[string]map[*Peer]bool{},
 		handlers:   map[string]map[uint64]func([]byte){},
+		publishers: map[uint64]func(string, []byte){},
 		config:     config,
 		done:       make(chan struct{}),
 	}
@@ -125,11 +127,12 @@ func (h *Hub) SendToChannel(channel string, frame []byte) error {
 	}
 	handlers := cloneHandlers(h.handlers[channel])
 	wildcardHandlers := cloneHandlers(h.handlers["*"])
+	publishers := clonePublishHandlers(h.publishers)
 	h.mu.RUnlock()
 	if !running {
 		return ErrHubNotRunning
 	}
-	if len(peers) == 0 && len(handlers) == 0 && len(wildcardHandlers) == 0 {
+	if len(peers) == 0 && len(handlers) == 0 && len(wildcardHandlers) == 0 && len(publishers) == 0 {
 		return nil
 	}
 	for peer := range peers {
@@ -140,6 +143,7 @@ func (h *Hub) SendToChannel(channel string, frame []byte) error {
 	}
 	h.invokeHandlers(handlers, frame)
 	h.invokeHandlers(wildcardHandlers, frame)
+	h.invokePublishHandlers(publishers, channel, frame)
 	return nil
 }
 
@@ -484,11 +488,53 @@ func (h *Hub) invokeHandlers(handlers []func([]byte), frame []byte) {
 	}
 }
 
+func (h *Hub) subscribePublished(handler func(string, []byte)) func() {
+	if h == nil || handler == nil {
+		return func() {}
+	}
+	h.mu.Lock()
+	if h.publishers == nil {
+		h.publishers = map[uint64]func(string, []byte){}
+	}
+	h.nextID++
+	id := h.nextID
+	h.publishers[id] = handler
+	h.mu.Unlock()
+
+	return func() {
+		h.mu.Lock()
+		defer h.mu.Unlock()
+		delete(h.publishers, id)
+	}
+}
+
+func (h *Hub) invokePublishHandlers(handlers []func(string, []byte), channel string, frame []byte) {
+	for _, handler := range handlers {
+		func(fn func(string, []byte)) {
+			defer func() {
+				_ = recover()
+			}()
+			fn(channel, frame)
+		}(handler)
+	}
+}
+
 func cloneHandlers(handlers map[uint64]func([]byte)) []func([]byte) {
 	if len(handlers) == 0 {
 		return nil
 	}
 	cloned := make([]func([]byte), 0, len(handlers))
+	for _, handler := range handlers {
+		cloned = append(cloned, handler)
+	}
+	return cloned
+}
+
+func clonePublishHandlers(handlers map[uint64]func(string, []byte)) []func(string, []byte) {
+	if len(handlers) == 0 {
+		return nil
+	}
+	cloned := make([]func(string, []byte), 0, len(handlers))
 	for _, handler := range handlers {
 		cloned = append(cloned, handler)
 	}
