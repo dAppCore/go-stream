@@ -30,7 +30,7 @@ type Bridge struct {
 	config   Config
 	sourceID string
 
-	mu      sync.Mutex
+	mu      sync.RWMutex
 	running bool
 	stopCh  chan struct{}
 }
@@ -69,7 +69,6 @@ func (b *Bridge) Start(ctx context.Context) error {
 	b.mu.Lock()
 	if b.running {
 		b.mu.Unlock()
-		<-ctx.Done()
 		return nil
 	}
 	b.running = true
@@ -150,8 +149,8 @@ func (b *Bridge) registryKey() string {
 }
 
 func (b *Bridge) isRunning() bool {
-	b.mu.Lock()
-	defer b.mu.Unlock()
+	b.mu.RLock()
+	defer b.mu.RUnlock()
 	return b.running
 }
 

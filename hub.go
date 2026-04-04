@@ -90,7 +90,6 @@ func (h *Hub) Run(ctx context.Context) {
 	h.mu.Lock()
 	if h.running {
 		h.mu.Unlock()
-		<-ctx.Done()
 		return
 	}
 	h.running = true
@@ -133,17 +132,19 @@ func (h *Hub) SendToChannel(channel string, frame []byte) error {
 	handlers := cloneHandlers(h.handlers[channel])
 	wildcardHandlers := cloneHandlers(h.handlers["*"])
 	publishers := clonePublishHandlers(h.publishers)
+	peersToSend := clonePeers(peers)
+	wildcardPeersToSend := clonePeers(wildcardPeers)
 	h.mu.RUnlock()
 	if !running {
 		return ErrHubNotRunning
 	}
-	if len(peers) == 0 && len(handlers) == 0 && len(wildcardHandlers) == 0 && len(publishers) == 0 {
+	if len(peersToSend) == 0 && len(wildcardPeersToSend) == 0 && len(handlers) == 0 && len(wildcardHandlers) == 0 && len(publishers) == 0 {
 		return nil
 	}
-	for peer := range peers {
+	for _, peer := range peersToSend {
 		h.sendToPeer(peer, channel, frame)
 	}
-	for peer := range wildcardPeers {
+	for _, peer := range wildcardPeersToSend {
 		h.sendToPeer(peer, channel, frame)
 	}
 	h.invokeHandlers(handlers, frame)
@@ -542,6 +543,17 @@ func clonePublishHandlers(handlers map[uint64]func(string, []byte)) []func(strin
 	cloned := make([]func(string, []byte), 0, len(handlers))
 	for _, handler := range handlers {
 		cloned = append(cloned, handler)
+	}
+	return cloned
+}
+
+func clonePeers(peers map[*Peer]bool) []*Peer {
+	if len(peers) == 0 {
+		return nil
+	}
+	cloned := make([]*Peer, 0, len(peers))
+	for peer := range peers {
+		cloned = append(cloned, peer)
 	}
 	return cloned
 }

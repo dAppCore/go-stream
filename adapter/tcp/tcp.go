@@ -67,7 +67,14 @@ func (a *Adapter) Listen(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	defer listener.Close()
+	defer func() {
+		_ = listener.Close()
+		a.mu.Lock()
+		if a.listener == listener {
+			a.listener = nil
+		}
+		a.mu.Unlock()
+	}()
 
 	go func() {
 		<-ctx.Done()
@@ -228,6 +235,8 @@ func (a *Adapter) writePump(ctx context.Context, conn net.Conn, peer *stream.Pee
 func readFrame(conn net.Conn, timeout time.Duration) (string, []byte, error) {
 	if timeout > 0 {
 		_ = conn.SetReadDeadline(time.Now().Add(timeout))
+	} else {
+		_ = conn.SetReadDeadline(time.Time{})
 	}
 	var length uint32
 	if err := binary.Read(conn, binary.BigEndian, &length); err != nil {

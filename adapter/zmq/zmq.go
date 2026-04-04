@@ -45,7 +45,7 @@ type Adapter struct {
 	config Config
 	source string
 
-	mu      sync.Mutex
+	mu      sync.RWMutex
 	running bool
 	stopCh  chan struct{}
 }
@@ -82,7 +82,6 @@ func (a *Adapter) Start(ctx context.Context) error {
 	a.mu.Lock()
 	if a.running {
 		a.mu.Unlock()
-		<-ctx.Done()
 		return nil
 	}
 	a.running = true
@@ -154,8 +153,8 @@ func (a *Adapter) sourceID() string {
 }
 
 func (a *Adapter) isRunning() bool {
-	a.mu.Lock()
-	defer a.mu.Unlock()
+	a.mu.RLock()
+	defer a.mu.RUnlock()
 	return a.running
 }
 

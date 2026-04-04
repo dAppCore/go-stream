@@ -62,6 +62,9 @@ func normalizeHubConfig(config HubConfig) HubConfig {
 	if config.PongTimeout == 0 {
 		config.PongTimeout = defaults.PongTimeout
 	}
+	if config.PongTimeout <= config.HeartbeatInterval {
+		config.PongTimeout = config.HeartbeatInterval * 2
+	}
 	if config.WriteTimeout == 0 {
 		config.WriteTimeout = defaults.WriteTimeout
 	}
