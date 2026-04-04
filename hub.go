@@ -23,6 +23,7 @@ import (
 type Hub struct {
 	peers      map[*Peer]bool
 	broadcast  chan []byte
+	deliver    chan delivery
 	register   chan *Peer
 	unregister chan *Peer
 	channels   map[string]map[*Peer]bool
@@ -55,6 +56,7 @@ func NewHubWithConfig(config HubConfig) *Hub {
 	return &Hub{
 		peers:      map[*Peer]bool{},
 		broadcast:  make(chan []byte, 256),
+		deliver:    make(chan delivery, 256),
 		register:   make(chan *Peer, 256),
 		unregister: make(chan *Peer, 256),
 		channels:   map[string]map[*Peer]bool{},
@@ -124,6 +126,8 @@ func (h *Hub) Run(ctx context.Context) {
 			h.removePeer(peer)
 		case frame := <-h.broadcast:
 			h.broadcastToPeers(frame)
+		case item := <-h.deliver:
+			h.processDelivery(item.channel, item.frame)
 		}
 	}
 }
@@ -138,26 +142,21 @@ func (h *Hub) SendToChannel(channel string, frame []byte) error {
 	}
 	h.mu.RLock()
 	running := h.running
-	handlers := cloneHandlers(h.handlers[channel])
-	wildcardHandlers := cloneHandlers(h.handlers["*"])
-	if channel == "*" {
-		wildcardHandlers = nil
-	}
-	publishers := clonePublishHandlers(h.publishers)
 	peersToSend := h.collectChannelPeersLocked(channel)
+	hasHandlers := len(h.handlers[channel]) > 0
+	hasWildcardHandlers := len(h.handlers["*"]) > 0 && channel != "*"
+	hasPublishers := len(h.publishers) > 0
 	h.mu.RUnlock()
 	if !running {
 		return ErrHubNotRunning
 	}
-	if len(peersToSend) == 0 && len(handlers) == 0 && len(wildcardHandlers) == 0 && len(publishers) == 0 {
+	if len(peersToSend) == 0 && !hasHandlers && !hasWildcardHandlers && !hasPublishers {
 		return nil
 	}
 	for _, peer := range peersToSend {
 		h.sendToPeer(peer, channel, frame)
 	}
-	h.invokeHandlers(handlers, frame)
-	h.invokeHandlers(wildcardHandlers, frame)
-	h.invokePublishHandlers(publishers, channel, frame)
+	h.enqueueDelivery(channel, frame)
 	return nil
 }
 
@@ -549,6 +548,43 @@ func (h *Hub) broadcastToPeers(frame []byte) {
 		h.sendBroadcastToPeer(peer, frame)
 	}
 	h.invokeHandlers(handlers, frame)
+}
+
+type delivery struct {
+	channel string
+	frame   []byte
+}
+
+func (h *Hub) enqueueDelivery(channel string, frame []byte) {
+	if h == nil {
+		return
+	}
+	item := delivery{
+		channel: channel,
+		frame:   append([]byte(nil), frame...),
+	}
+	select {
+	case h.deliver <- item:
+	default:
+		h.processDelivery(item.channel, item.frame)
+	}
+}
+
+func (h *Hub) processDelivery(channel string, frame []byte) {
+	if h == nil {
+		return
+	}
+	h.mu.RLock()
+	handlers := cloneHandlers(h.handlers[channel])
+	wildcardHandlers := cloneHandlers(h.handlers["*"])
+	publishers := clonePublishHandlers(h.publishers)
+	h.mu.RUnlock()
+
+	h.invokeHandlers(handlers, frame)
+	if channel != "*" {
+		h.invokeHandlers(wildcardHandlers, frame)
+	}
+	h.invokePublishHandlers(publishers, channel, frame)
 }
 
 func (h *Hub) subscribePublished(handler func(string, []byte)) func() {
