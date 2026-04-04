@@ -1,14 +1,12 @@
 // SPDX-License-Identifier: EUPL-1.2
 
 // Package stream is the transport-agnostic event and data pipe for the CoreGO
-// ecosystem. It generalises WebSocket, SSE, Redis pub/sub, ZeroMQ, and raw TCP
-// behind a single Stream interface. Consumers never import a specific transport —
-// they call Stream. Transport adapters are wired at startup.
+// ecosystem.
 //
 //	hub := stream.NewHub()
 //	go hub.Run(ctx)
 //	hub.Publish("hashrate", []byte(`{"h":123456}`))
-//	unsub := hub.Subscribe("block", func(f []byte) { handleBlock(f) })
+//	unsub := hub.Subscribe("block", func(frame []byte) { handleBlock(frame) })
 //	defer unsub()
 package stream
 
@@ -68,7 +66,7 @@ type Frame = []byte
 // Channel is a named topic string used for pub/sub routing.
 type Channel = string
 
-// Peer represents one connected endpoint. Created by a transport adapter.
+// Peer represents one connected endpoint.
 //
 //	peer := stream.NewPeer("ws")
 //	peer.UserID = authResult.UserID
@@ -219,13 +217,13 @@ type Envelope struct {
 	Frame    []byte
 }
 
-// Pipe connects src to dst: published frames are forwarded with their channel,
-// and broadcast frames are forwarded as broadcasts when the source exposes that hook.
-// Returns a stop function. Safe to call from multiple goroutines.
+// Pipe connects src to dst.
 //
 //	stop := stream.Pipe(zmqHub, wsHub)
-//	Forward ZMQ frames to WebSocket clients.
 //	defer stop()
+//
+// Published frames keep their channel. Broadcast frames stay broadcasts when the
+// source exposes that hook.
 func Pipe(src Stream, destination Stream) func() {
 	if src == nil || destination == nil || src == destination {
 		return func() {}

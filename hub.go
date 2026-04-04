@@ -11,8 +11,7 @@ import (
 	"dappco.re/go/core"
 )
 
-// Hub is the central channel-based broker. Transport adapters register peers into
-// the hub; the hub serialises all state mutations through Go channels.
+// Hub is the central channel-based broker.
 //
 //	hub := stream.NewHub()
 //	go hub.Run(ctx)
