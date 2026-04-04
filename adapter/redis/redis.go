@@ -8,8 +8,10 @@ package redis
 import (
 	"context"
 	"crypto/tls"
-	"strconv"
 	"sync"
+	"time"
+
+	"github.com/redis/go-redis/v9"
 
 	"dappco.re/go/core"
 	"dappco.re/go/stream"
@@ -30,17 +32,16 @@ type Bridge struct {
 	config   Config
 	sourceID string
 
-	mu      sync.RWMutex
-	running bool
-	stopCh  chan struct{}
+	mu     sync.RWMutex
+	cancel context.CancelFunc
+	pubsub *redis.PubSub
+	client *redis.Client
 }
 
-type bridgeRegistry struct {
-	mu      sync.RWMutex
-	bridges map[string]map[*Bridge]struct{}
+type envelope struct {
+	SourceID string `json:"s"`
+	Frame    []byte `json:"f"`
 }
-
-var registry = bridgeRegistry{bridges: map[string]map[*Bridge]struct{}{}}
 
 // NewBridge creates and validates the Redis connection. Does not start listening.
 func NewBridge(hub *stream.Hub, cfg Config) (*Bridge, error) {
@@ -53,11 +54,19 @@ func NewBridge(hub *stream.Hub, cfg Config) (*Bridge, error) {
 	if cfg.Prefix == "" {
 		cfg.Prefix = "stream"
 	}
+	client := newRedisClient(cfg)
+	defer client.Close()
+
+	pingContext, pingCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer pingCancel()
+	if err := client.Ping(pingContext).Err(); err != nil {
+		return nil, core.E("stream.redis", "redis ping failed", err)
+	}
+
 	return &Bridge{
 		hub:      hub,
 		config:   cfg,
 		sourceID: stream.NewPeer("redis").ID,
-		stopCh:   make(chan struct{}),
 	}, nil
 }
 
@@ -69,28 +78,52 @@ func (b *Bridge) Start(ctx context.Context) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
+
+	runContext, runCancel := context.WithCancel(ctx)
+	client := newRedisClient(b.config)
+	pubsub := client.PSubscribe(runContext, b.broadcastChannel(), b.channelPattern())
+
 	b.mu.Lock()
-	if b.running {
+	b.cancel = runCancel
+	b.client = client
+	b.pubsub = pubsub
+	b.mu.Unlock()
+
+	defer func() {
+		b.mu.Lock()
+		b.cancel = nil
+		b.client = nil
+		b.pubsub = nil
 		b.mu.Unlock()
-		return nil
+		runCancel()
+		_ = pubsub.Close()
+		_ = client.Close()
+	}()
+
+	for {
+		message, err := pubsub.ReceiveMessage(runContext)
+		if err != nil {
+			if runContext.Err() != nil {
+				return nil
+			}
+			return err
+		}
+
+		var decoded envelope
+		if !core.JSONUnmarshal([]byte(message.Payload), &decoded).OK {
+			continue
+		}
+		if decoded.SourceID == b.sourceID {
+			continue
+		}
+
+		channel := b.channelFromRedis(message.Channel)
+		if channel == "" {
+			_ = b.hub.Broadcast(decoded.Frame)
+			continue
+		}
+		_ = b.hub.Publish(channel, decoded.Frame)
 	}
-	b.running = true
-	stopCh := b.stopCh
-	key := b.registryKey()
-	b.mu.Unlock()
-
-	registry.add(key, b)
-	defer registry.remove(key, b)
-
-	select {
-	case <-ctx.Done():
-	case <-stopCh:
-	}
-
-	b.mu.Lock()
-	b.running = false
-	b.mu.Unlock()
-	return nil
 }
 
 // Stop cleanly shuts down the bridge. Closes the pub/sub subscription and Redis client.
@@ -98,14 +131,22 @@ func (b *Bridge) Stop() error {
 	if b == nil {
 		return nil
 	}
-	b.mu.Lock()
-	if !b.running {
-		b.mu.Unlock()
-		return nil
+
+	b.mu.RLock()
+	cancel := b.cancel
+	pubsub := b.pubsub
+	client := b.client
+	b.mu.RUnlock()
+
+	if cancel != nil {
+		cancel()
 	}
-	close(b.stopCh)
-	b.stopCh = make(chan struct{})
-	b.mu.Unlock()
+	if pubsub != nil {
+		_ = pubsub.Close()
+	}
+	if client != nil {
+		return client.Close()
+	}
 	return nil
 }
 
@@ -114,14 +155,11 @@ func (b *Bridge) PublishToChannel(channel string, frame []byte) error {
 	if b == nil {
 		return core.E("stream.redis", "nil bridge", nil)
 	}
-	if !b.isRunning() {
-		return core.E("stream.redis", "bridge not started", nil)
+	if channel == "" {
+		return core.E("stream.redis", "empty channel", nil)
 	}
-	registry.publish(b.registryKey(), channel, envelope{
-		SourceID: b.sourceID,
-		Frame:    append([]byte(nil), frame...),
-	})
-	return nil
+
+	return b.publish(b.channelKey(channel), frame)
 }
 
 // PublishBroadcast publishes frame as a broadcast via Redis.
@@ -129,14 +167,8 @@ func (b *Bridge) PublishBroadcast(frame []byte) error {
 	if b == nil {
 		return core.E("stream.redis", "nil bridge", nil)
 	}
-	if !b.isRunning() {
-		return core.E("stream.redis", "bridge not started", nil)
-	}
-	registry.publish(b.registryKey(), "", envelope{
-		SourceID: b.sourceID,
-		Frame:    append([]byte(nil), frame...),
-	})
-	return nil
+
+	return b.publish(b.broadcastChannel(), frame)
 }
 
 // SourceID returns the random instance identifier.
@@ -147,58 +179,51 @@ func (b *Bridge) SourceID() string {
 	return b.sourceID
 }
 
-func (b *Bridge) registryKey() string {
-	return b.config.Addr + "|" + strconv.Itoa(b.config.DB) + "|" + b.config.Prefix
-}
+func (b *Bridge) publish(channel string, frame []byte) error {
+	client := newRedisClient(b.config)
+	defer client.Close()
 
-func (b *Bridge) isRunning() bool {
-	b.mu.RLock()
-	defer b.mu.RUnlock()
-	return b.running
-}
-
-type envelope struct {
-	SourceID string `json:"s"`
-	Frame    []byte `json:"f"`
-}
-
-func (r *bridgeRegistry) add(key string, bridge *Bridge) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if r.bridges[key] == nil {
-		r.bridges[key] = map[*Bridge]struct{}{}
+	payload := envelope{
+		SourceID: b.sourceID,
+		Frame:    append([]byte(nil), frame...),
 	}
-	r.bridges[key][bridge] = struct{}{}
-}
-
-func (r *bridgeRegistry) remove(key string, bridge *Bridge) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if bridges := r.bridges[key]; bridges != nil {
-		delete(bridges, bridge)
-		if len(bridges) == 0 {
-			delete(r.bridges, key)
+	encoded := core.JSONMarshal(payload)
+	if !encoded.OK {
+		if err, ok := encoded.Value.(error); ok {
+			return err
 		}
+		return core.E("stream.redis", "failed to marshal envelope", nil)
 	}
+
+	publishContext, publishCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer publishCancel()
+	return client.Publish(publishContext, channel, encoded.Value).Err()
 }
 
-func (r *bridgeRegistry) publish(key, channel string, message envelope) {
-	r.mu.RLock()
-	bridges := r.bridges[key]
-	targets := make([]*Bridge, 0, len(bridges))
-	for bridge := range bridges {
-		targets = append(targets, bridge)
-	}
-	r.mu.RUnlock()
+func (b *Bridge) broadcastChannel() string {
+	return b.config.Prefix + ":broadcast"
+}
 
-	for _, bridge := range targets {
-		if bridge == nil || bridge.sourceID == message.SourceID {
-			continue
-		}
-		if channel == "" {
-			_ = bridge.hub.Broadcast(message.Frame)
-			continue
-		}
-		_ = bridge.hub.Publish(channel, message.Frame)
+func (b *Bridge) channelKey(channel string) string {
+	return b.config.Prefix + ":channel:" + channel
+}
+
+func (b *Bridge) channelPattern() string {
+	return b.config.Prefix + ":channel:*"
+}
+
+func (b *Bridge) channelFromRedis(channel string) string {
+	if channel == b.broadcastChannel() {
+		return ""
 	}
+	return core.TrimPrefix(channel, b.config.Prefix+":channel:")
+}
+
+func newRedisClient(cfg Config) *redis.Client {
+	return redis.NewClient(&redis.Options{
+		Addr:      cfg.Addr,
+		Password:  cfg.Password,
+		DB:        cfg.DB,
+		TLSConfig: cfg.TLSConfig,
+	})
 }
