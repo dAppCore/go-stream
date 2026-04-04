@@ -12,7 +12,7 @@ import (
 	"sync"
 
 	"dappco.re/go/core"
-	"dappco.re/go/core/stream"
+	"dappco.re/go/stream"
 )
 
 // Config configures the Redis bridge.

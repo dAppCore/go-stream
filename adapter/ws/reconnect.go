@@ -12,7 +12,7 @@ import (
 	"github.com/gorilla/websocket"
 
 	"dappco.re/go/core"
-	"dappco.re/go/core/stream"
+	"dappco.re/go/stream"
 )
 
 // ReconnectConfig configures the client-side reconnecting WebSocket.

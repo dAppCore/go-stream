@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"dappco.re/go/core"
-	"dappco.re/go/core/stream"
+	"dappco.re/go/stream"
 )
 
 // Config configures the SSE adapter.

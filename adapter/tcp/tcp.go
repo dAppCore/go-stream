@@ -16,7 +16,7 @@ import (
 	"time"
 
 	"dappco.re/go/core"
-	"dappco.re/go/core/stream"
+	"dappco.re/go/stream"
 )
 
 // MaxFrameSize is the maximum allowed frame size in bytes.

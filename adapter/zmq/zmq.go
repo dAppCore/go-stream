@@ -10,7 +10,7 @@ import (
 	"sync"
 
 	"dappco.re/go/core"
-	"dappco.re/go/core/stream"
+	"dappco.re/go/stream"
 )
 
 // Mode selects the ZMQ socket pattern.

@@ -16,7 +16,7 @@ import (
 	"github.com/gorilla/websocket"
 
 	"dappco.re/go/core"
-	"dappco.re/go/core/stream"
+	"dappco.re/go/stream"
 )
 
 // Config configures the WebSocket adapter.
