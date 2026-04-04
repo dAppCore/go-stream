@@ -45,6 +45,43 @@ func TestHub_Pipe_Good(t *testing.T) {
 	}
 }
 
+func TestHub_Pipe_Broadcast_Good(t *testing.T) {
+	sourceHub := NewHub()
+	destinationHub := NewHub()
+
+	sourceContext, sourceCancel := context.WithCancel(context.Background())
+	defer sourceCancel()
+	destinationContext, destinationCancel := context.WithCancel(context.Background())
+	defer destinationCancel()
+
+	go sourceHub.Run(sourceContext)
+	go destinationHub.Run(destinationContext)
+	waitForRunningHub(t, sourceHub)
+	waitForRunningHub(t, destinationHub)
+
+	stop := Pipe(sourceHub, destinationHub)
+	defer stop()
+
+	received := make(chan []byte, 1)
+	unsubscribe := destinationHub.SubscribeBroadcast(func(frame []byte) {
+		received <- append([]byte(nil), frame...)
+	})
+	defer unsubscribe()
+
+	if err := sourceHub.Broadcast([]byte("shutdown")); err != nil {
+		t.Fatalf("Broadcast() error = %v", err)
+	}
+
+	select {
+	case frame := <-received:
+		if string(frame) != "shutdown" {
+			t.Fatalf("received broadcast frame = %q, want %q", string(frame), "shutdown")
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for broadcast frame")
+	}
+}
+
 func TestHub_Pipe_Bad(t *testing.T) {
 	sourceHub := NewHub()
 	destinationHub := NewHub()

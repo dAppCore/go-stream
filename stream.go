@@ -193,7 +193,8 @@ type Envelope struct {
 	Frame    []byte
 }
 
-// Pipe connects src to dst: every frame published on src is forwarded to dst.
+// Pipe connects src to dst: published frames are forwarded with their channel,
+// and broadcast frames are forwarded as broadcasts when the source exposes that hook.
 // Returns a stop function. Safe to call from multiple goroutines.
 //
 //	stop := stream.Pipe(zmqHub, wsHub)
@@ -203,17 +204,32 @@ func Pipe(src Stream, dst Stream) func() {
 		return func() {}
 	}
 	type publishSubscriber interface {
-		subscribePublished(handler func(string, []byte)) func()
+		SubscribePublished(handler func(string, []byte)) func()
 	}
+	type broadcastSubscriber interface {
+		SubscribeBroadcast(handler func([]byte)) func()
+	}
+	stops := make([]func(), 0, 2)
 	if publisher, ok := src.(publishSubscriber); ok {
-		return publisher.subscribePublished(func(channel string, frame []byte) {
+		stops = append(stops, publisher.SubscribePublished(func(channel string, frame []byte) {
 			_ = dst.Publish(channel, frame)
+		}))
+	}
+	if broadcaster, ok := src.(broadcastSubscriber); ok {
+		stops = append(stops, broadcaster.SubscribeBroadcast(func(frame []byte) {
+			_ = dst.Broadcast(frame)
+		}))
+	}
+	if len(stops) == 0 {
+		return src.Subscribe("*", func(frame []byte) {
+			_ = dst.Broadcast(frame)
 		})
 	}
-	stop := src.Subscribe("*", func(frame []byte) {
-		_ = dst.Broadcast(frame)
-	})
-	return stop
+	return func() {
+		for index := len(stops) - 1; index >= 0; index-- {
+			stops[index]()
+		}
+	}
 }
 
 // Ensure Hub satisfies Stream at compile time.
