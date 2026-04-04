@@ -32,10 +32,12 @@ type Bridge struct {
 	config   Config
 	sourceID string
 
-	mu     sync.RWMutex
-	cancel context.CancelFunc
-	pubsub *redis.PubSub
-	client *redis.Client
+	mu            sync.RWMutex
+	cancel        context.CancelFunc
+	pubsub        *redis.PubSub
+	client        *redis.Client
+	publishStop   func()
+	broadcastStop func()
 }
 
 type envelope struct {
@@ -82,19 +84,40 @@ func (bridge *Bridge) Start(ctx context.Context) error {
 	runContext, runCancel := context.WithCancel(ctx)
 	client := newRedisClient(bridge.config)
 	pubsub := client.PSubscribe(runContext, bridge.broadcastChannel(), bridge.channelPattern())
+	publishStop := bridge.hub.SubscribePublished(func(channel string, frame []byte) {
+		if channel == "" {
+			return
+		}
+		_ = bridge.publishWithClient(client, bridge.channelKey(channel), frame)
+	})
+	broadcastStop := bridge.hub.SubscribeBroadcast(func(frame []byte) {
+		_ = bridge.publishWithClient(client, bridge.broadcastChannel(), frame)
+	})
 
 	bridge.mu.Lock()
 	bridge.cancel = runCancel
 	bridge.client = client
 	bridge.pubsub = pubsub
+	bridge.publishStop = publishStop
+	bridge.broadcastStop = broadcastStop
 	bridge.mu.Unlock()
 
 	defer func() {
 		bridge.mu.Lock()
+		publishStop := bridge.publishStop
+		broadcastStop := bridge.broadcastStop
 		bridge.cancel = nil
 		bridge.client = nil
 		bridge.pubsub = nil
+		bridge.publishStop = nil
+		bridge.broadcastStop = nil
 		bridge.mu.Unlock()
+		if publishStop != nil {
+			publishStop()
+		}
+		if broadcastStop != nil {
+			broadcastStop()
+		}
 		runCancel()
 		_ = pubsub.Close()
 		_ = client.Close()
@@ -119,10 +142,10 @@ func (bridge *Bridge) Start(ctx context.Context) error {
 
 		channel := bridge.channelFromRedis(message.Channel)
 		if channel == "" {
-			_ = bridge.hub.Broadcast(decoded.Frame)
+			_ = bridge.hub.BroadcastFromBridge(decoded.Frame)
 			continue
 		}
-		_ = bridge.hub.Publish(channel, decoded.Frame)
+		_ = bridge.hub.PublishFromBridge(channel, decoded.Frame)
 	}
 }
 
@@ -136,10 +159,18 @@ func (bridge *Bridge) Stop() error {
 	cancel := bridge.cancel
 	pubsub := bridge.pubsub
 	client := bridge.client
+	publishStop := bridge.publishStop
+	broadcastStop := bridge.broadcastStop
 	bridge.mu.RUnlock()
 
 	if cancel != nil {
 		cancel()
+	}
+	if publishStop != nil {
+		publishStop()
+	}
+	if broadcastStop != nil {
+		broadcastStop()
 	}
 	if pubsub != nil {
 		_ = pubsub.Close()
@@ -180,8 +211,21 @@ func (bridge *Bridge) SourceID() string {
 }
 
 func (bridge *Bridge) publish(channel string, frame []byte) error {
-	client := newRedisClient(bridge.config)
-	defer client.Close()
+	bridge.mu.RLock()
+	client := bridge.client
+	bridge.mu.RUnlock()
+	if client == nil {
+		client = newRedisClient(bridge.config)
+		defer client.Close()
+	}
+
+	return bridge.publishWithClient(client, channel, frame)
+}
+
+func (bridge *Bridge) publishWithClient(client *redis.Client, channel string, frame []byte) error {
+	if client == nil {
+		return core.E("stream.redis", "nil redis client", nil)
+	}
 
 	payload := envelope{
 		SourceID: bridge.sourceID,

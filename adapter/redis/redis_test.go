@@ -47,8 +47,8 @@ func TestBridge_Publish_Good(t *testing.T) {
 	})
 	defer unsubscribe()
 
-	if err := bridge1.PublishToChannel("block", []byte("template")); err != nil {
-		t.Fatalf("PublishToChannel() error = %v", err)
+	if err := hub1.Publish("block", []byte("template")); err != nil {
+		t.Fatalf("Publish() error = %v", err)
 	}
 
 	select {
@@ -58,6 +58,25 @@ func TestBridge_Publish_Good(t *testing.T) {
 		}
 	case <-time.After(2 * time.Second):
 		t.Fatal("timed out waiting for bridged frame")
+	}
+
+	peer := stream.NewPeer("ws")
+	if err := hub2.AddPeer(peer); err != nil {
+		t.Fatalf("AddPeer() error = %v", err)
+	}
+	defer hub2.RemovePeer(peer)
+
+	if err := hub1.Broadcast([]byte("shutdown")); err != nil {
+		t.Fatalf("Broadcast() error = %v", err)
+	}
+
+	select {
+	case frame := <-peer.SendQueue():
+		if string(frame) != "shutdown" {
+			t.Fatalf("received frame = %q, want %q", string(frame), "shutdown")
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for bridged broadcast")
 	}
 }
 
