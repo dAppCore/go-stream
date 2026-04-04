@@ -127,7 +127,7 @@ func (h *Hub) Run(ctx context.Context) {
 		case peer := <-h.unregister:
 			h.removePeer(peer)
 		case item := <-h.broadcast:
-			h.broadcastToPeers(item.frame, item.notifyBroadcastSubscribers)
+			h.broadcastToPeers(item.source, item.frame, item.notifyBroadcastSubscribers)
 		case item := <-h.deliver:
 			h.processDelivery(item.channel, item.frame, item.notifyPublishSubscribers)
 		}
@@ -142,6 +142,13 @@ func (h *Hub) SendToChannel(channel string, frame []byte) error {
 	return h.sendToChannel(channel, frame, true)
 }
 
+// PublishFromPeer delivers a channel frame while excluding the source peer from fan-out.
+//
+//	_ = hub.PublishFromPeer(peer, "block", frame)
+func (h *Hub) PublishFromPeer(source *Peer, channel string, frame []byte) error {
+	return h.sendToChannelFromPeer(source, channel, frame, true)
+}
+
 // PublishFromBridge delivers frame to subscribers without notifying publish hooks.
 //
 //	_ = hub.PublishFromBridge("block", frame)
@@ -150,12 +157,16 @@ func (h *Hub) PublishFromBridge(channel string, frame []byte) error {
 }
 
 func (h *Hub) sendToChannel(channel string, frame []byte, notifyPublishSubscribers bool) error {
+	return h.sendToChannelFromPeer(nil, channel, frame, notifyPublishSubscribers)
+}
+
+func (h *Hub) sendToChannelFromPeer(source *Peer, channel string, frame []byte, notifyPublishSubscribers bool) error {
 	if h == nil {
 		return core.E("stream.hub", "nil hub", nil)
 	}
 	h.mu.RLock()
 	running := h.running
-	peersToSend := h.collectChannelPeersLocked(channel)
+	peersToSend := h.collectChannelPeersLocked(channel, source)
 	hasHandlers := len(h.handlers[channel]) > 0
 	hasWildcardHandlers := len(h.handlers["*"]) > 0 && channel != "*"
 	hasPublishers := notifyPublishSubscribers && len(h.publishers) > 0
@@ -294,6 +305,13 @@ func (h *Hub) Broadcast(frame []byte) error {
 	return h.broadcastFrame(frame, true)
 }
 
+// BroadcastFromPeer delivers a broadcast frame while excluding the source peer from fan-out.
+//
+//	_ = hub.BroadcastFromPeer(peer, []byte("shutdown"))
+func (h *Hub) BroadcastFromPeer(source *Peer, frame []byte) error {
+	return h.broadcastFrameFromPeer(source, frame, true)
+}
+
 // BroadcastFromBridge delivers frame to peers without notifying broadcast hooks.
 //
 //	_ = hub.BroadcastFromBridge([]byte("shutdown"))
@@ -302,6 +320,10 @@ func (h *Hub) BroadcastFromBridge(frame []byte) error {
 }
 
 func (h *Hub) broadcastFrame(frame []byte, notifyBroadcastSubscribers bool) error {
+	return h.broadcastFrameFromPeer(nil, frame, notifyBroadcastSubscribers)
+}
+
+func (h *Hub) broadcastFrameFromPeer(source *Peer, frame []byte, notifyBroadcastSubscribers bool) error {
 	if h == nil {
 		return core.E("stream.hub", "nil hub", nil)
 	}
@@ -313,12 +335,13 @@ func (h *Hub) broadcastFrame(frame []byte, notifyBroadcastSubscribers bool) erro
 	}
 	select {
 	case h.broadcast <- broadcastDelivery{
+		source:                     source,
 		frame:                      append([]byte(nil), frame...),
 		notifyBroadcastSubscribers: notifyBroadcastSubscribers,
 	}:
 		return nil
 	default:
-		h.broadcastToPeers(frame, notifyBroadcastSubscribers)
+		h.broadcastToPeers(source, frame, notifyBroadcastSubscribers)
 	}
 	return nil
 }
@@ -608,13 +631,16 @@ func (h *Hub) removePeer(peer *Peer) {
 	}
 }
 
-func (h *Hub) broadcastToPeers(frame []byte, notifyBroadcastSubscribers bool) {
+func (h *Hub) broadcastToPeers(source *Peer, frame []byte, notifyBroadcastSubscribers bool) {
 	if h == nil {
 		return
 	}
 	h.mu.RLock()
 	peers := make([]*Peer, 0, len(h.peers))
 	for peer := range h.peers {
+		if peer == source {
+			continue
+		}
 		peers = append(peers, peer)
 	}
 	handlers := cloneHandlers(h.handlers["*"])
@@ -636,6 +662,7 @@ type delivery struct {
 }
 
 type broadcastDelivery struct {
+	source                     *Peer
 	frame                      []byte
 	notifyBroadcastSubscribers bool
 }
@@ -717,13 +744,19 @@ func (h *Hub) invokePublishHandlers(handlers []func(string, []byte), channel str
 	}
 }
 
-func (h *Hub) collectChannelPeersLocked(channel string) []*Peer {
+func (h *Hub) collectChannelPeersLocked(channel string, source *Peer) []*Peer {
 	combined := map[*Peer]struct{}{}
 	for peer := range h.channels[channel] {
+		if peer == source {
+			continue
+		}
 		combined[peer] = struct{}{}
 	}
 	if channel != "*" {
 		for peer := range h.channels["*"] {
+			if peer == source {
+				continue
+			}
 			combined[peer] = struct{}{}
 		}
 	}

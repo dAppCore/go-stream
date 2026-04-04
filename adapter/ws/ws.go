@@ -172,6 +172,12 @@ func (adapter *Adapter) serveHTTP(w http.ResponseWriter, r *http.Request, channe
 				ProcessID: message.ProcessID,
 				Timestamp: time.Now().UTC(),
 			})))
+		default:
+			if message.Channel == "" {
+				_ = adapter.hub.BroadcastFromPeer(peer, payload)
+				continue
+			}
+			_ = adapter.hub.PublishFromPeer(peer, message.Channel, payload)
 		}
 	}
 

@@ -192,10 +192,10 @@ func (adapter *Adapter) handleConn(ctx context.Context, conn net.Conn, hub *stre
 			return
 		}
 		if channel == "" {
-			_ = hub.Broadcast(frame)
+			_ = hub.BroadcastFromPeer(peer, frame)
 			continue
 		}
-		_ = hub.Publish(channel, frame)
+		_ = hub.PublishFromPeer(peer, channel, frame)
 	}
 }
 
@@ -209,10 +209,10 @@ func (adapter *Adapter) pipePeer(ctx context.Context, conn net.Conn, peer *strea
 			return
 		}
 		if channel == "" {
-			_ = hub.Broadcast(frame)
+			_ = hub.BroadcastFromPeer(peer, frame)
 			continue
 		}
-		_ = hub.Publish(channel, frame)
+		_ = hub.PublishFromPeer(peer, channel, frame)
 	}
 }
 

@@ -4,6 +4,8 @@ package ws
 
 import (
 	"context"
+	"encoding/json"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -219,6 +221,97 @@ func TestAdapter_HandlerForChannel_Good(t *testing.T) {
 	if string(payload) != "123456" {
 		t.Fatalf("payload = %q, want %q", string(payload), "123456")
 	}
+}
+
+func TestAdapter_Handler_InboundPublish_Good(t *testing.T) {
+	hub := stream.NewHub()
+	hubContext, hubCancel := context.WithCancel(context.Background())
+	defer hubCancel()
+	go hub.Run(hubContext)
+
+	adapter := New(Config{})
+	adapter.Mount(hub)
+
+	server := httptest.NewServer(http.HandlerFunc(adapter.Handler()))
+	defer server.Close()
+
+	conn := dialWebSocket(t, server.URL, nil)
+	defer conn.Close()
+
+	received := make(chan []byte, 1)
+	unsubscribe := hub.Subscribe("agent", func(frame []byte) {
+		received <- append([]byte(nil), frame...)
+	})
+	defer unsubscribe()
+
+	message := stream.Message{
+		Type:      stream.TypeEvent,
+		Channel:   "agent",
+		Data:      map[string]any{"status": "ok"},
+		Timestamp: time.Now().UTC(),
+	}
+	if err := conn.WriteJSON(message); err != nil {
+		t.Fatalf("WriteJSON() error = %v", err)
+	}
+
+	select {
+	case frame := <-received:
+		var decoded stream.Message
+		if err := json.Unmarshal(frame, &decoded); err != nil {
+			t.Fatalf("received invalid JSON frame: %q", string(frame))
+		}
+		if decoded.Type != stream.TypeEvent {
+			t.Fatalf("decoded.Type = %q, want %q", decoded.Type, stream.TypeEvent)
+		}
+		if decoded.Channel != "agent" {
+			t.Fatalf("decoded.Channel = %q, want %q", decoded.Channel, "agent")
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for inbound websocket frame")
+	}
+}
+
+func TestAdapter_Handler_InboundPublish_NoSelfEcho_Good(t *testing.T) {
+	hub := stream.NewHub()
+	hubContext, hubCancel := context.WithCancel(context.Background())
+	defer hubCancel()
+	go hub.Run(hubContext)
+
+	adapter := New(Config{})
+	adapter.Mount(hub)
+
+	server := httptest.NewServer(http.HandlerFunc(adapter.Handler()))
+	defer server.Close()
+
+	conn := dialWebSocket(t, server.URL, nil)
+	defer conn.Close()
+
+	if err := conn.WriteJSON(stream.Message{
+		Type:    stream.TypeSubscribe,
+		Channel: "agent",
+	}); err != nil {
+		t.Fatalf("WriteJSON(subscribe) error = %v", err)
+	}
+
+	waitForChannelSubscriberCount(t, hub, "agent", 1)
+	_ = conn.SetReadDeadline(time.Now().Add(200 * time.Millisecond))
+	if err := conn.WriteJSON(stream.Message{
+		Type:      stream.TypeEvent,
+		Channel:   "agent",
+		Data:      map[string]any{"status": "ok"},
+		Timestamp: time.Now().UTC(),
+	}); err != nil {
+		t.Fatalf("WriteJSON(event) error = %v", err)
+	}
+
+	_, _, err := conn.ReadMessage()
+	if err == nil {
+		t.Fatal("ReadMessage() error = nil, want read timeout without self-echo")
+	}
+	if netErr, ok := err.(net.Error); !ok || !netErr.Timeout() {
+		t.Fatalf("ReadMessage() error = %v, want timeout", err)
+	}
+	_ = conn.SetReadDeadline(time.Time{})
 }
 
 func dialWebSocket(t *testing.T, serverURL string, header http.Header) *websocket.Conn {
