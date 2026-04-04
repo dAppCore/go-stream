@@ -72,49 +72,49 @@ func NewHubWithConfig(config HubConfig) *Hub {
 // Config returns a normalised copy of the hub configuration.
 //
 //	cfg := hub.Config()
-func (h *Hub) Config() HubConfig {
-	if h == nil {
+func (hub *Hub) Config() HubConfig {
+	if hub == nil {
 		return DefaultHubConfig()
 	}
-	h.mu.RLock()
-	config := h.config
-	h.mu.RUnlock()
+	hub.mu.RLock()
+	config := hub.config
+	hub.mu.RUnlock()
 	return normalizeHubConfig(config)
 }
 
 // Run starts the hub's select loop. Call in a goroutine. Exits when ctx is cancelled.
 //
 //	go hub.Run(ctx)
-func (h *Hub) Run(ctx context.Context) {
-	if h == nil {
+func (hub *Hub) Run(ctx context.Context) {
+	if hub == nil {
 		return
 	}
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	h.mu.Lock()
-	if h.running {
-		h.mu.Unlock()
+	hub.mu.Lock()
+	if hub.running {
+		hub.mu.Unlock()
 		return
 	}
-	h.running = true
-	h.mu.Unlock()
+	hub.running = true
+	hub.mu.Unlock()
 
 	defer func() {
-		h.mu.Lock()
-		peers := make([]*Peer, 0, len(h.peers))
-		for peer := range h.peers {
+		hub.mu.Lock()
+		peers := make([]*Peer, 0, len(hub.peers))
+		for peer := range hub.peers {
 			peers = append(peers, peer)
 		}
-		h.running = false
-		h.mu.Unlock()
+		hub.running = false
+		hub.mu.Unlock()
 
 		for _, peer := range peers {
-			h.removePeer(peer)
+			hub.removePeer(peer)
 		}
 
-		h.doneOnce.Do(func() {
-			close(h.done)
+		hub.doneOnce.Do(func() {
+			close(hub.done)
 		})
 	}()
 
@@ -122,14 +122,14 @@ func (h *Hub) Run(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			return
-		case peer := <-h.register:
-			h.addPeer(peer)
-		case peer := <-h.unregister:
-			h.removePeer(peer)
-		case item := <-h.broadcast:
-			h.broadcastToPeers(item.source, item.frame, item.notifyBroadcastSubscribers)
-		case item := <-h.deliver:
-			h.processDelivery(item.channel, item.frame, item.notifyPublishSubscribers)
+		case peer := <-hub.register:
+			hub.addPeer(peer)
+		case peer := <-hub.unregister:
+			hub.removePeer(peer)
+		case item := <-hub.broadcast:
+			hub.broadcastToPeers(item.source, item.frame, item.notifyBroadcastSubscribers)
+		case item := <-hub.deliver:
+			hub.processDelivery(item.channel, item.frame, item.notifyPublishSubscribers)
 		}
 	}
 }
@@ -138,39 +138,39 @@ func (h *Hub) Run(ctx context.Context) {
 // Returns nil if channel has no subscribers (not an error).
 //
 //	hub.SendToChannel("process:abc123", frame)
-func (h *Hub) SendToChannel(channel string, frame []byte) error {
-	return h.sendToChannel(channel, frame, true)
+func (hub *Hub) SendToChannel(channel string, frame []byte) error {
+	return hub.sendToChannel(channel, frame, true)
 }
 
 // PublishFromPeer delivers a channel frame while excluding the source peer from fan-out.
 //
 //	_ = hub.PublishFromPeer(peer, "block", frame)
-func (h *Hub) PublishFromPeer(source *Peer, channel string, frame []byte) error {
-	return h.sendToChannelFromPeer(source, channel, frame, true)
+func (hub *Hub) PublishFromPeer(source *Peer, channel string, frame []byte) error {
+	return hub.sendToChannelFromPeer(source, channel, frame, true)
 }
 
 // PublishFromBridge delivers frame to subscribers without notifying publish hooks.
 //
 //	_ = hub.PublishFromBridge("block", frame)
-func (h *Hub) PublishFromBridge(channel string, frame []byte) error {
-	return h.sendToChannel(channel, frame, false)
+func (hub *Hub) PublishFromBridge(channel string, frame []byte) error {
+	return hub.sendToChannel(channel, frame, false)
 }
 
-func (h *Hub) sendToChannel(channel string, frame []byte, notifyPublishSubscribers bool) error {
-	return h.sendToChannelFromPeer(nil, channel, frame, notifyPublishSubscribers)
+func (hub *Hub) sendToChannel(channel string, frame []byte, notifyPublishSubscribers bool) error {
+	return hub.sendToChannelFromPeer(nil, channel, frame, notifyPublishSubscribers)
 }
 
-func (h *Hub) sendToChannelFromPeer(source *Peer, channel string, frame []byte, notifyPublishSubscribers bool) error {
-	if h == nil {
+func (hub *Hub) sendToChannelFromPeer(source *Peer, channel string, frame []byte, notifyPublishSubscribers bool) error {
+	if hub == nil {
 		return core.E("stream.hub", "nil hub", nil)
 	}
-	h.mu.RLock()
-	running := h.running
-	peersToSend := h.collectChannelPeersLocked(channel, source)
-	hasHandlers := len(h.handlers[channel]) > 0
-	hasWildcardHandlers := len(h.handlers["*"]) > 0 && channel != "*"
-	hasPublishers := notifyPublishSubscribers && len(h.publishers) > 0
-	h.mu.RUnlock()
+	hub.mu.RLock()
+	running := hub.running
+	peersToSend := hub.collectChannelPeersLocked(channel, source)
+	hasHandlers := len(hub.handlers[channel]) > 0
+	hasWildcardHandlers := len(hub.handlers["*"]) > 0 && channel != "*"
+	hasPublishers := notifyPublishSubscribers && len(hub.publishers) > 0
+	hub.mu.RUnlock()
 	if !running {
 		return ErrHubNotRunning
 	}
@@ -178,9 +178,9 @@ func (h *Hub) sendToChannelFromPeer(source *Peer, channel string, frame []byte, 
 		return nil
 	}
 	for _, peer := range peersToSend {
-		h.sendToPeer(peer, channel, frame)
+		hub.sendToPeer(peer, channel, frame)
 	}
-	h.enqueueDelivery(channel, frame, notifyPublishSubscribers)
+	hub.enqueueDelivery(channel, frame, notifyPublishSubscribers)
 	return nil
 }
 
@@ -191,8 +191,8 @@ func (h *Hub) sendToChannelFromPeer(source *Peer, channel string, frame []byte, 
 //	unsub, err := hub.SubscribeE("block", func(f []byte) { ... })
 //	if err != nil { return err }
 //	defer unsub()
-func (h *Hub) SubscribeE(channel string, handler func([]byte)) (func(), error) {
-	if h == nil {
+func (hub *Hub) SubscribeE(channel string, handler func([]byte)) (func(), error) {
+	if hub == nil {
 		return func() {}, core.E("stream.hub", "nil hub", nil)
 	}
 	if channel == "" {
@@ -201,28 +201,28 @@ func (h *Hub) SubscribeE(channel string, handler func([]byte)) (func(), error) {
 	if handler == nil {
 		return func() {}, core.E("stream.hub", "nil handler", nil)
 	}
-	h.mu.Lock()
-	if h.handlers == nil {
-		h.handlers = map[string]map[uint64]func([]byte){}
+	hub.mu.Lock()
+	if hub.handlers == nil {
+		hub.handlers = map[string]map[uint64]func([]byte){}
 	}
-	if h.channels == nil {
-		h.channels = map[string]map[*Peer]bool{}
+	if hub.channels == nil {
+		hub.channels = map[string]map[*Peer]bool{}
 	}
-	h.nextID++
-	id := h.nextID
-	if h.handlers[channel] == nil {
-		h.handlers[channel] = map[uint64]func([]byte){}
+	hub.nextID++
+	id := hub.nextID
+	if hub.handlers[channel] == nil {
+		hub.handlers[channel] = map[uint64]func([]byte){}
 	}
-	h.handlers[channel][id] = handler
-	h.mu.Unlock()
+	hub.handlers[channel][id] = handler
+	hub.mu.Unlock()
 
 	return func() {
-		h.mu.Lock()
-		defer h.mu.Unlock()
-		if handlers := h.handlers[channel]; handlers != nil {
+		hub.mu.Lock()
+		defer hub.mu.Unlock()
+		if handlers := hub.handlers[channel]; handlers != nil {
 			delete(handlers, id)
 			if len(handlers) == 0 {
-				delete(h.handlers, channel)
+				delete(hub.handlers, channel)
 			}
 		}
 	}, nil
@@ -234,8 +234,8 @@ func (h *Hub) SubscribeE(channel string, handler func([]byte)) (func(), error) {
 //
 //	unsub := hub.Subscribe("block", func(f []byte) { ... })
 //	defer unsub()
-func (h *Hub) Subscribe(channel string, handler func([]byte)) func() {
-	unsub, _ := h.SubscribeE(channel, handler)
+func (hub *Hub) Subscribe(channel string, handler func([]byte)) func() {
+	unsub, _ := hub.SubscribeE(channel, handler)
 	return unsub
 }
 
@@ -243,8 +243,8 @@ func (h *Hub) Subscribe(channel string, handler func([]byte)) func() {
 // a peer requests channel subscription (WebSocket TypeSubscribe message, etc.).
 //
 //	hub.SubscribePeer(peer, "hashrate")
-func (h *Hub) SubscribePeer(peer *Peer, channel string) error {
-	if h == nil {
+func (hub *Hub) SubscribePeer(peer *Peer, channel string) error {
+	if hub == nil {
 		return core.E("stream.hub", "nil hub", nil)
 	}
 	if peer == nil {
@@ -253,9 +253,9 @@ func (h *Hub) SubscribePeer(peer *Peer, channel string) error {
 	if channel == "" {
 		return ErrEmptyChannel
 	}
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	if h.config.ChannelAuthoriser != nil && channel != "*" && !h.config.ChannelAuthoriser(peer, channel) {
+	hub.mu.Lock()
+	defer hub.mu.Unlock()
+	if hub.config.ChannelAuthoriser != nil && channel != "*" && !hub.config.ChannelAuthoriser(peer, channel) {
 		return ErrAuthRejected
 	}
 	if peer.send == nil {
@@ -265,27 +265,27 @@ func (h *Hub) SubscribePeer(peer *Peer, channel string) error {
 		peer.subscriptions = map[string]bool{}
 	}
 	peer.subscriptions[channel] = true
-	if h.channels[channel] == nil {
-		h.channels[channel] = map[*Peer]bool{}
+	if hub.channels[channel] == nil {
+		hub.channels[channel] = map[*Peer]bool{}
 	}
-	h.channels[channel][peer] = true
+	hub.channels[channel][peer] = true
 	return nil
 }
 
 // UnsubscribePeer removes peer from a named channel.
 //
 //	hub.UnsubscribePeer(peer, "hashrate")
-func (h *Hub) UnsubscribePeer(peer *Peer, channel string) {
-	if h == nil || peer == nil || channel == "" {
+func (hub *Hub) UnsubscribePeer(peer *Peer, channel string) {
+	if hub == nil || peer == nil || channel == "" {
 		return
 	}
-	h.mu.Lock()
-	defer h.mu.Unlock()
+	hub.mu.Lock()
+	defer hub.mu.Unlock()
 	delete(peer.subscriptions, channel)
-	if peers := h.channels[channel]; peers != nil {
+	if peers := hub.channels[channel]; peers != nil {
 		delete(peers, peer)
 		if len(peers) == 0 {
-			delete(h.channels, channel)
+			delete(hub.channels, channel)
 		}
 	}
 }
@@ -293,55 +293,55 @@ func (h *Hub) UnsubscribePeer(peer *Peer, channel string) {
 // Publish sends frame to all subscribers of channel. Satisfies Stream interface.
 //
 //	hub.Publish("hashrate", frame)
-func (h *Hub) Publish(channel string, frame []byte) error {
-	return h.sendToChannel(channel, frame, true)
+func (hub *Hub) Publish(channel string, frame []byte) error {
+	return hub.sendToChannel(channel, frame, true)
 }
 
 // Broadcast sends frame to every connected peer regardless of subscriptions.
 // Satisfies Stream interface.
 //
 //	hub.Broadcast([]byte(`{"type":"shutdown"}`))
-func (h *Hub) Broadcast(frame []byte) error {
-	return h.broadcastFrame(frame, true)
+func (hub *Hub) Broadcast(frame []byte) error {
+	return hub.broadcastFrame(frame, true)
 }
 
 // BroadcastFromPeer delivers a broadcast frame while excluding the source peer from fan-out.
 //
 //	_ = hub.BroadcastFromPeer(peer, []byte("shutdown"))
-func (h *Hub) BroadcastFromPeer(source *Peer, frame []byte) error {
-	return h.broadcastFrameFromPeer(source, frame, true)
+func (hub *Hub) BroadcastFromPeer(source *Peer, frame []byte) error {
+	return hub.broadcastFrameFromPeer(source, frame, true)
 }
 
 // BroadcastFromBridge delivers frame to peers without notifying broadcast hooks.
 //
 //	_ = hub.BroadcastFromBridge([]byte("shutdown"))
-func (h *Hub) BroadcastFromBridge(frame []byte) error {
-	return h.broadcastFrame(frame, false)
+func (hub *Hub) BroadcastFromBridge(frame []byte) error {
+	return hub.broadcastFrame(frame, false)
 }
 
-func (h *Hub) broadcastFrame(frame []byte, notifyBroadcastSubscribers bool) error {
-	return h.broadcastFrameFromPeer(nil, frame, notifyBroadcastSubscribers)
+func (hub *Hub) broadcastFrame(frame []byte, notifyBroadcastSubscribers bool) error {
+	return hub.broadcastFrameFromPeer(nil, frame, notifyBroadcastSubscribers)
 }
 
-func (h *Hub) broadcastFrameFromPeer(source *Peer, frame []byte, notifyBroadcastSubscribers bool) error {
-	if h == nil {
+func (hub *Hub) broadcastFrameFromPeer(source *Peer, frame []byte, notifyBroadcastSubscribers bool) error {
+	if hub == nil {
 		return core.E("stream.hub", "nil hub", nil)
 	}
-	h.mu.RLock()
-	running := h.running
-	h.mu.RUnlock()
+	hub.mu.RLock()
+	running := hub.running
+	hub.mu.RUnlock()
 	if !running {
 		return ErrHubNotRunning
 	}
 	select {
-	case h.broadcast <- broadcastDelivery{
+	case hub.broadcast <- broadcastDelivery{
 		source:                     source,
 		frame:                      append([]byte(nil), frame...),
 		notifyBroadcastSubscribers: notifyBroadcastSubscribers,
 	}:
 		return nil
 	default:
-		h.broadcastToPeers(source, frame, notifyBroadcastSubscribers)
+		hub.broadcastToPeers(source, frame, notifyBroadcastSubscribers)
 	}
 	return nil
 }
@@ -351,29 +351,29 @@ func (h *Hub) broadcastFrameFromPeer(source *Peer, frame []byte, notifyBroadcast
 //
 //	stop := hub.Pipe(remoteHub)
 //	defer stop()
-func (h *Hub) Pipe(dst Stream) func() {
-	return Pipe(h, dst)
+func (hub *Hub) Pipe(dst Stream) func() {
+	return Pipe(hub, dst)
 }
 
 // Stats returns a snapshot of current hub state.
 //
 //	s := hub.Stats()
 //	core.Print("stream", "peers=%d channels=%d", s.Peers, s.Channels)
-func (h *Hub) Stats() HubStats {
-	if h == nil {
+func (hub *Hub) Stats() HubStats {
+	if hub == nil {
 		return HubStats{}
 	}
-	h.mu.RLock()
-	defer h.mu.RUnlock()
+	hub.mu.RLock()
+	defer hub.mu.RUnlock()
 	subscriberCount := map[string]int{}
-	for channel, peers := range h.channels {
+	for channel, peers := range hub.channels {
 		if channel == "*" {
 			continue
 		}
 		subscriberCount[channel] = len(peers)
 	}
 	return HubStats{
-		Peers:           len(h.peers),
+		Peers:           len(hub.peers),
 		Channels:        len(subscriberCount),
 		SubscriberCount: subscriberCount,
 	}
@@ -382,56 +382,56 @@ func (h *Hub) Stats() HubStats {
 // SubscribePublished registers a handler invoked for each published channel frame.
 //
 //	_ = hub.SubscribePublished(func(channel string, frame []byte) { ... })
-func (h *Hub) SubscribePublished(handler func(string, []byte)) func() {
-	return h.subscribePublished(handler)
+func (hub *Hub) SubscribePublished(handler func(string, []byte)) func() {
+	return hub.subscribePublished(handler)
 }
 
 // SubscribeBroadcast registers a handler invoked for each broadcast frame.
 //
 //	_ = hub.SubscribeBroadcast(func(frame []byte) { ... })
-func (h *Hub) SubscribeBroadcast(handler func([]byte)) func() {
-	if h == nil || handler == nil {
+func (hub *Hub) SubscribeBroadcast(handler func([]byte)) func() {
+	if hub == nil || handler == nil {
 		return func() {}
 	}
-	h.mu.Lock()
-	if h.broadcastHandlers == nil {
-		h.broadcastHandlers = map[uint64]func([]byte){}
+	hub.mu.Lock()
+	if hub.broadcastHandlers == nil {
+		hub.broadcastHandlers = map[uint64]func([]byte){}
 	}
-	h.nextID++
-	id := h.nextID
-	h.broadcastHandlers[id] = handler
-	h.mu.Unlock()
+	hub.nextID++
+	id := hub.nextID
+	hub.broadcastHandlers[id] = handler
+	hub.mu.Unlock()
 
 	return func() {
-		h.mu.Lock()
-		defer h.mu.Unlock()
-		delete(h.broadcastHandlers, id)
+		hub.mu.Lock()
+		defer hub.mu.Unlock()
+		delete(hub.broadcastHandlers, id)
 	}
 }
 
 // PeerCount returns the number of connected peers.
 //
 //	n := hub.PeerCount()
-func (h *Hub) PeerCount() int {
-	if h == nil {
+func (hub *Hub) PeerCount() int {
+	if hub == nil {
 		return 0
 	}
-	h.mu.RLock()
-	defer h.mu.RUnlock()
-	return len(h.peers)
+	hub.mu.RLock()
+	defer hub.mu.RUnlock()
+	return len(hub.peers)
 }
 
 // ChannelCount returns the number of active channels.
 //
 //	n := hub.ChannelCount()
-func (h *Hub) ChannelCount() int {
-	if h == nil {
+func (hub *Hub) ChannelCount() int {
+	if hub == nil {
 		return 0
 	}
-	h.mu.RLock()
-	defer h.mu.RUnlock()
+	hub.mu.RLock()
+	defer hub.mu.RUnlock()
 	count := 0
-	for channel, peers := range h.channels {
+	for channel, peers := range hub.channels {
 		if channel == "*" || len(peers) == 0 {
 			continue
 		}
@@ -444,28 +444,28 @@ func (h *Hub) ChannelCount() int {
 // Returns 0 if the channel has no subscribers.
 //
 //	n := hub.ChannelSubscriberCount("hashrate")
-func (h *Hub) ChannelSubscriberCount(channel string) int {
-	if h == nil {
+func (hub *Hub) ChannelSubscriberCount(channel string) int {
+	if hub == nil {
 		return 0
 	}
-	h.mu.RLock()
-	defer h.mu.RUnlock()
-	return len(h.channels[channel])
+	hub.mu.RLock()
+	defer hub.mu.RUnlock()
+	return len(hub.channels[channel])
 }
 
 // AllPeers returns an iterator for all connected peers.
 //
 //	for peer := range hub.AllPeers() { log.Println(peer.UserID) }
-func (h *Hub) AllPeers() iter.Seq[*Peer] {
-	if h == nil {
+func (hub *Hub) AllPeers() iter.Seq[*Peer] {
+	if hub == nil {
 		return func(yield func(*Peer) bool) {}
 	}
-	h.mu.RLock()
-	peers := make([]*Peer, 0, len(h.peers))
-	for peer := range h.peers {
+	hub.mu.RLock()
+	peers := make([]*Peer, 0, len(hub.peers))
+	for peer := range hub.peers {
 		peers = append(peers, peer)
 	}
-	h.mu.RUnlock()
+	hub.mu.RUnlock()
 	return func(yield func(*Peer) bool) {
 		for _, peer := range peers {
 			if !yield(peer) {
@@ -478,19 +478,19 @@ func (h *Hub) AllPeers() iter.Seq[*Peer] {
 // AllChannels returns an iterator for all active channels.
 //
 //	for ch := range hub.AllChannels() { log.Println(ch) }
-func (h *Hub) AllChannels() iter.Seq[string] {
-	if h == nil {
+func (hub *Hub) AllChannels() iter.Seq[string] {
+	if hub == nil {
 		return func(yield func(string) bool) {}
 	}
-	h.mu.RLock()
-	channels := make([]string, 0, len(h.channels))
-	for channel, peers := range h.channels {
+	hub.mu.RLock()
+	channels := make([]string, 0, len(hub.channels))
+	for channel, peers := range hub.channels {
 		if channel == "*" || len(peers) == 0 {
 			continue
 		}
 		channels = append(channels, channel)
 	}
-	h.mu.RUnlock()
+	hub.mu.RUnlock()
 	sort.Strings(channels)
 	return func(yield func(string) bool) {
 		for _, channel := range channels {
@@ -504,8 +504,8 @@ func (h *Hub) AllChannels() iter.Seq[string] {
 // AddPeer registers a peer with the hub and invokes OnConnect.
 //
 //	hub.AddPeer(stream.NewPeer("ws"))
-func (h *Hub) AddPeer(peer *Peer) error {
-	if h == nil {
+func (hub *Hub) AddPeer(peer *Peer) error {
+	if hub == nil {
 		return core.E("stream.hub", "nil hub", nil)
 	}
 	if peer == nil {
@@ -517,41 +517,41 @@ func (h *Hub) AddPeer(peer *Peer) error {
 	if peer.subscriptions == nil {
 		peer.subscriptions = map[string]bool{}
 	}
-	h.mu.RLock()
-	running := h.running
-	h.mu.RUnlock()
+	hub.mu.RLock()
+	running := hub.running
+	hub.mu.RUnlock()
 	if running {
 		select {
-		case h.register <- peer:
+		case hub.register <- peer:
 			return nil
 		default:
 		}
 	}
-	h.addPeer(peer)
+	hub.addPeer(peer)
 	return nil
 }
 
 // RemovePeer unregisters a peer from the hub and invokes OnDisconnect.
 //
 //	hub.RemovePeer(peer)
-func (h *Hub) RemovePeer(peer *Peer) {
-	if h == nil || peer == nil {
+func (hub *Hub) RemovePeer(peer *Peer) {
+	if hub == nil || peer == nil {
 		return
 	}
-	h.mu.RLock()
-	running := h.running
-	h.mu.RUnlock()
+	hub.mu.RLock()
+	running := hub.running
+	hub.mu.RUnlock()
 	if running {
 		select {
-		case h.unregister <- peer:
+		case hub.unregister <- peer:
 			return
 		default:
 		}
 	}
-	h.removePeer(peer)
+	hub.removePeer(peer)
 }
 
-func (h *Hub) sendToPeer(peer *Peer, channel string, frame []byte) {
+func (hub *Hub) sendToPeer(peer *Peer, channel string, frame []byte) {
 	if peer == nil {
 		return
 	}
@@ -562,7 +562,7 @@ func (h *Hub) sendToPeer(peer *Peer, channel string, frame []byte) {
 	_ = peer.Send(frame)
 }
 
-func (h *Hub) sendBroadcastToPeer(peer *Peer, frame []byte) {
+func (hub *Hub) sendBroadcastToPeer(peer *Peer, frame []byte) {
 	if peer == nil {
 		return
 	}
@@ -573,7 +573,7 @@ func (h *Hub) sendBroadcastToPeer(peer *Peer, frame []byte) {
 	_ = peer.Send(frame)
 }
 
-func (h *Hub) invokeHandlers(handlers []func([]byte), frame []byte) {
+func (hub *Hub) invokeHandlers(handlers []func([]byte), frame []byte) {
 	for _, handler := range handlers {
 		func(fn func([]byte)) {
 			defer func() {
@@ -584,74 +584,74 @@ func (h *Hub) invokeHandlers(handlers []func([]byte), frame []byte) {
 	}
 }
 
-func (h *Hub) addPeer(peer *Peer) {
-	if h == nil || peer == nil {
+func (hub *Hub) addPeer(peer *Peer) {
+	if hub == nil || peer == nil {
 		return
 	}
-	h.mu.Lock()
-	if h.peers == nil {
-		h.peers = map[*Peer]bool{}
+	hub.mu.Lock()
+	if hub.peers == nil {
+		hub.peers = map[*Peer]bool{}
 	}
-	if h.peers[peer] {
-		h.mu.Unlock()
+	if hub.peers[peer] {
+		hub.mu.Unlock()
 		return
 	}
-	h.peers[peer] = true
-	onConnect := h.config.OnConnect
-	h.mu.Unlock()
+	hub.peers[peer] = true
+	onConnect := hub.config.OnConnect
+	hub.mu.Unlock()
 	if onConnect != nil {
 		onConnect(peer)
 	}
 }
 
-func (h *Hub) removePeer(peer *Peer) {
-	if h == nil || peer == nil {
+func (hub *Hub) removePeer(peer *Peer) {
+	if hub == nil || peer == nil {
 		return
 	}
-	h.mu.Lock()
-	if !h.peers[peer] {
-		h.mu.Unlock()
+	hub.mu.Lock()
+	if !hub.peers[peer] {
+		hub.mu.Unlock()
 		return
 	}
-	delete(h.peers, peer)
-	for channel, peers := range h.channels {
+	delete(hub.peers, peer)
+	for channel, peers := range hub.channels {
 		delete(peers, peer)
 		if len(peers) == 0 {
-			delete(h.channels, channel)
+			delete(hub.channels, channel)
 		}
 	}
 	peer.mu.Lock()
 	peer.subscriptions = map[string]bool{}
 	peer.mu.Unlock()
-	onDisconnect := h.config.OnDisconnect
-	h.mu.Unlock()
+	onDisconnect := hub.config.OnDisconnect
+	hub.mu.Unlock()
 	peer.Close()
 	if onDisconnect != nil {
 		onDisconnect(peer)
 	}
 }
 
-func (h *Hub) broadcastToPeers(source *Peer, frame []byte, notifyBroadcastSubscribers bool) {
-	if h == nil {
+func (hub *Hub) broadcastToPeers(source *Peer, frame []byte, notifyBroadcastSubscribers bool) {
+	if hub == nil {
 		return
 	}
-	h.mu.RLock()
-	peers := make([]*Peer, 0, len(h.peers))
-	for peer := range h.peers {
+	hub.mu.RLock()
+	peers := make([]*Peer, 0, len(hub.peers))
+	for peer := range hub.peers {
 		if peer == source {
 			continue
 		}
 		peers = append(peers, peer)
 	}
-	handlers := cloneHandlers(h.handlers["*"])
-	broadcastHandlers := cloneBroadcastHandlers(h.broadcastHandlers)
-	h.mu.RUnlock()
+	handlers := cloneHandlers(hub.handlers["*"])
+	broadcastHandlers := cloneBroadcastHandlers(hub.broadcastHandlers)
+	hub.mu.RUnlock()
 	for _, peer := range peers {
-		h.sendBroadcastToPeer(peer, frame)
+		hub.sendBroadcastToPeer(peer, frame)
 	}
-	h.invokeHandlers(handlers, frame)
+	hub.invokeHandlers(handlers, frame)
 	if notifyBroadcastSubscribers {
-		h.invokeBroadcastHandlers(broadcastHandlers, frame)
+		hub.invokeBroadcastHandlers(broadcastHandlers, frame)
 	}
 }
 
@@ -667,8 +667,8 @@ type broadcastDelivery struct {
 	notifyBroadcastSubscribers bool
 }
 
-func (h *Hub) enqueueDelivery(channel string, frame []byte, notifyPublishSubscribers bool) {
-	if h == nil {
+func (hub *Hub) enqueueDelivery(channel string, frame []byte, notifyPublishSubscribers bool) {
+	if hub == nil {
 		return
 	}
 	item := delivery{
@@ -677,52 +677,52 @@ func (h *Hub) enqueueDelivery(channel string, frame []byte, notifyPublishSubscri
 		notifyPublishSubscribers: notifyPublishSubscribers,
 	}
 	select {
-	case h.deliver <- item:
+	case hub.deliver <- item:
 	default:
-		h.processDelivery(item.channel, item.frame, item.notifyPublishSubscribers)
+		hub.processDelivery(item.channel, item.frame, item.notifyPublishSubscribers)
 	}
 }
 
-func (h *Hub) processDelivery(channel string, frame []byte, notifyPublishSubscribers bool) {
-	if h == nil {
+func (hub *Hub) processDelivery(channel string, frame []byte, notifyPublishSubscribers bool) {
+	if hub == nil {
 		return
 	}
-	h.mu.RLock()
-	handlers := cloneHandlers(h.handlers[channel])
-	wildcardHandlers := cloneHandlers(h.handlers["*"])
-	publishers := clonePublishHandlers(h.publishers)
-	h.mu.RUnlock()
+	hub.mu.RLock()
+	handlers := cloneHandlers(hub.handlers[channel])
+	wildcardHandlers := cloneHandlers(hub.handlers["*"])
+	publishers := clonePublishHandlers(hub.publishers)
+	hub.mu.RUnlock()
 
-	h.invokeHandlers(handlers, frame)
+	hub.invokeHandlers(handlers, frame)
 	if channel != "*" {
-		h.invokeHandlers(wildcardHandlers, frame)
+		hub.invokeHandlers(wildcardHandlers, frame)
 	}
 	if notifyPublishSubscribers {
-		h.invokePublishHandlers(publishers, channel, frame)
+		hub.invokePublishHandlers(publishers, channel, frame)
 	}
 }
 
-func (h *Hub) subscribePublished(handler func(string, []byte)) func() {
-	if h == nil || handler == nil {
+func (hub *Hub) subscribePublished(handler func(string, []byte)) func() {
+	if hub == nil || handler == nil {
 		return func() {}
 	}
-	h.mu.Lock()
-	if h.publishers == nil {
-		h.publishers = map[uint64]func(string, []byte){}
+	hub.mu.Lock()
+	if hub.publishers == nil {
+		hub.publishers = map[uint64]func(string, []byte){}
 	}
-	h.nextID++
-	id := h.nextID
-	h.publishers[id] = handler
-	h.mu.Unlock()
+	hub.nextID++
+	id := hub.nextID
+	hub.publishers[id] = handler
+	hub.mu.Unlock()
 
 	return func() {
-		h.mu.Lock()
-		defer h.mu.Unlock()
-		delete(h.publishers, id)
+		hub.mu.Lock()
+		defer hub.mu.Unlock()
+		delete(hub.publishers, id)
 	}
 }
 
-func (h *Hub) invokeBroadcastHandlers(handlers []func([]byte), frame []byte) {
+func (hub *Hub) invokeBroadcastHandlers(handlers []func([]byte), frame []byte) {
 	for _, handler := range handlers {
 		func(fn func([]byte)) {
 			defer func() {
@@ -733,7 +733,7 @@ func (h *Hub) invokeBroadcastHandlers(handlers []func([]byte), frame []byte) {
 	}
 }
 
-func (h *Hub) invokePublishHandlers(handlers []func(string, []byte), channel string, frame []byte) {
+func (hub *Hub) invokePublishHandlers(handlers []func(string, []byte), channel string, frame []byte) {
 	for _, handler := range handlers {
 		func(fn func(string, []byte)) {
 			defer func() {
@@ -744,16 +744,16 @@ func (h *Hub) invokePublishHandlers(handlers []func(string, []byte), channel str
 	}
 }
 
-func (h *Hub) collectChannelPeersLocked(channel string, source *Peer) []*Peer {
+func (hub *Hub) collectChannelPeersLocked(channel string, source *Peer) []*Peer {
 	combined := map[*Peer]struct{}{}
-	for peer := range h.channels[channel] {
+	for peer := range hub.channels[channel] {
 		if peer == source {
 			continue
 		}
 		combined[peer] = struct{}{}
 	}
 	if channel != "*" {
-		for peer := range h.channels["*"] {
+		for peer := range hub.channels["*"] {
 			if peer == source {
 				continue
 			}

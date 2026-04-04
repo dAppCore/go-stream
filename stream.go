@@ -112,14 +112,14 @@ func NewPeer(transport string) *Peer {
 // Subscriptions returns a copy of this peer's current channel subscriptions.
 //
 //	channels := peer.Subscriptions()   // ["hashrate", "block"]
-func (p *Peer) Subscriptions() []string {
-	if p == nil {
+func (peer *Peer) Subscriptions() []string {
+	if peer == nil {
 		return nil
 	}
-	p.mu.RLock()
-	defer p.mu.RUnlock()
-	channels := make([]string, 0, len(p.subscriptions))
-	for channel := range p.subscriptions {
+	peer.mu.RLock()
+	defer peer.mu.RUnlock()
+	channels := make([]string, 0, len(peer.subscriptions))
+	for channel := range peer.subscriptions {
 		channels = append(channels, channel)
 	}
 	sort.Strings(channels)
@@ -129,21 +129,21 @@ func (p *Peer) Subscriptions() []string {
 // Send enqueues frame for delivery. Non-blocking: drops and returns false if buffer full.
 //
 //	ok := peer.Send(frame)
-func (p *Peer) Send(frame []byte) bool {
-	if p == nil {
+func (peer *Peer) Send(frame []byte) bool {
+	if peer == nil {
 		return false
 	}
 	defer func() {
 		_ = recover()
 	}()
-	p.mu.RLock()
-	defer p.mu.RUnlock()
-	if p.send == nil {
+	peer.mu.RLock()
+	defer peer.mu.RUnlock()
+	if peer.send == nil {
 		return false
 	}
 	payload := append([]byte(nil), frame...)
 	select {
-	case p.send <- payload:
+	case peer.send <- payload:
 		return true
 	default:
 		return false
@@ -153,16 +153,16 @@ func (p *Peer) Send(frame []byte) bool {
 // Close signals the transport adapter to shut down this connection.
 //
 //	peer.Close()
-func (p *Peer) Close() {
-	if p == nil {
+func (peer *Peer) Close() {
+	if peer == nil {
 		return
 	}
-	p.closeOnce.Do(func() {
-		p.mu.Lock()
-		send := p.send
-		closeHook := p.closeHook
-		p.closeHook = nil
-		p.mu.Unlock()
+	peer.closeOnce.Do(func() {
+		peer.mu.Lock()
+		send := peer.send
+		closeHook := peer.closeHook
+		peer.closeHook = nil
+		peer.mu.Unlock()
 		if send != nil {
 			close(send)
 		}
@@ -175,25 +175,25 @@ func (p *Peer) Close() {
 // SetCloseHook installs the transport shutdown hook invoked by Close.
 //
 //	peer.SetCloseHook(func() { _ = conn.Close() })
-func (p *Peer) SetCloseHook(closeHook func()) {
-	if p == nil {
+func (peer *Peer) SetCloseHook(closeHook func()) {
+	if peer == nil {
 		return
 	}
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	p.closeHook = closeHook
+	peer.mu.Lock()
+	defer peer.mu.Unlock()
+	peer.closeHook = closeHook
 }
 
 // SendQueue returns the peer's outgoing frame queue.
 //
 //	for frame := range peer.SendQueue() { ... }
-func (p *Peer) SendQueue() <-chan []byte {
-	if p == nil {
+func (peer *Peer) SendQueue() <-chan []byte {
+	if peer == nil {
 		return nil
 	}
-	p.mu.RLock()
-	defer p.mu.RUnlock()
-	return p.send
+	peer.mu.RLock()
+	defer peer.mu.RUnlock()
+	return peer.send
 }
 
 // ConnectionState represents the lifecycle state of a reconnecting client.
