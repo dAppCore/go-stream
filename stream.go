@@ -70,12 +70,9 @@ type Channel = string
 
 // Peer represents one connected endpoint. Created by a transport adapter.
 //
-//	peer := &stream.Peer{
-//	    ID:        uuid.New(),
-//	    UserID:    authResult.UserID,
-//	    Claims:    authResult.Claims,
-//	    Transport: "ws",
-//	}
+//	peer := stream.NewPeer("ws")
+//	peer.UserID = authResult.UserID
+//	peer.Claims = authResult.Claims
 type Peer struct {
 	// ID is a random UUID assigned on creation.
 	ID string
@@ -152,6 +149,7 @@ func (peer *Peer) Send(frame []byte) bool {
 
 // Close signals the transport adapter to shut down this connection.
 //
+//	peer.SetCloseHook(func() { _ = conn.Close() })
 //	peer.Close()
 func (peer *Peer) Close() {
 	if peer == nil {
@@ -186,7 +184,7 @@ func (peer *Peer) SetCloseHook(closeHook func()) {
 
 // SendQueue returns the peer's outgoing frame queue.
 //
-//	for frame := range peer.SendQueue() { ... }
+//	for frame := range peer.SendQueue() { handle(frame) }
 func (peer *Peer) SendQueue() <-chan []byte {
 	if peer == nil {
 		return nil
