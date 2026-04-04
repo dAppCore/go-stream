@@ -9,11 +9,8 @@ import (
 )
 
 //	authenticator := stream.AuthenticatorFunc(func(request *http.Request) stream.AuthResult {
-//	    token := request.Header.Get("X-Api-Key")
-//	    if token == "" {
-//	        return stream.AuthResult{Valid: false, Error: stream.ErrMissingAuthHeader}
-//	    }
-//	    return stream.AuthResult{Valid: true, UserID: lookupUser(token)}
+//	    request.Header.Set("Authorization", "Bearer sk-live")
+//	    return stream.AuthResult{Valid: true, UserID: "user-42"}
 //	})
 type Authenticator interface {
 	Authenticate(request *http.Request) AuthResult
@@ -35,17 +32,10 @@ type AuthResult struct {
 }
 
 //	authenticator := stream.AuthenticatorFunc(func(request *http.Request) stream.AuthResult {
-//	    token := request.Header.Get("X-Api-Key")
-//	    if token == "" {
-//	        return stream.AuthResult{Valid: false}
-//	    }
-//	    return stream.AuthResult{Valid: true, UserID: lookupUser(token)}
+//	    return stream.AuthResult{Valid: true, UserID: "user-42"}
 //	})
 type AuthenticatorFunc func(request *http.Request) AuthResult
 
-//	authenticator := stream.AuthenticatorFunc(func(request *http.Request) stream.AuthResult {
-//	    return stream.AuthResult{Valid: true, UserID: request.Header.Get("X-User")}
-//	})
 func (authenticatorFunc AuthenticatorFunc) Authenticate(request *http.Request) AuthResult {
 	if authenticatorFunc == nil || request == nil {
 		return AuthResult{Valid: false}
@@ -53,13 +43,13 @@ func (authenticatorFunc AuthenticatorFunc) Authenticate(request *http.Request) A
 	return authenticatorFunc(request)
 }
 
-// auth := stream.NewAPIKeyAuth(map[string]string{"sk-prod-1": "user-42"})
-// result := auth.Authenticate(r)
+//	auth := stream.NewAPIKeyAuth(map[string]string{"sk-live": "user-42"})
+//	result := auth.Authenticate(r)
 type APIKeyAuthenticator struct {
 	Keys map[string]string
 }
 
-// authenticator := stream.NewAPIKeyAuth(map[string]string{"sk-prod-1": "user-42"})
+//	authenticator := stream.NewAPIKeyAuth(map[string]string{"sk-live": "user-42"})
 func NewAPIKeyAuth(keys map[string]string) *APIKeyAuthenticator {
 	if keys == nil {
 		keys = map[string]string{}
@@ -71,9 +61,9 @@ func NewAPIKeyAuth(keys map[string]string) *APIKeyAuthenticator {
 	return &APIKeyAuthenticator{Keys: copied}
 }
 
-// authenticator := stream.NewAPIKeyAuth(map[string]string{"sk-prod-1": "user-42"})
-// request.Header.Set("Authorization", "Bearer sk-prod-1")
-// result := authenticator.Authenticate(request)
+//	authenticator := stream.NewAPIKeyAuth(map[string]string{"sk-live": "user-42"})
+//	request.Header.Set("Authorization", "Bearer sk-live")
+//	result := authenticator.Authenticate(request)
 func (authenticator *APIKeyAuthenticator) Authenticate(request *http.Request) AuthResult {
 	if authenticator == nil || request == nil {
 		return AuthResult{Valid: false}
@@ -91,19 +81,16 @@ func (authenticator *APIKeyAuthenticator) Authenticate(request *http.Request) Au
 
 //	authenticator := &stream.BearerTokenAuth{
 //	    Validate: func(token string) stream.AuthResult {
-//	        claims, err := jwt.Parse(token, keyFunc)
-//	        if err != nil {
-//	            return stream.AuthResult{Valid: false, Error: err}
+//	        if token == "sk-live" {
+//	            return stream.AuthResult{Valid: true, UserID: "user-42"}
 //	        }
-//	        return stream.AuthResult{Valid: true, UserID: claims.Subject}
+//	        return stream.AuthResult{Valid: false}
 //	    },
 //	}
 type BearerTokenAuth struct {
 	Validate func(token string) AuthResult
 }
 
-// authenticator := &stream.BearerTokenAuth{Validate: validateJWT}
-// result := authenticator.Authenticate(request)
 func (authenticator *BearerTokenAuth) Authenticate(request *http.Request) AuthResult {
 	if authenticator == nil || authenticator.Validate == nil || request == nil {
 		return AuthResult{Valid: false}
@@ -117,15 +104,16 @@ func (authenticator *BearerTokenAuth) Authenticate(request *http.Request) AuthRe
 
 //	authenticator := &stream.QueryTokenAuth{
 //	    Validate: func(token string) stream.AuthResult {
-//	        return lookupToken(token)
+//	        if token == "sk-live" {
+//	            return stream.AuthResult{Valid: true, UserID: "user-42"}
+//	        }
+//	        return stream.AuthResult{Valid: false}
 //	    },
 //	}
 type QueryTokenAuth struct {
 	Validate func(token string) AuthResult
 }
 
-// authenticator := &stream.QueryTokenAuth{Validate: lookupToken}
-// result := authenticator.Authenticate(request)
 func (authenticator *QueryTokenAuth) Authenticate(request *http.Request) AuthResult {
 	if authenticator == nil || authenticator.Validate == nil || request == nil {
 		return AuthResult{Valid: false}
@@ -138,23 +126,23 @@ func (authenticator *QueryTokenAuth) Authenticate(request *http.Request) AuthRes
 }
 
 //	auth := stream.ConnAuthenticatorFunc(func(handshake []byte) stream.AuthResult {
-//	    if len(handshake) == 0 {
-//	        return stream.AuthResult{Valid: false}
+//	    if string(handshake) == "hello" {
+//	        return stream.AuthResult{Valid: true, UserID: "peer-1"}
 //	    }
-//	    return stream.AuthResult{Valid: true, UserID: "peer-1"}
+//	    return stream.AuthResult{Valid: false}
 //	})
 type ConnAuthenticator interface {
 	AuthenticateConn(handshake []byte) AuthResult
 }
 
 //	auth := stream.ConnAuthenticatorFunc(func(handshake []byte) stream.AuthResult {
-//	    return stream.AuthResult{Valid: true}
+//	    if string(handshake) == "hello" {
+//	        return stream.AuthResult{Valid: true, UserID: "peer-1"}
+//	    }
+//	    return stream.AuthResult{Valid: false}
 //	})
 type ConnAuthenticatorFunc func(handshake []byte) AuthResult
 
-//	auth := stream.ConnAuthenticatorFunc(func(handshake []byte) stream.AuthResult {
-//	    return stream.AuthResult{Valid: true}
-//	})
 func (connAuthenticatorFunc ConnAuthenticatorFunc) AuthenticateConn(handshake []byte) AuthResult {
 	if connAuthenticatorFunc == nil {
 		return AuthResult{Valid: false}
