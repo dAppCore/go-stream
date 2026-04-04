@@ -25,8 +25,8 @@ const maxHandshakeFrameSize = 4 << 10
 
 // Config configures the TCP adapter.
 //
-//	cfg := tcp.Config{Addr: ":9000", ConnAuthenticator: auth}
-//	adapter := tcp.New(cfg)
+//	config := tcp.Config{Addr: ":9000", ConnAuthenticator: auth}
+//	adapter := tcp.New(config)
 type Config struct {
 	Addr              string
 	ConnAuthenticator stream.ConnAuthenticator

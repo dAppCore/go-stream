@@ -19,8 +19,8 @@ import (
 
 // Config configures the Redis bridge.
 //
-//	cfg := redis.Config{Addr: "127.0.0.1:6379", Prefix: "pool"}
-//	bridge, err := redis.NewBridge(hub, cfg)
+//	config := redis.Config{Addr: "127.0.0.1:6379", Prefix: "pool"}
+//	bridge, err := redis.NewBridge(hub, config)
 type Config struct {
 	Addr      string
 	Password  string
@@ -31,7 +31,8 @@ type Config struct {
 
 // Bridge connects a Hub to Redis pub/sub for cross-instance messaging.
 //
-//	bridge, err := redis.NewBridge(hub, redis.Config{Addr: "127.0.0.1:6379", Prefix: "pool"})
+//	config := redis.Config{Addr: "127.0.0.1:6379", Prefix: "pool"}
+//	bridge, err := redis.NewBridge(hub, config)
 //	go bridge.Start(ctx)
 type Bridge struct {
 	hub      *stream.Hub
@@ -54,7 +55,8 @@ type envelope struct {
 
 // NewBridge creates and validates the Redis connection.
 //
-//	bridge, err := redis.NewBridge(hub, redis.Config{Addr: "redis:6379", Prefix: "pool"})
+//	config := redis.Config{Addr: "redis:6379", Prefix: "pool"}
+//	bridge, err := redis.NewBridge(hub, config)
 func NewBridge(hub *stream.Hub, config Config) (*Bridge, error) {
 	if hub == nil {
 		return nil, core.E("stream.redis", "nil hub", nil)

@@ -6,7 +6,7 @@ import "time"
 
 // HubConfig controls hub behaviour and lifecycle callbacks.
 //
-//	cfg := stream.HubConfig{
+//	config := stream.HubConfig{
 //	    HeartbeatInterval: 30 * time.Second,
 //	    OnConnect:         func(p *stream.Peer) { metrics.Inc("peers") },
 //	    ChannelAuthoriser: func(p *stream.Peer, ch string) bool {
@@ -45,7 +45,7 @@ type HubConfig struct {
 
 // DefaultHubConfig returns sensible defaults.
 //
-//	cfg := stream.DefaultHubConfig()
+//	config := stream.DefaultHubConfig()
 func DefaultHubConfig() HubConfig {
 	return HubConfig{
 		HeartbeatInterval: 30 * time.Second,

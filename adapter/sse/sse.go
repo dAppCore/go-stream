@@ -17,11 +17,12 @@ import (
 
 // Config configures the SSE adapter.
 //
-//	adapter := sse.New(sse.Config{
+//	config := sse.Config{
 //	    Authenticator:     stream.NewAPIKeyAuth(map[string]string{"sk-live": "user-42"}),
 //	    HeartbeatInterval: 15 * time.Second,
 //	    RetryMs:           3000,
-//	})
+//	}
+//	adapter := sse.New(config)
 type Config struct {
 	Authenticator     stream.Authenticator
 	OnAuthFailure     func(r *http.Request, result stream.AuthResult)
