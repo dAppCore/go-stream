@@ -4,8 +4,9 @@ package stream
 
 import "time"
 
-// MessageType identifies the purpose of a WebSocket message.
-// Preserved from go-ws for backward compatibility with browser clients.
+// MessageType is used with stream.Message for WebSocket envelopes.
+//
+//	msg := stream.Message{Type: stream.TypeEvent, Channel: "hashrate"}
 type MessageType string
 
 const (
@@ -19,7 +20,7 @@ const (
 	TypeUnsubscribe   MessageType = "unsubscribe"    // client cancels channel subscription
 )
 
-// Message is the JSON envelope for WebSocket frames. Preserved from go-ws.
+// Message is the JSON envelope for WebSocket frames.
 //
 //	msg := stream.Message{
 //	    Type:    stream.TypeEvent,

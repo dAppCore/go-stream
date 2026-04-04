@@ -10,10 +10,10 @@ import (
 
 // Authenticator checks an HTTP request during connection setup.
 //
-//	auth := stream.NewAPIKeyAuth(map[string]string{"sk-prod-1": "user-42"})
-//	result := auth.Authenticate(r)
+//	authenticator := stream.NewAPIKeyAuth(map[string]string{"sk-prod-1": "user-42"})
+//	result := authenticator.Authenticate(request)
 type Authenticator interface {
-	Authenticate(r *http.Request) AuthResult
+	Authenticate(request *http.Request) AuthResult
 }
 
 // AuthResult is the outcome of an authentication attempt.
@@ -31,23 +31,23 @@ type AuthResult struct {
 	Error error
 }
 
-//	auth := stream.AuthenticatorFunc(func(r *http.Request) stream.AuthResult {
-//	    token := r.Header.Get("X-Api-Key")
+//	authenticator := stream.AuthenticatorFunc(func(request *http.Request) stream.AuthResult {
+//	    token := request.Header.Get("X-Api-Key")
 //	    if token == "" {
 //	        return stream.AuthResult{Valid: false}
 //	    }
 //	    return stream.AuthResult{Valid: true, UserID: lookupUser(token)}
 //	})
-type AuthenticatorFunc func(r *http.Request) AuthResult
+type AuthenticatorFunc func(request *http.Request) AuthResult
 
-//	auth := stream.AuthenticatorFunc(func(r *http.Request) stream.AuthResult {
-//	    return stream.AuthResult{Valid: true, UserID: r.Header.Get("X-User")}
+//	authenticator := stream.AuthenticatorFunc(func(request *http.Request) stream.AuthResult {
+//	    return stream.AuthResult{Valid: true, UserID: request.Header.Get("X-User")}
 //	})
-func (f AuthenticatorFunc) Authenticate(r *http.Request) AuthResult {
-	if f == nil || r == nil {
+func (function AuthenticatorFunc) Authenticate(request *http.Request) AuthResult {
+	if function == nil || request == nil {
 		return AuthResult{Valid: false}
 	}
-	return f(r)
+	return function(request)
 }
 
 // APIKeyAuthenticator validates `Authorization: Bearer <key>` against a static map.
@@ -58,7 +58,7 @@ type APIKeyAuthenticator struct {
 	Keys map[string]string
 }
 
-// auth := stream.NewAPIKeyAuth(map[string]string{"sk-prod-1": "user-42"})
+// authenticator := stream.NewAPIKeyAuth(map[string]string{"sk-prod-1": "user-42"})
 func NewAPIKeyAuth(keys map[string]string) *APIKeyAuthenticator {
 	if keys == nil {
 		keys = map[string]string{}
@@ -70,25 +70,25 @@ func NewAPIKeyAuth(keys map[string]string) *APIKeyAuthenticator {
 	return &APIKeyAuthenticator{Keys: copied}
 }
 
-// auth := stream.NewAPIKeyAuth(map[string]string{"sk-prod-1": "user-42"})
-// r.Header.Set("Authorization", "Bearer sk-prod-1")
-// result := auth.Authenticate(r)
-func (a *APIKeyAuthenticator) Authenticate(r *http.Request) AuthResult {
-	if a == nil || r == nil {
+// authenticator := stream.NewAPIKeyAuth(map[string]string{"sk-prod-1": "user-42"})
+// request.Header.Set("Authorization", "Bearer sk-prod-1")
+// result := authenticator.Authenticate(request)
+func (authenticator *APIKeyAuthenticator) Authenticate(request *http.Request) AuthResult {
+	if authenticator == nil || request == nil {
 		return AuthResult{Valid: false}
 	}
-	token, result := bearerTokenFromRequest(r)
+	token, result := bearerTokenFromRequest(request)
 	if !result.Valid {
 		return result
 	}
-	userID, ok := a.Keys[token]
+	userID, ok := authenticator.Keys[token]
 	if !ok {
 		return AuthResult{Valid: false, Error: ErrInvalidAPIKey}
 	}
 	return AuthResult{Valid: true, UserID: userID}
 }
 
-//	auth := &stream.BearerTokenAuth{
+//	authenticator := &stream.BearerTokenAuth{
 //	    Validate: func(token string) stream.AuthResult {
 //	        claims, err := jwt.Parse(token, keyFunc)
 //	        if err != nil {
@@ -101,20 +101,20 @@ type BearerTokenAuth struct {
 	Validate func(token string) AuthResult
 }
 
-// auth := &stream.BearerTokenAuth{Validate: validateJWT}
-// result := auth.Authenticate(r)
-func (b *BearerTokenAuth) Authenticate(r *http.Request) AuthResult {
-	if b == nil || b.Validate == nil || r == nil {
+// authenticator := &stream.BearerTokenAuth{Validate: validateJWT}
+// result := authenticator.Authenticate(request)
+func (authenticator *BearerTokenAuth) Authenticate(request *http.Request) AuthResult {
+	if authenticator == nil || authenticator.Validate == nil || request == nil {
 		return AuthResult{Valid: false}
 	}
-	token, result := bearerTokenFromRequest(r)
+	token, result := bearerTokenFromRequest(request)
 	if !result.Valid {
 		return result
 	}
-	return b.Validate(token)
+	return authenticator.Validate(token)
 }
 
-//	auth := &stream.QueryTokenAuth{
+//	authenticator := &stream.QueryTokenAuth{
 //	    Validate: func(token string) stream.AuthResult {
 //	        return lookupToken(token)
 //	    },
@@ -123,17 +123,17 @@ type QueryTokenAuth struct {
 	Validate func(token string) AuthResult
 }
 
-// auth := &stream.QueryTokenAuth{Validate: lookupToken}
-// result := auth.Authenticate(r)
-func (q *QueryTokenAuth) Authenticate(r *http.Request) AuthResult {
-	if q == nil || q.Validate == nil || r == nil {
+// authenticator := &stream.QueryTokenAuth{Validate: lookupToken}
+// result := authenticator.Authenticate(request)
+func (authenticator *QueryTokenAuth) Authenticate(request *http.Request) AuthResult {
+	if authenticator == nil || authenticator.Validate == nil || request == nil {
 		return AuthResult{Valid: false}
 	}
-	token := r.URL.Query().Get("token")
+	token := request.URL.Query().Get("token")
 	if token == "" {
 		return AuthResult{Valid: false}
 	}
-	return q.Validate(token)
+	return authenticator.Validate(token)
 }
 
 //	auth := stream.ConnAuthenticatorFunc(func(handshake []byte) stream.AuthResult {
@@ -154,15 +154,15 @@ type ConnAuthenticatorFunc func(handshake []byte) AuthResult
 //	auth := stream.ConnAuthenticatorFunc(func(handshake []byte) stream.AuthResult {
 //	    return stream.AuthResult{Valid: true}
 //	})
-func (f ConnAuthenticatorFunc) AuthenticateConn(handshake []byte) AuthResult {
-	if f == nil {
+func (function ConnAuthenticatorFunc) AuthenticateConn(handshake []byte) AuthResult {
+	if function == nil {
 		return AuthResult{Valid: false}
 	}
-	return f(handshake)
+	return function(handshake)
 }
 
-func bearerTokenFromRequest(r *http.Request) (string, AuthResult) {
-	header := r.Header.Get("Authorization")
+func bearerTokenFromRequest(request *http.Request) (string, AuthResult) {
+	header := request.Header.Get("Authorization")
 	if header == "" {
 		return "", AuthResult{Valid: false, Error: ErrMissingAuthHeader}
 	}

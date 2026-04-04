@@ -4,7 +4,11 @@ package stream
 
 import "dappco.re/go/core"
 
-// Sentinel errors for the stream package. All errors use core.E().
+// Sentinel errors for the stream package.
+//
+//	if err := hub.Publish("hashrate", frame); err == ErrHubNotRunning {
+//	    return
+//	}
 var (
 	// ErrMissingAuthHeader is returned when no Authorization header is present.
 	ErrMissingAuthHeader = core.E("stream.auth", "missing Authorization header", nil)

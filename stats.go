@@ -2,10 +2,10 @@
 
 package stream
 
-// HubStats is a snapshot of hub state at a point in time.
+// HubStats captures a hub snapshot at a point in time.
 //
-//	s := hub.Stats()
-//	core.Print(nil, "peers=%d channels=%d", s.Peers, s.Channels)
+//	stats := hub.Stats()
+//	core.Print(nil, "peers=%d channels=%d", stats.Peers, stats.Channels)
 type HubStats struct {
 	// Peers is the number of currently connected peers across all transports.
 	Peers int `json:"peers"`
