@@ -236,7 +236,7 @@ func TestHub_Pipe_Ugly(t *testing.T) {
 	}
 }
 
-func TestHub_Pipe_GenericBroadcastFallback_Good(t *testing.T) {
+func TestHub_Pipe_GenericPublishFallback_Good(t *testing.T) {
 	sourceStream := newTestStream()
 	destinationStream := newTestStream()
 
@@ -249,14 +249,17 @@ func TestHub_Pipe_GenericBroadcastFallback_Good(t *testing.T) {
 
 	destinationStream.mu.Lock()
 	defer destinationStream.mu.Unlock()
-	if len(destinationStream.broadcasts) != 1 {
-		t.Fatalf("len(broadcasts) = %d, want %d", len(destinationStream.broadcasts), 1)
+	if len(destinationStream.published) != 1 {
+		t.Fatalf("len(published) = %d, want %d", len(destinationStream.published), 1)
 	}
-	if string(destinationStream.broadcasts[0]) != "123456" {
-		t.Fatalf("broadcast frame = %q, want %q", string(destinationStream.broadcasts[0]), "123456")
+	if destinationStream.published[0].channel != "*" {
+		t.Fatalf("published channel = %q, want %q", destinationStream.published[0].channel, "*")
 	}
-	if len(destinationStream.published) != 0 {
-		t.Fatalf("len(published) = %d, want %d", len(destinationStream.published), 0)
+	if string(destinationStream.published[0].frame) != "123456" {
+		t.Fatalf("published frame = %q, want %q", string(destinationStream.published[0].frame), "123456")
+	}
+	if len(destinationStream.broadcasts) != 0 {
+		t.Fatalf("len(broadcasts) = %d, want %d", len(destinationStream.broadcasts), 0)
 	}
 }
 

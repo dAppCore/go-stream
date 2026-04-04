@@ -242,9 +242,9 @@ func Pipe(src Stream, dst Stream) func() {
 	}
 	if len(stops) == 0 {
 		// Generic Stream implementations do not expose channel names, so fall back
-		// to forwarding the frame as a broadcast.
+		// to publishing on the wildcard channel.
 		stop := src.Subscribe("*", func(frame []byte) {
-			_ = dst.Broadcast(frame)
+			_ = dst.Publish("*", frame)
 		})
 		var once sync.Once
 		return func() {
