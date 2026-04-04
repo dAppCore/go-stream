@@ -8,14 +8,14 @@ import "time"
 type MessageType string
 
 const (
-	TypeProcessOutput MessageType = "process_output" // stream a process line to clients
-	TypeProcessStatus MessageType = "process_status" // signal a process transition such as running or exited
-	TypeEvent         MessageType = "event"          // generic named event payload
-	TypeError         MessageType = "error"          // report an error envelope
-	TypePing          MessageType = "ping"           // client keepalive ping
-	TypePong          MessageType = "pong"           // server keepalive pong
-	TypeSubscribe     MessageType = "subscribe"      // request subscription to a channel
-	TypeUnsubscribe   MessageType = "unsubscribe"    // cancel a channel subscription
+	TypeProcessOutput MessageType = "process_output" // msg := stream.Message{Type: stream.TypeProcessOutput, ProcessID: "build-123"}
+	TypeProcessStatus MessageType = "process_status" // msg := stream.Message{Type: stream.TypeProcessStatus, ProcessID: "build-123"}
+	TypeEvent         MessageType = "event"          // msg := stream.Message{Type: stream.TypeEvent, Channel: "hashrate"}
+	TypeError         MessageType = "error"          // msg := stream.Message{Type: stream.TypeError, Data: "unauthorised"}
+	TypePing          MessageType = "ping"           // msg := stream.Message{Type: stream.TypePing, ProcessID: "client-1"}
+	TypePong          MessageType = "pong"           // reply := stream.Message{Type: stream.TypePong, ProcessID: "client-1"}
+	TypeSubscribe     MessageType = "subscribe"      // msg := stream.Message{Type: stream.TypeSubscribe, Channel: "block"}
+	TypeUnsubscribe   MessageType = "unsubscribe"    // msg := stream.Message{Type: stream.TypeUnsubscribe, Channel: "block"}
 )
 
 //	msg := stream.Message{

@@ -95,3 +95,24 @@ func ExampleNewAPIKeyAuth() {
 	// Output:
 	// true user-42
 }
+
+func ExampleMessage() {
+	msg := stream.Message{
+		Type:      stream.TypeEvent,
+		Channel:   "hashrate",
+		ProcessID: "agent-42",
+		Data:      map[string]any{"h": 1234567},
+	}
+
+	fmt.Println(msg.Type, msg.Channel, msg.ProcessID, msg.Data)
+
+	// Output:
+	// event hashrate agent-42 map[h:1234567]
+}
+
+func ExampleMessageType() {
+	fmt.Println(stream.TypeSubscribe)
+
+	// Output:
+	// subscribe
+}
