@@ -37,14 +37,11 @@ const (
 	RolePuller
 )
 
-// Config configures the ZMQ adapter.
-//
-//	config := zmq.Config{
+//	cfg := zmq.Config{
 //	    Mode:     zmq.ModePubSub,
 //	    Endpoint: "tcp://127.0.0.1:5555",
 //	    Role:     zmq.RoleSubscriber,
 //	}
-//	adapter := zmq.New(config)
 type Config struct {
 	Mode     Mode
 	Endpoint string
@@ -60,7 +57,7 @@ type Config struct {
 	HandshakeTimeout time.Duration
 }
 
-// Adapter is the ZMQ transport adapter.
+// adapter := zmq.New(zmq.Config{Mode: zmq.ModePubSub, Endpoint: "tcp://127.0.0.1:5555", Role: zmq.RoleSubscriber})
 type Adapter struct {
 	hub    *stream.Hub
 	config Config
@@ -71,9 +68,7 @@ type Adapter struct {
 	cancel  context.CancelFunc
 }
 
-// New creates a ZMQ adapter.
-//
-//	adapter := zmq.New(zmq.Config{Mode: zmq.ModePubSub, Endpoint: "tcp://127.0.0.1:5555", Role: zmq.RoleSubscriber})
+// adapter := zmq.New(zmq.Config{Mode: zmq.ModePubSub, Endpoint: "tcp://127.0.0.1:5555", Role: zmq.RoleSubscriber})
 func New(config Config) *Adapter {
 	if config.HandshakeTimeout == 0 {
 		config.HandshakeTimeout = 5 * time.Second
@@ -81,16 +76,12 @@ func New(config Config) *Adapter {
 	return &Adapter{config: config}
 }
 
-// Mount wires the adapter to a hub.
-//
-//	adapter.Mount(hub)
+// adapter.Mount(hub)
 func (adapter *Adapter) Mount(hub *stream.Hub) {
 	adapter.hub = hub
 }
 
-// Start opens the ZMQ socket and begins receive/dispatch. Blocks until ctx cancelled.
-//
-//	go adapter.Start(ctx)
+// go adapter.Start(ctx)
 func (adapter *Adapter) Start(ctx context.Context) error {
 	if adapter == nil {
 		return core.E("stream.zmq", "nil adapter", nil)
@@ -185,9 +176,7 @@ func (adapter *Adapter) Start(ctx context.Context) error {
 	}
 }
 
-// Publish sends frame with topic (channel name) via the ZMQ socket.
-//
-//	_ = adapter.Publish("block", templateBytes)
+// _ = adapter.Publish("block", templateBytes)
 func (adapter *Adapter) Publish(channel string, frame []byte) error {
 	if adapter == nil {
 		return core.E("stream.zmq", "nil adapter", nil)

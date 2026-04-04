@@ -17,10 +17,7 @@ import (
 	"dappco.re/go/stream"
 )
 
-// Config configures the Redis bridge.
-//
-//	config := redis.Config{Addr: "127.0.0.1:6379", Prefix: "pool"}
-//	bridge, err := redis.NewBridge(hub, config)
+// cfg := redis.Config{Addr: "127.0.0.1:6379", Prefix: "pool"}
 type Config struct {
 	Addr      string
 	Password  string
@@ -29,11 +26,8 @@ type Config struct {
 	TLSConfig *tls.Config
 }
 
-// Bridge connects a Hub to Redis pub/sub for cross-instance messaging.
-//
-//	config := redis.Config{Addr: "127.0.0.1:6379", Prefix: "pool"}
-//	bridge, err := redis.NewBridge(hub, config)
-//	go bridge.Start(ctx)
+// bridge, err := redis.NewBridge(hub, redis.Config{Addr: "127.0.0.1:6379", Prefix: "pool"})
+// go bridge.Start(ctx)
 type Bridge struct {
 	hub      *stream.Hub
 	config   Config
@@ -53,10 +47,7 @@ type envelope struct {
 	Frame    []byte `json:"f"`
 }
 
-// NewBridge creates and validates the Redis connection.
-//
-//	config := redis.Config{Addr: "redis:6379", Prefix: "pool"}
-//	bridge, err := redis.NewBridge(hub, config)
+// bridge, err := redis.NewBridge(hub, cfg)
 func NewBridge(hub *stream.Hub, config Config) (*Bridge, error) {
 	if hub == nil {
 		return nil, core.E("stream.redis", "nil hub", nil)
@@ -83,9 +74,7 @@ func NewBridge(hub *stream.Hub, config Config) (*Bridge, error) {
 	}, nil
 }
 
-// Start begins the Redis pub/sub listener.
-//
-//	go bridge.Start(ctx)
+// go bridge.Start(ctx)
 func (bridge *Bridge) Start(ctx context.Context) error {
 	if bridge == nil {
 		return core.E("stream.redis", "nil bridge", nil)
@@ -171,9 +160,7 @@ func (bridge *Bridge) Start(ctx context.Context) error {
 	}
 }
 
-// Stop cleanly shuts down the bridge.
-//
-//	defer bridge.Stop()
+// defer bridge.Stop()
 func (bridge *Bridge) Stop() error {
 	if bridge == nil {
 		return nil
@@ -210,9 +197,7 @@ func (bridge *Bridge) Stop() error {
 	return nil
 }
 
-// PublishToChannel publishes frame to a specific hub channel via Redis.
-//
-//	_ = bridge.PublishToChannel("block", templateBytes)
+// _ = bridge.PublishToChannel("block", templateBytes)
 func (bridge *Bridge) PublishToChannel(channel string, frame []byte) error {
 	if bridge == nil {
 		return core.E("stream.redis", "nil bridge", nil)
@@ -224,9 +209,7 @@ func (bridge *Bridge) PublishToChannel(channel string, frame []byte) error {
 	return bridge.publish(bridge.channelKey(channel), frame)
 }
 
-// PublishBroadcast publishes frame as a broadcast via Redis.
-//
-//	_ = bridge.PublishBroadcast(shutdownFrame)
+// _ = bridge.PublishBroadcast(shutdownFrame)
 func (bridge *Bridge) PublishBroadcast(frame []byte) error {
 	if bridge == nil {
 		return core.E("stream.redis", "nil bridge", nil)

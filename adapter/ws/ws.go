@@ -19,9 +19,7 @@ import (
 	"dappco.re/go/stream"
 )
 
-// Config configures the WebSocket adapter.
-//
-//	config := ws.Config{
+//	cfg := ws.Config{
 //	    Authenticator: stream.NewAPIKeyAuth(keys),
 //	    OnAuthFailure: func(r *http.Request, res stream.AuthResult) {
 //	        log.Printf("ws auth fail from %s", r.RemoteAddr)
@@ -43,19 +41,15 @@ type Config struct {
 	CheckOrigin func(r *http.Request) bool
 }
 
-// Adapter is the WebSocket transport adapter for a stream.Hub.
-//
-//	adapter := ws.New(ws.Config{...})
-//	adapter.Mount(hub)
-//	http.Handle("/ws", adapter.Handler())
+// adapter := ws.New(ws.Config{Authenticator: auth})
+// adapter.Mount(hub)
+// http.Handle("/ws", adapter.Handler())
 type Adapter struct {
 	hub    *stream.Hub
 	config Config
 }
 
-// New creates a WebSocket adapter.
-//
-//	adapter := ws.New(ws.Config{Authenticator: auth})
+// adapter := ws.New(ws.Config{Authenticator: auth})
 func New(config Config) *Adapter {
 	if config.ReadBufferSize == 0 {
 		config.ReadBufferSize = 1024
@@ -66,19 +60,15 @@ func New(config Config) *Adapter {
 	return &Adapter{config: config}
 }
 
-// Mount wires the adapter to a hub.
-//
-//	adapter.Mount(hub)
+// adapter.Mount(hub)
 func (adapter *Adapter) Mount(hub *stream.Hub) {
 	adapter.hub = hub
 }
 
-// ServeHTTP upgrades the request to WebSocket and binds the connection to the mounted hub.
+// http.Handle("/stream/ws", adapter.Handler())
 //
-//	http.Handle("/stream/ws", adapter.Handler())
-//
-//	// Gin:
-//	r.GET("/stream/ws", gin.WrapF(adapter.Handler()))
+// Gin:
+// r.GET("/stream/ws", gin.WrapF(adapter.Handler()))
 func (adapter *Adapter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	adapter.serveHTTP(w, r, r.URL.Query()["channel"])
 }
@@ -190,11 +180,8 @@ func (adapter *Adapter) serveHTTP(w http.ResponseWriter, r *http.Request, channe
 	peer.Close()
 }
 
-// Handler returns an http.HandlerFunc for WebSocket connections.
-//
-//	http.Handle("/stream/ws", adapter.Handler())
-//	r.GET("/stream/ws", gin.WrapF(adapter.Handler()))
-//
+// http.Handle("/stream/ws", adapter.Handler())
+// r.GET("/stream/ws", gin.WrapF(adapter.Handler()))
 func (adapter *Adapter) Handler() http.HandlerFunc {
 	return adapter.ServeHTTP
 }

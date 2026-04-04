@@ -15,14 +15,11 @@ import (
 	"dappco.re/go/stream"
 )
 
-// Config configures the SSE adapter.
-//
-//	config := sse.Config{
+//	cfg := sse.Config{
 //	    Authenticator:     stream.NewAPIKeyAuth(map[string]string{"sk-live": "user-42"}),
 //	    HeartbeatInterval: 15 * time.Second,
 //	    RetryMs:           3000,
 //	}
-//	adapter := sse.New(config)
 type Config struct {
 	Authenticator     stream.Authenticator
 	OnAuthFailure     func(r *http.Request, result stream.AuthResult)
@@ -30,19 +27,15 @@ type Config struct {
 	RetryMs           int
 }
 
-// Adapter is the SSE transport adapter for a stream.Hub.
-//
-//	adapter := sse.New(sse.Config{})
-//	adapter.Mount(hub)
-//	http.Handle("/stream/events", adapter.Handler())
+// adapter := sse.New(sse.Config{})
+// adapter.Mount(hub)
+// http.Handle("/stream/events", adapter.Handler())
 type Adapter struct {
 	hub    *stream.Hub
 	config Config
 }
 
-// New creates an SSE adapter.
-//
-//	adapter := sse.New(sse.Config{HeartbeatInterval: 15 * time.Second})
+// adapter := sse.New(sse.Config{HeartbeatInterval: 15 * time.Second})
 func New(config Config) *Adapter {
 	if config.HeartbeatInterval == 0 {
 		config.HeartbeatInterval = 15 * time.Second
@@ -53,32 +46,24 @@ func New(config Config) *Adapter {
 	return &Adapter{config: config}
 }
 
-// Mount wires the adapter to a hub.
-//
-//	adapter.Mount(hub)
+// adapter.Mount(hub)
 func (adapter *Adapter) Mount(hub *stream.Hub) {
 	adapter.hub = hub
 }
 
-// ServeHTTP accepts an SSE connection and subscribes it using the channel query params.
-//
-//	http.Handle("/stream/events", adapter.Handler())
-//	http.Get("http://127.0.0.1:8080/stream/events?channel=hashrate")
+// http.Handle("/stream/events", adapter.Handler())
+// http.Get("http://127.0.0.1:8080/stream/events?channel=hashrate")
 func (adapter *Adapter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	adapter.serve(w, r, r.URL.Query()["channel"])
 }
 
-// Handler returns an http.HandlerFunc that accepts SSE connections.
-//
-//	http.Handle("/stream/events", adapter.Handler())
-//	http.Get("http://127.0.0.1:8080/stream/events?channel=hashrate")
+// http.Handle("/stream/events", adapter.Handler())
+// http.Get("http://127.0.0.1:8080/stream/events?channel=hashrate")
 func (adapter *Adapter) Handler() http.HandlerFunc {
 	return adapter.ServeHTTP
 }
 
-// HandlerForChannel returns a handler that auto-subscribes all connections to channel.
-//
-//	http.Handle("/stream/hashrate", adapter.HandlerForChannel("hashrate"))
+// http.Handle("/stream/hashrate", adapter.HandlerForChannel("hashrate"))
 func (adapter *Adapter) HandlerForChannel(channel string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		adapter.serve(w, r, []string{channel})
