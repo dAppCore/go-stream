@@ -2,29 +2,29 @@
 
 package stream
 
+import "dappco.re/go/core"
+
 // Sentinel errors for the stream package. All errors use core.E().
-//
-// TODO: Replace with core.E() calls once dappco.re/go/core is wired.
 var (
 	// ErrMissingAuthHeader is returned when no Authorization header is present.
-	ErrMissingAuthHeader error
+	ErrMissingAuthHeader = core.E("stream.auth", "missing Authorization header", nil)
 
 	// ErrMalformedAuthHeader is returned when the header is not "Bearer <token>".
-	ErrMalformedAuthHeader error
+	ErrMalformedAuthHeader = core.E("stream.auth", "malformed Authorization header", nil)
 
 	// ErrInvalidAPIKey is returned when the API key is not in the key map.
-	ErrInvalidAPIKey error
+	ErrInvalidAPIKey = core.E("stream.auth", "invalid API key", nil)
 
 	// ErrHandshakeTimeout is returned when the TCP/ZMQ peer did not send a
 	// handshake within the configured deadline.
-	ErrHandshakeTimeout error
+	ErrHandshakeTimeout = core.E("stream.auth", "handshake timeout", nil)
 
 	// ErrAuthRejected is returned when ConnAuthenticator denies the handshake.
-	ErrAuthRejected error
+	ErrAuthRejected = core.E("stream.auth", "connection rejected by authenticator", nil)
 
 	// ErrHubNotRunning is returned when Publish or Broadcast is called before Run.
-	ErrHubNotRunning error
+	ErrHubNotRunning = core.E("stream.hub", "hub not running", nil)
 
 	// ErrEmptyChannel is returned when Subscribe is called with an empty channel name.
-	ErrEmptyChannel error
+	ErrEmptyChannel = core.E("stream.hub", "empty channel", nil)
 )
