@@ -123,6 +123,35 @@ func TestAdapter_Handler_Bad(t *testing.T) {
 	}
 }
 
+func TestAdapter_Handler_QueryChannelAuthoriser_Bad(t *testing.T) {
+	hub := stream.NewHubWithConfig(stream.HubConfig{
+		ChannelAuthoriser: func(peer *stream.Peer, channel string) bool {
+			return channel == "public"
+		},
+	})
+	hubContext, hubCancel := context.WithCancel(context.Background())
+	defer hubCancel()
+	go hub.Run(hubContext)
+
+	adapter := New(Config{})
+	adapter.Mount(hub)
+
+	server := httptest.NewServer(http.HandlerFunc(adapter.Handler()))
+	defer server.Close()
+
+	_, resp, err := websocket.DefaultDialer.Dial(websocketURL(server.URL)+"?channel=private", nil)
+	if err == nil {
+		t.Fatal("Dial() error = nil, want forbidden response")
+	}
+	if resp == nil {
+		t.Fatal("Dial() response = nil, want 403 response")
+	}
+	if resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusForbidden)
+	}
+	waitForPeerCount(t, hub, 0)
+}
+
 func TestAdapter_Handler_Ugly(t *testing.T) {
 	hub := stream.NewHub()
 	hubContext, hubCancel := context.WithCancel(context.Background())
@@ -312,6 +341,55 @@ func TestAdapter_Handler_InboundPublish_NoSelfEcho_Good(t *testing.T) {
 		t.Fatalf("ReadMessage() error = %v, want timeout", err)
 	}
 	_ = conn.SetReadDeadline(time.Time{})
+}
+
+func TestAdapter_Handler_SubscribeDenied_Bad(t *testing.T) {
+	hub := stream.NewHubWithConfig(stream.HubConfig{
+		ChannelAuthoriser: func(peer *stream.Peer, channel string) bool {
+			return channel == "public"
+		},
+	})
+	hubContext, hubCancel := context.WithCancel(context.Background())
+	defer hubCancel()
+	go hub.Run(hubContext)
+
+	adapter := New(Config{})
+	adapter.Mount(hub)
+
+	server := httptest.NewServer(http.HandlerFunc(adapter.Handler()))
+	defer server.Close()
+
+	conn := dialWebSocket(t, server.URL, nil)
+	defer conn.Close()
+
+	if err := conn.WriteJSON(stream.Message{
+		Type:    stream.TypeSubscribe,
+		Channel: "private",
+	}); err != nil {
+		t.Fatalf("WriteJSON() error = %v", err)
+	}
+
+	messageType, payload, err := conn.ReadMessage()
+	if err != nil {
+		t.Fatalf("ReadMessage() error = %v", err)
+	}
+	if messageType != websocket.TextMessage {
+		t.Fatalf("messageType = %d, want %d", messageType, websocket.TextMessage)
+	}
+
+	var message stream.Message
+	if err := json.Unmarshal(payload, &message); err != nil {
+		t.Fatalf("Unmarshal() error = %v", err)
+	}
+	if message.Type != stream.TypeError {
+		t.Fatalf("message.Type = %q, want %q", message.Type, stream.TypeError)
+	}
+	if message.Channel != "private" {
+		t.Fatalf("message.Channel = %q, want %q", message.Channel, "private")
+	}
+	if hub.ChannelSubscriberCount("private") != 0 {
+		t.Fatalf("ChannelSubscriberCount(%q) = %d, want %d", "private", hub.ChannelSubscriberCount("private"), 0)
+	}
 }
 
 func TestAdapter_Handler_PeerClose_Good(t *testing.T) {

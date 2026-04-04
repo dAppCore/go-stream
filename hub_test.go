@@ -539,6 +539,22 @@ func TestHub_SubscribeE_Ugly(t *testing.T) {
 	t.Fatalf("SubscribeE panic handler count = %d, want 1", panicked)
 }
 
+func TestHub_CanSubscribePeer_Bad(t *testing.T) {
+	hub := NewHubWithConfig(HubConfig{
+		ChannelAuthoriser: func(peer *Peer, channel string) bool {
+			return channel == "public"
+		},
+	})
+
+	peer := NewPeer("ws")
+	if err := hub.CanSubscribePeer(peer, "private"); err != ErrAuthRejected {
+		t.Fatalf("CanSubscribePeer() error = %v, want %v", err, ErrAuthRejected)
+	}
+	if err := hub.CanSubscribePeer(peer, "public"); err != nil {
+		t.Fatalf("CanSubscribePeer() error = %v, want nil", err)
+	}
+}
+
 func TestHub_SendToChannel_Wildcard_Good(t *testing.T) {
 	hub := NewHub()
 	hubContext, hubCancel := context.WithCancel(context.Background())

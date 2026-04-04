@@ -117,6 +117,34 @@ func TestAdapter_Handler_Bad(t *testing.T) {
 	}
 }
 
+func TestAdapter_Handler_ChannelAuthoriser_Bad(t *testing.T) {
+	hub := stream.NewHubWithConfig(stream.HubConfig{
+		ChannelAuthoriser: func(peer *stream.Peer, channel string) bool {
+			return channel == "public"
+		},
+	})
+	hubContext, hubCancel := context.WithCancel(context.Background())
+	defer hubCancel()
+	go hub.Run(hubContext)
+
+	adapter := New(Config{})
+	adapter.Mount(hub)
+
+	server := httptest.NewServer(http.HandlerFunc(adapter.Handler()))
+	defer server.Close()
+
+	response, err := http.Get(server.URL + "?channel=private")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	defer response.Body.Close()
+
+	if response.StatusCode != http.StatusForbidden {
+		t.Fatalf("StatusCode = %d, want %d", response.StatusCode, http.StatusForbidden)
+	}
+	waitForPeerCount(t, hub, 0)
+}
+
 func TestAdapter_Handler_Ugly(t *testing.T) {
 	hub := stream.NewHub()
 	hubContext, hubCancel := context.WithCancel(context.Background())

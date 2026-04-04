@@ -4,6 +4,11 @@ package stream
 
 import "time"
 
+//	authoriser := stream.ChannelAuthoriser(func(peer *stream.Peer, channel string) bool {
+//	    return peer.Claims["role"] == "admin" || channel == "public"
+//	})
+type ChannelAuthoriser func(peer *Peer, channel string) bool
+
 //	cfg := stream.HubConfig{
 //	    HeartbeatInterval: 30 * time.Second,
 //	    PongTimeout:       60 * time.Second,
@@ -41,7 +46,7 @@ type HubConfig struct {
 	//     },
 	// })
 	// When nil, all subscriptions are allowed.
-	ChannelAuthoriser func(peer *Peer, channel string) bool
+	ChannelAuthoriser ChannelAuthoriser
 }
 
 // DefaultHubConfig returns sensible defaults.

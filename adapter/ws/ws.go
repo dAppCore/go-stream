@@ -100,6 +100,19 @@ func (adapter *Adapter) serveHTTP(w http.ResponseWriter, r *http.Request, channe
 		}
 	}
 
+	peer := stream.NewPeer("ws")
+	peer.UserID = authResult.UserID
+	peer.Claims = authResult.Claims
+	for _, channel := range channels {
+		if channel == "" {
+			continue
+		}
+		if err := adapter.hub.CanSubscribePeer(peer, channel); err != nil {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
+	}
+
 	upgrader := websocket.Upgrader{
 		ReadBufferSize:  adapter.config.ReadBufferSize,
 		WriteBufferSize: adapter.config.WriteBufferSize,
@@ -117,9 +130,6 @@ func (adapter *Adapter) serveHTTP(w http.ResponseWriter, r *http.Request, channe
 		return
 	}
 
-	peer := stream.NewPeer("ws")
-	peer.UserID = authResult.UserID
-	peer.Claims = authResult.Claims
 	peer.SetCloseHook(func() {
 		_ = conn.Close()
 	})
@@ -158,7 +168,14 @@ func (adapter *Adapter) serveHTTP(w http.ResponseWriter, r *http.Request, channe
 		}
 		switch message.Type {
 		case stream.TypeSubscribe:
-			_ = adapter.hub.SubscribePeer(peer, message.Channel)
+			if err := adapter.hub.SubscribePeer(peer, message.Channel); err != nil {
+				_ = peer.Send(marshalMessage(stream.Message{
+					Type:      stream.TypeError,
+					Channel:   message.Channel,
+					Data:      errorPayload(err),
+					Timestamp: time.Now().UTC(),
+				}))
+			}
 		case stream.TypeUnsubscribe:
 			adapter.hub.UnsubscribePeer(peer, message.Channel)
 		case stream.TypePing:
@@ -215,4 +232,15 @@ func (adapter *Adapter) writePump(conn *websocket.Conn, peer *stream.Peer, write
 			}
 		}
 	}
+}
+
+func marshalMessage(message stream.Message) []byte {
+	return []byte(core.JSONMarshalString(message))
+}
+
+func errorPayload(err error) map[string]any {
+	if err == nil {
+		return nil
+	}
+	return map[string]any{"message": err.Error()}
 }

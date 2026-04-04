@@ -281,6 +281,28 @@ func (hub *Hub) SubscribePeer(peer *Peer, channel string) error {
 	return nil
 }
 
+// CanSubscribePeer reports whether peer may subscribe to channel.
+//
+//	err := hub.CanSubscribePeer(peer, "hashrate")
+//	if err == stream.ErrAuthRejected { return }
+func (hub *Hub) CanSubscribePeer(peer *Peer, channel string) error {
+	if hub == nil {
+		return core.E("stream.hub", "nil hub", nil)
+	}
+	if peer == nil {
+		return core.E("stream.hub", "nil peer", nil)
+	}
+	if channel == "" {
+		return ErrEmptyChannel
+	}
+	hub.mu.RLock()
+	defer hub.mu.RUnlock()
+	if hub.config.ChannelAuthoriser != nil && channel != "*" && !hub.config.ChannelAuthoriser(peer, channel) {
+		return ErrAuthRejected
+	}
+	return nil
+}
+
 // UnsubscribePeer removes peer from a named channel.
 //
 //	hub.UnsubscribePeer(peer, "hashrate")

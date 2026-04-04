@@ -117,6 +117,17 @@ func (adapter *Adapter) serve(w http.ResponseWriter, r *http.Request, channels [
 			close(done)
 		})
 	})
+
+	for _, channel := range channels {
+		if channel == "" {
+			continue
+		}
+		if err := adapter.hub.CanSubscribePeer(peer, channel); err != nil {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
+	}
+
 	_ = adapter.hub.AddPeer(peer)
 	defer adapter.hub.RemovePeer(peer)
 
