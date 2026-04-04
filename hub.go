@@ -342,7 +342,11 @@ func (hub *Hub) broadcastFrameFromPeer(source *Peer, frame []byte, notifyBroadca
 	}:
 		return nil
 	default:
-		hub.broadcastToPeers(source, frame, notifyBroadcastSubscribers)
+		go hub.enqueueBroadcast(broadcastDelivery{
+			source:                     source,
+			frame:                      append([]byte(nil), frame...),
+			notifyBroadcastSubscribers: notifyBroadcastSubscribers,
+		})
 	}
 	return nil
 }
@@ -687,7 +691,27 @@ func (hub *Hub) enqueueDelivery(channel string, frame []byte, notifyPublishSubsc
 	select {
 	case hub.deliver <- item:
 	default:
-		hub.processDelivery(item.channel, item.frame, item.notifyPublishSubscribers)
+		go hub.enqueueDeliveryAsync(item)
+	}
+}
+
+func (hub *Hub) enqueueBroadcast(item broadcastDelivery) {
+	if hub == nil {
+		return
+	}
+	select {
+	case hub.broadcast <- item:
+	case <-hub.done:
+	}
+}
+
+func (hub *Hub) enqueueDeliveryAsync(item delivery) {
+	if hub == nil {
+		return
+	}
+	select {
+	case hub.deliver <- item:
+	case <-hub.done:
 	}
 }
 
