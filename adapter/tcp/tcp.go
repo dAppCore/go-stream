@@ -251,7 +251,7 @@ func (adapter *Adapter) writePump(ctx context.Context, conn net.Conn, peer *stre
 			if writeTimeout > 0 {
 				_ = conn.SetWriteDeadline(time.Now().Add(writeTimeout))
 			}
-			if _, err := conn.Write(frame); err != nil {
+			if err := writeFull(conn, frame); err != nil {
 				return
 			}
 		}
@@ -299,6 +299,20 @@ func encodeFrame(channel string, frame []byte) []byte {
 	copy(buffer[8:], channelBytes)
 	copy(buffer[8+len(channelBytes):], frame)
 	return buffer
+}
+
+func writeFull(conn net.Conn, payload []byte) error {
+	for len(payload) > 0 {
+		written, err := conn.Write(payload)
+		if err != nil {
+			return err
+		}
+		if written <= 0 {
+			return io.ErrShortWrite
+		}
+		payload = payload[written:]
+	}
+	return nil
 }
 func isClosedNetworkError(err error) bool {
 	if err == nil {

@@ -133,8 +133,7 @@ func (client *ReconnectingTCP) Send(channel string, frame []byte) error {
 	if conn == nil {
 		return core.E("stream.tcp", "not connected", nil)
 	}
-	_, err := conn.Write(encodeFrame(channel, frame))
-	return err
+	return writeFull(conn, encodeFrame(channel, frame))
 }
 
 // _ = client.Close()

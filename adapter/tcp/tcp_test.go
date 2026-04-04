@@ -4,6 +4,7 @@ package tcp
 
 import (
 	"context"
+	"io"
 	"net"
 	"testing"
 	"time"
@@ -282,4 +283,48 @@ func waitForPeerCount(t *testing.T, hub *stream.Hub, expected int) {
 		time.Sleep(10 * time.Millisecond)
 	}
 	t.Fatalf("PeerCount() = %d, want %d", hub.PeerCount(), expected)
+}
+
+func TestWriteFull_Good(t *testing.T) {
+	left, right := net.Pipe()
+	defer left.Close()
+	defer right.Close()
+
+	wrapped := &partialWriteConn{Conn: left, chunkSize: 2}
+	payload := []byte("hello")
+	received := make(chan []byte, 1)
+	go func() {
+		buffer := make([]byte, len(payload))
+		_, err := io.ReadFull(right, buffer)
+		if err != nil {
+			received <- nil
+			return
+		}
+		received <- buffer
+	}()
+
+	if err := writeFull(wrapped, payload); err != nil {
+		t.Fatalf("writeFull() error = %v", err)
+	}
+
+	select {
+	case frame := <-received:
+		if string(frame) != "hello" {
+			t.Fatalf("received frame = %q, want %q", string(frame), "hello")
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for payload")
+	}
+}
+
+type partialWriteConn struct {
+	net.Conn
+	chunkSize int
+}
+
+func (conn *partialWriteConn) Write(payload []byte) (int, error) {
+	if conn.chunkSize > 0 && len(payload) > conn.chunkSize {
+		payload = payload[:conn.chunkSize]
+	}
+	return conn.Conn.Write(payload)
 }
