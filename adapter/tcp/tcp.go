@@ -49,36 +49,36 @@ func New(config Config) *Adapter {
 }
 
 // Mount wires the adapter to a hub.
-func (a *Adapter) Mount(hub *stream.Hub) {
-	a.hub = hub
+func (adapter *Adapter) Mount(hub *stream.Hub) {
+	adapter.hub = hub
 }
 
 // Listen starts the TCP accept loop. Blocks until ctx cancelled.
-func (a *Adapter) Listen(ctx context.Context) error {
-	if a == nil {
+func (adapter *Adapter) Listen(ctx context.Context) error {
+	if adapter == nil {
 		return core.E("stream.tcp", "nil adapter", nil)
 	}
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	if a.hub == nil {
+	if adapter.hub == nil {
 		return core.E("stream.tcp", "stream hub not mounted", nil)
 	}
-	if a.config.Addr == "" {
+	if adapter.config.Addr == "" {
 		return core.E("stream.tcp", "empty address", nil)
 	}
 
-	listener, err := a.listen()
+	listener, err := adapter.listen()
 	if err != nil {
 		return err
 	}
 	defer func() {
 		_ = listener.Close()
-		a.mu.Lock()
-		if a.listener == listener {
-			a.listener = nil
+		adapter.mu.Lock()
+		if adapter.listener == listener {
+			adapter.listener = nil
 		}
-		a.mu.Unlock()
+		adapter.mu.Unlock()
 	}()
 
 	go func() {
@@ -97,22 +97,22 @@ func (a *Adapter) Listen(ctx context.Context) error {
 			}
 			return err
 		}
-		go a.handleConn(ctx, conn, a.hub)
+		go adapter.handleConn(ctx, conn, adapter.hub)
 	}
 }
 
 // Dial connects to a remote TCP stream endpoint. Returns a Peer that can send/receive.
-func (a *Adapter) Dial(ctx context.Context, hub *stream.Hub) (*stream.Peer, error) {
-	if a == nil {
+func (adapter *Adapter) Dial(ctx context.Context, hub *stream.Hub) (*stream.Peer, error) {
+	if adapter == nil {
 		return nil, core.E("stream.tcp", "nil adapter", nil)
 	}
 	if hub == nil {
-		hub = a.hub
+		hub = adapter.hub
 	}
 	if hub == nil {
 		return nil, core.E("stream.tcp", "stream hub not mounted", nil)
 	}
-	conn, err := a.dial(ctx)
+	conn, err := adapter.dial(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -120,59 +120,59 @@ func (a *Adapter) Dial(ctx context.Context, hub *stream.Hub) (*stream.Peer, erro
 	peer := stream.NewPeer("tcp")
 	_ = hub.AddPeer(peer)
 	_ = hub.SubscribePeer(peer, "*")
-	go a.pipePeer(ctx, conn, peer, hub)
+	go adapter.pipePeer(ctx, conn, peer, hub)
 	return peer, nil
 }
 
-func (a *Adapter) listen() (net.Listener, error) {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	if a.listener != nil {
-		return a.listener, nil
+func (adapter *Adapter) listen() (net.Listener, error) {
+	adapter.mu.Lock()
+	defer adapter.mu.Unlock()
+	if adapter.listener != nil {
+		return adapter.listener, nil
 	}
 	var (
 		listener net.Listener
 		err      error
 	)
-	if a.config.TLS != nil {
-		listener, err = tls.Listen("tcp", a.config.Addr, a.config.TLS)
+	if adapter.config.TLS != nil {
+		listener, err = tls.Listen("tcp", adapter.config.Addr, adapter.config.TLS)
 	} else {
-		listener, err = net.Listen("tcp", a.config.Addr)
+		listener, err = net.Listen("tcp", adapter.config.Addr)
 	}
 	if err != nil {
 		return nil, err
 	}
-	a.listener = listener
+	adapter.listener = listener
 	return listener, nil
 }
 
-func (a *Adapter) dial(ctx context.Context) (net.Conn, error) {
+func (adapter *Adapter) dial(ctx context.Context) (net.Conn, error) {
 	dialer := &net.Dialer{}
-	if a.config.TLS != nil {
-		conn, err := dialer.DialContext(ctx, "tcp", a.config.Addr)
+	if adapter.config.TLS != nil {
+		conn, err := dialer.DialContext(ctx, "tcp", adapter.config.Addr)
 		if err != nil {
 			return nil, err
 		}
-		tlsConn := tls.Client(conn, a.config.TLS)
+		tlsConn := tls.Client(conn, adapter.config.TLS)
 		if err := tlsConn.HandshakeContext(ctx); err != nil {
 			_ = conn.Close()
 			return nil, err
 		}
 		return tlsConn, nil
 	}
-	return dialer.DialContext(ctx, "tcp", a.config.Addr)
+	return dialer.DialContext(ctx, "tcp", adapter.config.Addr)
 }
 
-func (a *Adapter) handleConn(ctx context.Context, conn net.Conn, hub *stream.Hub) {
+func (adapter *Adapter) handleConn(ctx context.Context, conn net.Conn, hub *stream.Hub) {
 	defer conn.Close()
 
-	_, handshake, err := readFrame(conn, a.config.HandshakeTimeout, maxHandshakeFrameSize)
+	_, handshake, err := readFrame(conn, adapter.config.HandshakeTimeout, maxHandshakeFrameSize)
 	if err != nil {
 		return
 	}
 
 	result := stream.AuthResult{Valid: true}
-	if auth := a.config.ConnAuthenticator; auth != nil {
+	if auth := adapter.config.ConnAuthenticator; auth != nil {
 		result = auth.AuthenticateConn(handshake)
 		if !result.Valid {
 			return
@@ -186,7 +186,7 @@ func (a *Adapter) handleConn(ctx context.Context, conn net.Conn, hub *stream.Hub
 	_ = hub.SubscribePeer(peer, "*")
 	defer hub.RemovePeer(peer)
 
-	go a.writePump(ctx, conn, peer, hub.Config().WriteTimeout)
+	go adapter.writePump(ctx, conn, peer, hub.Config().WriteTimeout)
 
 	for {
 		channel, frame, err := readFrame(conn, 0, MaxFrameSize)
@@ -201,9 +201,9 @@ func (a *Adapter) handleConn(ctx context.Context, conn net.Conn, hub *stream.Hub
 	}
 }
 
-func (a *Adapter) pipePeer(ctx context.Context, conn net.Conn, peer *stream.Peer, hub *stream.Hub) {
+func (adapter *Adapter) pipePeer(ctx context.Context, conn net.Conn, peer *stream.Peer, hub *stream.Hub) {
 	defer conn.Close()
-	go a.writePump(ctx, conn, peer, hub.Config().WriteTimeout)
+	go adapter.writePump(ctx, conn, peer, hub.Config().WriteTimeout)
 	for {
 		channel, frame, err := readFrame(conn, 0, MaxFrameSize)
 		if err != nil {
@@ -218,7 +218,7 @@ func (a *Adapter) pipePeer(ctx context.Context, conn net.Conn, peer *stream.Peer
 	}
 }
 
-func (a *Adapter) writePump(ctx context.Context, conn net.Conn, peer *stream.Peer, writeTimeout time.Duration) {
+func (adapter *Adapter) writePump(ctx context.Context, conn net.Conn, peer *stream.Peer, writeTimeout time.Duration) {
 	for {
 		select {
 		case <-ctx.Done():

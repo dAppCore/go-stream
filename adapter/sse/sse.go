@@ -39,38 +39,38 @@ func New(config Config) *Adapter {
 }
 
 // Mount wires the adapter to a hub. Must be called before Handler().
-func (a *Adapter) Mount(hub *stream.Hub) {
-	a.hub = hub
+func (adapter *Adapter) Mount(hub *stream.Hub) {
+	adapter.hub = hub
 }
 
 // ServeHTTP accepts an SSE connection and subscribes it using the channel query params.
 //
 //	http.Handle("/stream/events", adapter)
-func (a *Adapter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	a.serve(w, r, r.URL.Query()["channel"])
+func (adapter *Adapter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	adapter.serve(w, r, r.URL.Query()["channel"])
 }
 
 // Handler returns an http.HandlerFunc that accepts SSE connections.
-func (a *Adapter) Handler() http.HandlerFunc {
-	return a.ServeHTTP
+func (adapter *Adapter) Handler() http.HandlerFunc {
+	return adapter.ServeHTTP
 }
 
 // HandlerForChannel returns a handler that auto-subscribes all connections to channel.
-func (a *Adapter) HandlerForChannel(channel string) http.HandlerFunc {
+func (adapter *Adapter) HandlerForChannel(channel string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		a.serve(w, r, []string{channel})
+		adapter.serve(w, r, []string{channel})
 	}
 }
 
-func (a *Adapter) serve(w http.ResponseWriter, r *http.Request, channels []string) {
-	if a.hub == nil {
+func (adapter *Adapter) serve(w http.ResponseWriter, r *http.Request, channels []string) {
+	if adapter.hub == nil {
 		http.Error(w, "stream hub not mounted", http.StatusInternalServerError)
 		return
 	}
 
 	result := stream.AuthResult{Valid: true}
-	if a.config.Authenticator != nil {
-		result = a.config.Authenticator.Authenticate(r)
+	if adapter.config.Authenticator != nil {
+		result = adapter.config.Authenticator.Authenticate(r)
 		if !result.Valid {
 			http.Error(w, "unauthorised", http.StatusUnauthorized)
 			return
@@ -91,20 +91,20 @@ func (a *Adapter) serve(w http.ResponseWriter, r *http.Request, channels []strin
 	peer := stream.NewPeer("sse")
 	peer.UserID = result.UserID
 	peer.Claims = result.Claims
-	_ = a.hub.AddPeer(peer)
-	defer a.hub.RemovePeer(peer)
+	_ = adapter.hub.AddPeer(peer)
+	defer adapter.hub.RemovePeer(peer)
 
 	for _, channel := range channels {
 		if channel == "" {
 			continue
 		}
-		_ = a.hub.SubscribePeer(peer, channel)
+		_ = adapter.hub.SubscribePeer(peer, channel)
 	}
 
-	_, _ = io.WriteString(w, "retry: "+strconv.Itoa(a.config.RetryMs)+"\n\n")
+	_, _ = io.WriteString(w, "retry: "+strconv.Itoa(adapter.config.RetryMs)+"\n\n")
 	flusher.Flush()
 
-	ticker := time.NewTicker(a.config.HeartbeatInterval)
+	ticker := time.NewTicker(adapter.config.HeartbeatInterval)
 	defer ticker.Stop()
 
 	done := r.Context().Done()

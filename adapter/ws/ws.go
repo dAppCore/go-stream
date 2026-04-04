@@ -69,25 +69,25 @@ func New(config Config) *Adapter {
 // Mount wires the adapter to a hub. Must be called before Handler().
 //
 //	adapter.Mount(hub)
-func (a *Adapter) Mount(hub *stream.Hub) {
-	a.hub = hub
+func (adapter *Adapter) Mount(hub *stream.Hub) {
+	adapter.hub = hub
 }
 
 // ServeHTTP upgrades the request to WebSocket and binds the connection to the mounted hub.
 //
 //	http.Handle("/stream/ws", adapter)
-func (a *Adapter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if a.hub == nil {
+func (adapter *Adapter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if adapter.hub == nil {
 		http.Error(w, "stream hub not mounted", http.StatusInternalServerError)
 		return
 	}
 
 	result := stream.AuthResult{Valid: true}
-	if a.config.Authenticator != nil {
-		result = a.config.Authenticator.Authenticate(r)
+	if adapter.config.Authenticator != nil {
+		result = adapter.config.Authenticator.Authenticate(r)
 		if !result.Valid {
-			if a.config.OnAuthFailure != nil {
-				a.config.OnAuthFailure(r, result)
+			if adapter.config.OnAuthFailure != nil {
+				adapter.config.OnAuthFailure(r, result)
 			}
 			http.Error(w, "unauthorised", http.StatusUnauthorized)
 			return
@@ -95,11 +95,11 @@ func (a *Adapter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	upgrader := websocket.Upgrader{
-		ReadBufferSize:  a.config.ReadBufferSize,
-		WriteBufferSize: a.config.WriteBufferSize,
+		ReadBufferSize:  adapter.config.ReadBufferSize,
+		WriteBufferSize: adapter.config.WriteBufferSize,
 		CheckOrigin: func(r *http.Request) bool {
-			if a.config.CheckOrigin != nil {
-				return a.config.CheckOrigin(r)
+			if adapter.config.CheckOrigin != nil {
+				return adapter.config.CheckOrigin(r)
 			}
 			return true
 		},
@@ -114,11 +114,11 @@ func (a *Adapter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	peer := stream.NewPeer("ws")
 	peer.UserID = result.UserID
 	peer.Claims = result.Claims
-	_ = a.hub.AddPeer(peer)
-	defer a.hub.RemovePeer(peer)
+	_ = adapter.hub.AddPeer(peer)
+	defer adapter.hub.RemovePeer(peer)
 	defer conn.Close()
 
-	hubConfig := a.hub.Config()
+	hubConfig := adapter.hub.Config()
 	if hubConfig.PongTimeout > 0 {
 		_ = conn.SetReadDeadline(time.Now().Add(hubConfig.PongTimeout))
 		conn.SetPongHandler(func(string) error {
@@ -126,7 +126,7 @@ func (a *Adapter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
-	go a.writePump(conn, peer, hubConfig.WriteTimeout, hubConfig.HeartbeatInterval)
+	go adapter.writePump(conn, peer, hubConfig.WriteTimeout, hubConfig.HeartbeatInterval)
 
 	conn.SetReadLimit(1 << 20)
 	for {
@@ -143,9 +143,9 @@ func (a *Adapter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		switch message.Type {
 		case stream.TypeSubscribe:
-			_ = a.hub.SubscribePeer(peer, message.Channel)
+			_ = adapter.hub.SubscribePeer(peer, message.Channel)
 		case stream.TypeUnsubscribe:
-			a.hub.UnsubscribePeer(peer, message.Channel)
+			adapter.hub.UnsubscribePeer(peer, message.Channel)
 		case stream.TypePing:
 			_ = peer.Send([]byte(core.JSONMarshalString(stream.Message{
 				Type:      stream.TypePong,
@@ -166,11 +166,11 @@ func (a *Adapter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 //
 //	// Gin:
 //	r.GET("/stream/ws", gin.WrapF(adapter.Handler()))
-func (a *Adapter) Handler() http.HandlerFunc {
-	return a.ServeHTTP
+func (adapter *Adapter) Handler() http.HandlerFunc {
+	return adapter.ServeHTTP
 }
 
-func (a *Adapter) writePump(conn *websocket.Conn, peer *stream.Peer, writeTimeout, heartbeatInterval time.Duration) {
+func (adapter *Adapter) writePump(conn *websocket.Conn, peer *stream.Peer, writeTimeout, heartbeatInterval time.Duration) {
 	var ticker *time.Ticker
 	var heartbeat <-chan time.Time
 	if heartbeatInterval > 0 {

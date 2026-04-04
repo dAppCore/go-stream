@@ -49,50 +49,50 @@ func NewReconnectingTCP(config ReconnectConfig) *ReconnectingTCP {
 }
 
 // Connect starts the connection loop. Blocks until ctx is cancelled.
-func (rc *ReconnectingTCP) Connect(ctx context.Context) error {
-	if rc == nil {
+func (client *ReconnectingTCP) Connect(ctx context.Context) error {
+	if client == nil {
 		return core.E("stream.tcp", "nil reconnecting tcp", nil)
 	}
 	if ctx == nil {
 		ctx = context.Background()
 	}
 
-	backoff := rc.config.InitialBackoff
+	backoff := client.config.InitialBackoff
 	attempt := 0
 	for {
-		if rc.isClosed() || ctx.Err() != nil {
+		if client.isClosed() || ctx.Err() != nil {
 			return nil
 		}
 
-		conn, err := rc.dial(ctx)
+		conn, err := client.dial(ctx)
 		if err != nil {
 			attempt++
-			if rc.config.MaxRetries > 0 && attempt > rc.config.MaxRetries {
+			if client.config.MaxRetries > 0 && attempt > client.config.MaxRetries {
 				return err
 			}
 			if err := sleepContext(ctx, backoff); err != nil {
 				return err
 			}
-			backoff = nextTCPBackoff(backoff, rc.config.BackoffMultiplier, rc.config.MaxBackoff)
+			backoff = nextTCPBackoff(backoff, client.config.BackoffMultiplier, client.config.MaxBackoff)
 			continue
 		}
 
-		rc.setConn(conn)
-		backoff = rc.config.InitialBackoff
+		client.setConn(conn)
+		backoff = client.config.InitialBackoff
 		attempt = 0
-		if rc.config.OnConnect != nil {
-			rc.config.OnConnect()
+		if client.config.OnConnect != nil {
+			client.config.OnConnect()
 		}
 
-		readErr := rc.readLoop(ctx, conn)
+		readErr := client.readLoop(ctx, conn)
 
-		rc.clearConn(conn)
+		client.clearConn(conn)
 		_ = conn.Close()
-		if rc.config.OnDisconnect != nil {
-			rc.config.OnDisconnect()
+		if client.config.OnDisconnect != nil {
+			client.config.OnDisconnect()
 		}
 
-		if rc.isClosed() || ctx.Err() != nil {
+		if client.isClosed() || ctx.Err() != nil {
 			return nil
 		}
 		if readErr == nil {
@@ -100,24 +100,24 @@ func (rc *ReconnectingTCP) Connect(ctx context.Context) error {
 		} else {
 			attempt++
 		}
-		if rc.config.MaxRetries > 0 && attempt > rc.config.MaxRetries {
+		if client.config.MaxRetries > 0 && attempt > client.config.MaxRetries {
 			return readErr
 		}
 		if err := sleepContext(ctx, backoff); err != nil {
 			return err
 		}
-		backoff = nextTCPBackoff(backoff, rc.config.BackoffMultiplier, rc.config.MaxBackoff)
+		backoff = nextTCPBackoff(backoff, client.config.BackoffMultiplier, client.config.MaxBackoff)
 	}
 }
 
 // Send transmits frame on channel through the TCP connection.
-func (rc *ReconnectingTCP) Send(channel string, frame []byte) error {
-	if rc == nil {
+func (client *ReconnectingTCP) Send(channel string, frame []byte) error {
+	if client == nil {
 		return core.E("stream.tcp", "nil reconnecting tcp", nil)
 	}
-	rc.mu.RLock()
-	conn := rc.conn
-	rc.mu.RUnlock()
+	client.mu.RLock()
+	conn := client.conn
+	client.mu.RUnlock()
 	if conn == nil {
 		return core.E("stream.tcp", "not connected", nil)
 	}
@@ -126,39 +126,39 @@ func (rc *ReconnectingTCP) Send(channel string, frame []byte) error {
 }
 
 // Close shuts down the reconnecting client.
-func (rc *ReconnectingTCP) Close() error {
-	if rc == nil {
+func (client *ReconnectingTCP) Close() error {
+	if client == nil {
 		return nil
 	}
-	rc.mu.Lock()
-	rc.closed = true
-	conn := rc.conn
-	rc.conn = nil
-	rc.mu.Unlock()
+	client.mu.Lock()
+	client.closed = true
+	conn := client.conn
+	client.conn = nil
+	client.mu.Unlock()
 	if conn != nil {
 		return conn.Close()
 	}
 	return nil
 }
 
-func (rc *ReconnectingTCP) dial(ctx context.Context) (net.Conn, error) {
+func (client *ReconnectingTCP) dial(ctx context.Context) (net.Conn, error) {
 	dialer := &net.Dialer{}
-	if rc.config.TLS != nil {
-		conn, err := dialer.DialContext(ctx, "tcp", rc.config.Addr)
+	if client.config.TLS != nil {
+		conn, err := dialer.DialContext(ctx, "tcp", client.config.Addr)
 		if err != nil {
 			return nil, err
 		}
-		tlsConn := tls.Client(conn, rc.config.TLS)
+		tlsConn := tls.Client(conn, client.config.TLS)
 		if err := tlsConn.HandshakeContext(ctx); err != nil {
 			_ = conn.Close()
 			return nil, err
 		}
 		return tlsConn, nil
 	}
-	return dialer.DialContext(ctx, "tcp", rc.config.Addr)
+	return dialer.DialContext(ctx, "tcp", client.config.Addr)
 }
 
-func (rc *ReconnectingTCP) readLoop(ctx context.Context, conn net.Conn) error {
+func (client *ReconnectingTCP) readLoop(ctx context.Context, conn net.Conn) error {
 	for {
 		select {
 		case <-ctx.Done():
@@ -169,30 +169,30 @@ func (rc *ReconnectingTCP) readLoop(ctx context.Context, conn net.Conn) error {
 		if err != nil {
 			return err
 		}
-		if rc.config.OnMessage != nil {
-			rc.config.OnMessage(channel, frame)
+		if client.config.OnMessage != nil {
+			client.config.OnMessage(channel, frame)
 		}
 	}
 }
 
-func (rc *ReconnectingTCP) setConn(conn net.Conn) {
-	rc.mu.Lock()
-	rc.conn = conn
-	rc.mu.Unlock()
+func (client *ReconnectingTCP) setConn(conn net.Conn) {
+	client.mu.Lock()
+	client.conn = conn
+	client.mu.Unlock()
 }
 
-func (rc *ReconnectingTCP) clearConn(conn net.Conn) {
-	rc.mu.Lock()
-	if rc.conn == conn {
-		rc.conn = nil
+func (client *ReconnectingTCP) clearConn(conn net.Conn) {
+	client.mu.Lock()
+	if client.conn == conn {
+		client.conn = nil
 	}
-	rc.mu.Unlock()
+	client.mu.Unlock()
 }
 
-func (rc *ReconnectingTCP) isClosed() bool {
-	rc.mu.RLock()
-	defer rc.mu.RUnlock()
-	return rc.closed
+func (client *ReconnectingTCP) isClosed() bool {
+	client.mu.RLock()
+	defer client.mu.RUnlock()
+	return client.closed
 }
 
 func nextTCPBackoff(current time.Duration, multiplier float64, maximum time.Duration) time.Duration {
