@@ -109,6 +109,9 @@ func (adapter *Adapter) Dial(ctx context.Context, hub *stream.Hub) (*stream.Peer
 	if adapter == nil {
 		return nil, core.E("stream.tcp", "nil adapter", nil)
 	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	if hub == nil {
 		hub = adapter.hub
 	}
@@ -152,6 +155,9 @@ func (adapter *Adapter) listen() (net.Listener, error) {
 }
 
 func (adapter *Adapter) dial(ctx context.Context) (net.Conn, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	dialer := &net.Dialer{}
 	if adapter.config.TLS != nil {
 		conn, err := dialer.DialContext(ctx, "tcp", adapter.config.Addr)

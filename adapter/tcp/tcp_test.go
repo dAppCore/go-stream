@@ -257,6 +257,58 @@ func TestTCP_Listen_HandshakeTooLarge_Good(t *testing.T) {
 	waitForPeerCount(t, hub, 0)
 }
 
+func TestTCP_Dial_NilContext_Good(t *testing.T) {
+	hub := stream.NewHub()
+	hubContext, hubCancel := context.WithCancel(context.Background())
+	defer hubCancel()
+	go hub.Run(hubContext)
+
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("Listen() error = %v", err)
+	}
+	defer listener.Close()
+
+	serverDone := make(chan struct{})
+	go func() {
+		defer close(serverDone)
+		connection, acceptErr := listener.Accept()
+		if acceptErr != nil {
+			return
+		}
+		defer connection.Close()
+		_, _ = connection.Write(encodeFrame("block", []byte("template")))
+		time.Sleep(50 * time.Millisecond)
+	}()
+
+	adapter := New(Config{Addr: listener.Addr().String()})
+	peer, err := adapter.Dial(nil, hub)
+	if err != nil {
+		t.Fatalf("Dial() error = %v", err)
+	}
+	if peer == nil {
+		t.Fatal("Dial() peer = nil")
+	}
+	defer peer.Close()
+
+	received := make(chan []byte, 1)
+	unsubscribe := hub.Subscribe("block", func(frame []byte) {
+		received <- append([]byte(nil), frame...)
+	})
+	defer unsubscribe()
+
+	select {
+	case frame := <-received:
+		if string(frame) != "template" {
+			t.Fatalf("received frame = %q, want %q", string(frame), "template")
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for dialed frame")
+	}
+
+	<-serverDone
+}
+
 func waitForListenerAddress(t *testing.T, adapter *Adapter) string {
 	t.Helper()
 	deadline := time.Now().Add(2 * time.Second)
