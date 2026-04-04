@@ -176,13 +176,14 @@ func (adapter *Adapter) dial(ctx context.Context) (net.Conn, error) {
 func (adapter *Adapter) handleConn(ctx context.Context, conn net.Conn, hub *stream.Hub) {
 	defer conn.Close()
 
+	channel, frame, err := readFrame(conn, adapter.config.HandshakeTimeout, maxHandshakeFrameSize)
+	if err != nil {
+		return
+	}
+
 	result := stream.AuthResult{Valid: true}
 	if auth := adapter.config.ConnAuthenticator; auth != nil {
-		_, handshake, err := readFrame(conn, adapter.config.HandshakeTimeout, maxHandshakeFrameSize)
-		if err != nil {
-			return
-		}
-		result = auth.AuthenticateConn(handshake)
+		result = auth.AuthenticateConn(frame)
 		if !result.Valid {
 			return
 		}
@@ -200,6 +201,10 @@ func (adapter *Adapter) handleConn(ctx context.Context, conn net.Conn, hub *stre
 
 	go adapter.writePump(ctx, conn, peer, hub.Config().WriteTimeout)
 
+	if auth := adapter.config.ConnAuthenticator; auth == nil {
+		dispatchFrame(hub, peer, channel, frame)
+	}
+
 	for {
 		channel, frame, err := readFrame(conn, 0, MaxFrameSize)
 		if err != nil {
@@ -213,6 +218,14 @@ func (adapter *Adapter) handleConn(ctx context.Context, conn net.Conn, hub *stre
 	}
 }
 
+func dispatchFrame(hub *stream.Hub, peer *stream.Peer, channel string, frame []byte) {
+	if channel == "" {
+		_ = hub.BroadcastFromPeer(peer, frame)
+		return
+	}
+	_ = hub.PublishFromPeer(peer, channel, frame)
+}
+
 func (adapter *Adapter) pipePeer(ctx context.Context, conn net.Conn, peer *stream.Peer, hub *stream.Hub) {
 	defer conn.Close()
 	go adapter.writePump(ctx, conn, peer, hub.Config().WriteTimeout)
@@ -222,11 +235,7 @@ func (adapter *Adapter) pipePeer(ctx context.Context, conn net.Conn, peer *strea
 			hub.RemovePeer(peer)
 			return
 		}
-		if channel == "" {
-			_ = hub.BroadcastFromPeer(peer, frame)
-			continue
-		}
-		_ = hub.PublishFromPeer(peer, channel, frame)
+		dispatchFrame(hub, peer, channel, frame)
 	}
 }
 

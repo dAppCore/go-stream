@@ -45,6 +45,9 @@ type AuthenticatorFunc func(r *http.Request) AuthResult
 //	    return stream.AuthResult{Valid: true, UserID: r.Header.Get("X-User")}
 //	})
 func (f AuthenticatorFunc) Authenticate(r *http.Request) AuthResult {
+	if f == nil || r == nil {
+		return AuthResult{Valid: false}
+	}
 	return f(r)
 }
 
@@ -71,19 +74,12 @@ func NewAPIKeyAuth(keys map[string]string) *APIKeyAuthenticator {
 // auth := stream.NewAPIKeyAuth(map[string]string{"sk-prod-1": "user-42"})
 // result := auth.Authenticate(r)
 func (a *APIKeyAuthenticator) Authenticate(r *http.Request) AuthResult {
-	if a == nil {
+	if a == nil || r == nil {
 		return AuthResult{Valid: false}
 	}
-	header := r.Header.Get("Authorization")
-	if header == "" {
-		return AuthResult{Valid: false, Error: ErrMissingAuthHeader}
-	}
-	if !core.HasPrefix(header, "Bearer ") {
-		return AuthResult{Valid: false, Error: ErrMalformedAuthHeader}
-	}
-	token := core.TrimPrefix(header, "Bearer ")
-	if token == "" {
-		return AuthResult{Valid: false, Error: ErrMalformedAuthHeader}
+	token, result := bearerTokenFromRequest(r)
+	if !result.Valid {
+		return result
 	}
 	userID, ok := a.Keys[token]
 	if !ok {
@@ -108,19 +104,12 @@ type BearerTokenAuth struct {
 // auth := &stream.BearerTokenAuth{Validate: validateJWT}
 // result := auth.Authenticate(r)
 func (b *BearerTokenAuth) Authenticate(r *http.Request) AuthResult {
-	if b == nil || b.Validate == nil {
+	if b == nil || b.Validate == nil || r == nil {
 		return AuthResult{Valid: false}
 	}
-	header := r.Header.Get("Authorization")
-	if header == "" {
-		return AuthResult{Valid: false, Error: ErrMissingAuthHeader}
-	}
-	if !core.HasPrefix(header, "Bearer ") {
-		return AuthResult{Valid: false, Error: ErrMalformedAuthHeader}
-	}
-	token := core.TrimPrefix(header, "Bearer ")
-	if token == "" {
-		return AuthResult{Valid: false, Error: ErrMalformedAuthHeader}
+	token, result := bearerTokenFromRequest(r)
+	if !result.Valid {
+		return result
 	}
 	return b.Validate(token)
 }
@@ -137,7 +126,7 @@ type QueryTokenAuth struct {
 // auth := &stream.QueryTokenAuth{Validate: lookupToken}
 // result := auth.Authenticate(r)
 func (q *QueryTokenAuth) Authenticate(r *http.Request) AuthResult {
-	if q == nil || q.Validate == nil {
+	if q == nil || q.Validate == nil || r == nil {
 		return AuthResult{Valid: false}
 	}
 	token := r.URL.Query().Get("token")
@@ -166,5 +155,23 @@ type ConnAuthenticatorFunc func(handshake []byte) AuthResult
 //	    return stream.AuthResult{Valid: true}
 //	})
 func (f ConnAuthenticatorFunc) AuthenticateConn(handshake []byte) AuthResult {
+	if f == nil {
+		return AuthResult{Valid: false}
+	}
 	return f(handshake)
+}
+
+func bearerTokenFromRequest(r *http.Request) (string, AuthResult) {
+	header := r.Header.Get("Authorization")
+	if header == "" {
+		return "", AuthResult{Valid: false, Error: ErrMissingAuthHeader}
+	}
+	if !core.HasPrefix(header, "Bearer ") {
+		return "", AuthResult{Valid: false, Error: ErrMalformedAuthHeader}
+	}
+	token := core.TrimPrefix(header, "Bearer ")
+	if token == "" {
+		return "", AuthResult{Valid: false, Error: ErrMalformedAuthHeader}
+	}
+	return token, AuthResult{Valid: true}
 }
