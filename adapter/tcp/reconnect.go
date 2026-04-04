@@ -5,7 +5,6 @@ package tcp
 import (
 	"context"
 	"crypto/tls"
-	"errors"
 	"net"
 	"sync"
 	"time"
@@ -52,7 +51,7 @@ func NewReconnectingTCP(config ReconnectConfig) *ReconnectingTCP {
 // Connect starts the connection loop. Blocks until ctx is cancelled.
 func (rc *ReconnectingTCP) Connect(ctx context.Context) error {
 	if rc == nil {
-		return errors.New("nil reconnecting tcp")
+		return core.E("stream.tcp", "nil reconnecting tcp", nil)
 	}
 	if ctx == nil {
 		ctx = context.Background()
@@ -112,7 +111,7 @@ func (rc *ReconnectingTCP) Connect(ctx context.Context) error {
 // Send transmits frame on channel through the TCP connection.
 func (rc *ReconnectingTCP) Send(channel string, frame []byte) error {
 	if rc == nil {
-		return errors.New("nil reconnecting tcp")
+		return core.E("stream.tcp", "nil reconnecting tcp", nil)
 	}
 	rc.mu.RLock()
 	conn := rc.conn

@@ -4,7 +4,6 @@ package ws
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"sync"
 	"time"
@@ -57,7 +56,7 @@ func NewReconnectingClient(config ReconnectConfig) *ReconnectingClient {
 // Connect starts the connection loop. Blocks until ctx is cancelled.
 func (rc *ReconnectingClient) Connect(ctx context.Context) error {
 	if rc == nil {
-		return errors.New("nil reconnecting client")
+		return core.E("stream.ws", "nil reconnecting client", nil)
 	}
 	if ctx == nil {
 		ctx = context.Background()
@@ -140,7 +139,7 @@ func (rc *ReconnectingClient) Connect(ctx context.Context) error {
 // Send marshals and sends a message through the WebSocket connection.
 func (rc *ReconnectingClient) Send(msg stream.Message) error {
 	if rc == nil {
-		return errors.New("nil reconnecting client")
+		return core.E("stream.ws", "nil reconnecting client", nil)
 	}
 	if msg.Timestamp.IsZero() {
 		msg.Timestamp = time.Now().UTC()

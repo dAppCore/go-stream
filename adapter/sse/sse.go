@@ -6,11 +6,11 @@
 package sse
 
 import (
-	"fmt"
+	"io"
 	"net/http"
+	"strconv"
 	"time"
 
-	"dappco.re/go/core"
 	"dappco.re/go/stream"
 )
 
@@ -96,7 +96,7 @@ func (a *Adapter) serve(w http.ResponseWriter, r *http.Request, channels []strin
 		_ = a.hub.SubscribePeer(peer, channel)
 	}
 
-	_, _ = fmt.Fprintf(w, "retry: %d\n\n", a.config.RetryMs)
+	_, _ = io.WriteString(w, "retry: "+strconv.Itoa(a.config.RetryMs)+"\n\n")
 	flusher.Flush()
 
 	ticker := time.NewTicker(a.config.HeartbeatInterval)
@@ -111,14 +111,13 @@ func (a *Adapter) serve(w http.ResponseWriter, r *http.Request, channels []strin
 			if !ok {
 				return
 			}
-			_, _ = fmt.Fprintf(w, "data: %s\n\n", frame)
+			_, _ = io.WriteString(w, "data: ")
+			_, _ = w.Write(frame)
+			_, _ = io.WriteString(w, "\n\n")
 			flusher.Flush()
 		case <-ticker.C:
-			_, _ = fmt.Fprint(w, ": ping\n\n")
+			_, _ = io.WriteString(w, ": ping\n\n")
 			flusher.Flush()
 		}
 	}
 }
-
-var _ time.Duration
-var _ = core.E

@@ -9,7 +9,6 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/binary"
-	"errors"
 	"io"
 	"net"
 	"sync"
@@ -55,7 +54,7 @@ func (a *Adapter) Mount(hub *stream.Hub) {
 // Listen starts the TCP accept loop. Blocks until ctx cancelled.
 func (a *Adapter) Listen(ctx context.Context) error {
 	if a == nil {
-		return errors.New("nil adapter")
+		return core.E("stream.tcp", "nil adapter", nil)
 	}
 	if a.hub == nil {
 		return core.E("stream.tcp", "stream hub not mounted", nil)
@@ -93,7 +92,7 @@ func (a *Adapter) Listen(ctx context.Context) error {
 // Dial connects to a remote TCP stream endpoint. Returns a Peer that can send/receive.
 func (a *Adapter) Dial(ctx context.Context, hub *stream.Hub) (*stream.Peer, error) {
 	if a == nil {
-		return nil, errors.New("nil adapter")
+		return nil, core.E("stream.tcp", "nil adapter", nil)
 	}
 	if hub == nil {
 		hub = a.hub
@@ -270,8 +269,5 @@ func isClosedNetworkError(err error) bool {
 	if err == nil {
 		return false
 	}
-	if errors.Is(err, net.ErrClosed) {
-		return true
-	}
-	return false
+	return err == net.ErrClosed
 }
