@@ -77,6 +77,19 @@ func (adapter *Adapter) Mount(hub *stream.Hub) {
 //
 //	http.Handle("/stream/ws", adapter)
 func (adapter *Adapter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	adapter.serveHTTP(w, r, r.URL.Query()["channel"])
+}
+
+// HandlerForChannel returns a handler that auto-subscribes every connection to one channel.
+//
+//	http.Handle("/stream/hashrate", adapter.HandlerForChannel("hashrate"))
+func (adapter *Adapter) HandlerForChannel(channel string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		adapter.serveHTTP(w, r, []string{channel})
+	}
+}
+
+func (adapter *Adapter) serveHTTP(w http.ResponseWriter, r *http.Request, channels []string) {
 	if adapter.hub == nil {
 		http.Error(w, "stream hub not mounted", http.StatusInternalServerError)
 		return
@@ -116,6 +129,12 @@ func (adapter *Adapter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	peer.Claims = result.Claims
 	_ = adapter.hub.AddPeer(peer)
 	defer adapter.hub.RemovePeer(peer)
+	for _, channel := range channels {
+		if channel == "" {
+			continue
+		}
+		_ = adapter.hub.SubscribePeer(peer, channel)
+	}
 	defer conn.Close()
 
 	hubConfig := adapter.hub.Config()

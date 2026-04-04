@@ -188,6 +188,39 @@ func TestAdapter_ServeHTTP_Good(t *testing.T) {
 	}
 }
 
+func TestAdapter_HandlerForChannel_Good(t *testing.T) {
+	hub := stream.NewHub()
+	hubContext, hubCancel := context.WithCancel(context.Background())
+	defer hubCancel()
+	go hub.Run(hubContext)
+
+	adapter := New(Config{})
+	adapter.Mount(hub)
+
+	server := httptest.NewServer(http.HandlerFunc(adapter.HandlerForChannel("hashrate")))
+	defer server.Close()
+
+	conn := dialWebSocket(t, server.URL, nil)
+	defer conn.Close()
+
+	waitForChannelSubscriberCount(t, hub, "hashrate", 1)
+
+	if err := hub.Publish("hashrate", []byte("123456")); err != nil {
+		t.Fatalf("Publish() error = %v", err)
+	}
+
+	messageType, payload, err := conn.ReadMessage()
+	if err != nil {
+		t.Fatalf("ReadMessage() error = %v", err)
+	}
+	if messageType != websocket.TextMessage {
+		t.Fatalf("messageType = %d, want %d", messageType, websocket.TextMessage)
+	}
+	if string(payload) != "123456" {
+		t.Fatalf("payload = %q, want %q", string(payload), "123456")
+	}
+}
+
 func dialWebSocket(t *testing.T, serverURL string, header http.Header) *websocket.Conn {
 	t.Helper()
 	conn, resp, err := websocket.DefaultDialer.Dial(websocketURL(serverURL), header)
