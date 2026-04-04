@@ -88,6 +88,23 @@ func TestBridge_Publish_Bad(t *testing.T) {
 	}
 }
 
+func TestBridge_Publish_BadBeforeStart(t *testing.T) {
+	redisServer := miniredis.RunT(t)
+
+	hub := stream.NewHub()
+	bridge, err := NewBridge(hub, Config{Addr: redisServer.Addr(), Prefix: "pool"})
+	if err != nil {
+		t.Fatalf("NewBridge() error = %v", err)
+	}
+
+	if err := bridge.PublishToChannel("block", []byte("template")); err == nil {
+		t.Fatal("PublishToChannel() error = nil, want bridge not started error")
+	}
+	if err := bridge.PublishBroadcast([]byte("shutdown")); err == nil {
+		t.Fatal("PublishBroadcast() error = nil, want bridge not started error")
+	}
+}
+
 func TestBridge_Publish_Ugly(t *testing.T) {
 	redisServer := miniredis.RunT(t)
 

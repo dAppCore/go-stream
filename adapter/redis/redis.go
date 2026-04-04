@@ -33,6 +33,7 @@ type Bridge struct {
 	sourceID string
 
 	mu            sync.RWMutex
+	running       bool
 	cancel        context.CancelFunc
 	pubsub        *redis.PubSub
 	client        *redis.Client
@@ -81,6 +82,14 @@ func (bridge *Bridge) Start(ctx context.Context) error {
 		ctx = context.Background()
 	}
 
+	bridge.mu.Lock()
+	if bridge.running {
+		bridge.mu.Unlock()
+		return nil
+	}
+	bridge.running = true
+	bridge.mu.Unlock()
+
 	runContext, runCancel := context.WithCancel(ctx)
 	client := newRedisClient(bridge.config)
 	pubsub := client.PSubscribe(runContext, bridge.broadcastChannel(), bridge.channelPattern())
@@ -106,6 +115,7 @@ func (bridge *Bridge) Start(ctx context.Context) error {
 		bridge.mu.Lock()
 		publishStop := bridge.publishStop
 		broadcastStop := bridge.broadcastStop
+		bridge.running = false
 		bridge.cancel = nil
 		bridge.client = nil
 		bridge.pubsub = nil
@@ -156,12 +166,17 @@ func (bridge *Bridge) Stop() error {
 	}
 
 	bridge.mu.RLock()
+	running := bridge.running
 	cancel := bridge.cancel
 	pubsub := bridge.pubsub
 	client := bridge.client
 	publishStop := bridge.publishStop
 	broadcastStop := bridge.broadcastStop
 	bridge.mu.RUnlock()
+
+	if !running {
+		return nil
+	}
 
 	if cancel != nil {
 		cancel()
@@ -212,8 +227,12 @@ func (bridge *Bridge) SourceID() string {
 
 func (bridge *Bridge) publish(channel string, frame []byte) error {
 	bridge.mu.RLock()
+	running := bridge.running
 	client := bridge.client
 	bridge.mu.RUnlock()
+	if !running {
+		return core.E("stream.redis", "bridge not started", nil)
+	}
 	if client == nil {
 		client = newRedisClient(bridge.config)
 		defer client.Close()
