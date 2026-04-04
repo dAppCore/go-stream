@@ -32,8 +32,6 @@ type AuthResult struct {
 	Error error
 }
 
-// AuthenticatorFunc adapts a plain function to the Authenticator interface.
-//
 //	auth := stream.AuthenticatorFunc(func(r *http.Request) stream.AuthResult {
 //	    token := r.Header.Get("X-Api-Key")
 //	    if token == "" {
@@ -43,7 +41,9 @@ type AuthResult struct {
 //	})
 type AuthenticatorFunc func(r *http.Request) AuthResult
 
-// Authenticate calls the wrapped function.
+//	auth := stream.AuthenticatorFunc(func(r *http.Request) stream.AuthResult {
+//	    return stream.AuthResult{Valid: true, UserID: r.Header.Get("X-User")}
+//	})
 func (f AuthenticatorFunc) Authenticate(r *http.Request) AuthResult {
 	return f(r)
 }
@@ -56,9 +56,7 @@ type APIKeyAuthenticator struct {
 	Keys map[string]string
 }
 
-// NewAPIKeyAuth creates an API key authenticator from a key-to-user map.
-//
-//	auth := stream.NewAPIKeyAuth(map[string]string{"sk-prod-1": "user-42"})
+// auth := stream.NewAPIKeyAuth(map[string]string{"sk-prod-1": "user-42"})
 func NewAPIKeyAuth(keys map[string]string) *APIKeyAuthenticator {
 	if keys == nil {
 		keys = map[string]string{}
@@ -70,10 +68,8 @@ func NewAPIKeyAuth(keys map[string]string) *APIKeyAuthenticator {
 	return &APIKeyAuthenticator{Keys: copied}
 }
 
-// Authenticate validates the request's `Authorization: Bearer <key>` header.
-//
-//	auth := stream.NewAPIKeyAuth(map[string]string{"sk-prod-1": "user-42"})
-//	result := auth.Authenticate(r)
+// auth := stream.NewAPIKeyAuth(map[string]string{"sk-prod-1": "user-42"})
+// result := auth.Authenticate(r)
 func (a *APIKeyAuthenticator) Authenticate(r *http.Request) AuthResult {
 	if a == nil {
 		return AuthResult{Valid: false}
@@ -96,8 +92,6 @@ func (a *APIKeyAuthenticator) Authenticate(r *http.Request) AuthResult {
 	return AuthResult{Valid: true, UserID: userID}
 }
 
-// BearerTokenAuth delegates bearer token validation to a caller-supplied function.
-//
 //	auth := &stream.BearerTokenAuth{
 //	    Validate: func(token string) stream.AuthResult {
 //	        claims, err := jwt.Parse(token, keyFunc)
@@ -111,10 +105,8 @@ type BearerTokenAuth struct {
 	Validate func(token string) AuthResult
 }
 
-// Authenticate extracts the bearer token and delegates to Validate.
-//
-//	auth := &stream.BearerTokenAuth{Validate: validateJWT}
-//	result := auth.Authenticate(r)
+// auth := &stream.BearerTokenAuth{Validate: validateJWT}
+// result := auth.Authenticate(r)
 func (b *BearerTokenAuth) Authenticate(r *http.Request) AuthResult {
 	if b == nil || b.Validate == nil {
 		return AuthResult{Valid: false}
@@ -133,8 +125,6 @@ func (b *BearerTokenAuth) Authenticate(r *http.Request) AuthResult {
 	return b.Validate(token)
 }
 
-// QueryTokenAuth extracts a `?token=` query parameter and validates via a caller function.
-//
 //	auth := &stream.QueryTokenAuth{
 //	    Validate: func(token string) stream.AuthResult {
 //	        return lookupToken(token)
@@ -144,10 +134,8 @@ type QueryTokenAuth struct {
 	Validate func(token string) AuthResult
 }
 
-// Authenticate extracts the `token` query parameter and delegates to Validate.
-//
-//	auth := &stream.QueryTokenAuth{Validate: lookupToken}
-//	result := auth.Authenticate(r)
+// auth := &stream.QueryTokenAuth{Validate: lookupToken}
+// result := auth.Authenticate(r)
 func (q *QueryTokenAuth) Authenticate(r *http.Request) AuthResult {
 	if q == nil || q.Validate == nil {
 		return AuthResult{Valid: false}
@@ -159,23 +147,24 @@ func (q *QueryTokenAuth) Authenticate(r *http.Request) AuthResult {
 	return q.Validate(token)
 }
 
-// ConnAuthenticator validates a raw connection handshake for TCP and ZMQ adapters.
-//
 //	auth := stream.ConnAuthenticatorFunc(func(handshake []byte) stream.AuthResult {
-//	    var h tcp.Handshake
-//	    if r := core.JSONUnmarshal(handshake, &h); !r.OK {
+//	    if len(handshake) == 0 {
 //	        return stream.AuthResult{Valid: false}
 //	    }
-//	    return verifyHMAC(h.Token, h.Timestamp)
+//	    return stream.AuthResult{Valid: true, UserID: "peer-1"}
 //	})
 type ConnAuthenticator interface {
 	AuthenticateConn(handshake []byte) AuthResult
 }
 
-// ConnAuthenticatorFunc adapts a plain function to ConnAuthenticator.
+//	auth := stream.ConnAuthenticatorFunc(func(handshake []byte) stream.AuthResult {
+//	    return stream.AuthResult{Valid: true}
+//	})
 type ConnAuthenticatorFunc func(handshake []byte) AuthResult
 
-// AuthenticateConn calls the wrapped function.
+//	auth := stream.ConnAuthenticatorFunc(func(handshake []byte) stream.AuthResult {
+//	    return stream.AuthResult{Valid: true}
+//	})
 func (f ConnAuthenticatorFunc) AuthenticateConn(handshake []byte) AuthResult {
 	return f(handshake)
 }

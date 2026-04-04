@@ -36,7 +36,7 @@ type ReconnectingTCP struct {
 	closed bool
 }
 
-// NewReconnectingTCP creates a reconnecting TCP client.
+// client := tcp.NewReconnectingTCP(tcp.ReconnectConfig{Addr: "10.69.69.165:9000"})
 func NewReconnectingTCP(config ReconnectConfig) *ReconnectingTCP {
 	if config.InitialBackoff == 0 {
 		config.InitialBackoff = time.Second
@@ -50,9 +50,7 @@ func NewReconnectingTCP(config ReconnectConfig) *ReconnectingTCP {
 	return &ReconnectingTCP{config: config}
 }
 
-// Connect starts the connection loop.
-//
-//	err := client.Connect(ctx)
+// err := client.Connect(ctx)
 func (client *ReconnectingTCP) Connect(ctx context.Context) error {
 	if client == nil {
 		return core.E("stream.tcp", "nil reconnecting tcp", nil)
@@ -131,9 +129,7 @@ func (client *ReconnectingTCP) Send(channel string, frame []byte) error {
 	return err
 }
 
-// Close shuts down the reconnecting client.
-//
-//	_ = client.Close()
+// _ = client.Close()
 func (client *ReconnectingTCP) Close() error {
 	if client == nil {
 		return nil
