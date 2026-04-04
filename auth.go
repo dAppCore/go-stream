@@ -9,7 +9,6 @@ import (
 )
 
 //	authenticator := stream.AuthenticatorFunc(func(request *http.Request) stream.AuthResult {
-//	    request.Header.Set("Authorization", "Bearer sk-live")
 //	    return stream.AuthResult{Valid: true, UserID: "user-42"}
 //	})
 type Authenticator interface {

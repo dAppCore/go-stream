@@ -24,11 +24,12 @@ import (
 )
 
 // Stream is the transport-agnostic event and data pipe.
-// Consumers never import a specific adapter — they call Stream.
 //
+//	hub := stream.NewHub()
 //	var s stream.Stream = hub
-//	s.Publish("hashrate", frame)
-//	s.Subscribe("block", handler)
+//	s.Publish("hashrate", []byte(`{"h":123456}`))
+//	stop := s.Pipe(remoteHub)
+//	defer stop()
 type Stream interface {
 	// Publish sends frame to all subscribers of channel.
 	// Returns core.E if the hub is not running.
@@ -48,10 +49,9 @@ type Stream interface {
 	//	hub.Broadcast([]byte(`{"type":"shutdown"}`))
 	Broadcast(frame []byte) error
 
-	// Pipe connects this stream to destination: every frame published here is forwarded to destination.
-	// Returns a stop function.
+	// Pipe forwards every published frame to destination.
 	//
-	//	stop := hub.Pipe(remoteHub)
+	//	stop := localHub.Pipe(remoteHub)
 	//	defer stop()
 	Pipe(destination Stream) func()
 
