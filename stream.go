@@ -92,6 +92,7 @@ type Peer struct {
 
 	send          chan []byte
 	subscriptions map[string]bool
+	closeHook     func()
 	mu            sync.RWMutex
 	closeOnce     sync.Once
 }
@@ -158,11 +159,29 @@ func (p *Peer) Close() {
 	}
 	p.closeOnce.Do(func() {
 		p.mu.Lock()
-		defer p.mu.Unlock()
-		if p.send != nil {
-			close(p.send)
+		send := p.send
+		closeHook := p.closeHook
+		p.closeHook = nil
+		p.mu.Unlock()
+		if send != nil {
+			close(send)
+		}
+		if closeHook != nil {
+			closeHook()
 		}
 	})
+}
+
+// SetCloseHook installs the transport shutdown hook invoked by Close.
+//
+//	peer.SetCloseHook(func() { _ = conn.Close() })
+func (p *Peer) SetCloseHook(closeHook func()) {
+	if p == nil {
+		return
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.closeHook = closeHook
 }
 
 // SendQueue returns the peer's outgoing frame queue.
@@ -222,7 +241,7 @@ func Pipe(src Stream, dst Stream) func() {
 	}
 	if len(stops) == 0 {
 		return src.Subscribe("*", func(frame []byte) {
-			_ = dst.Broadcast(frame)
+			_ = dst.Publish("*", frame)
 		})
 	}
 	return func() {

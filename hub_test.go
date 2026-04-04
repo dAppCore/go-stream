@@ -4,9 +4,96 @@ package stream
 
 import (
 	"context"
+	"sync"
 	"testing"
 	"time"
 )
+
+type testStream struct {
+	mu          sync.Mutex
+	subscribers map[string]map[int]func([]byte)
+	nextID      int
+	published   []publishedFrame
+	broadcasts  [][]byte
+}
+
+type publishedFrame struct {
+	channel string
+	frame   []byte
+}
+
+func newTestStream() *testStream {
+	return &testStream{
+		subscribers: map[string]map[int]func([]byte){},
+	}
+}
+
+func (streamValue *testStream) Publish(channel string, frame []byte) error {
+	streamValue.mu.Lock()
+	streamValue.published = append(streamValue.published, publishedFrame{
+		channel: channel,
+		frame:   append([]byte(nil), frame...),
+	})
+	handlers := streamValue.cloneHandlersLocked(channel)
+	wildcardHandlers := streamValue.cloneHandlersLocked("*")
+	streamValue.mu.Unlock()
+
+	for _, handler := range handlers {
+		handler(frame)
+	}
+	if channel != "*" {
+		for _, handler := range wildcardHandlers {
+			handler(frame)
+		}
+	}
+	return nil
+}
+
+func (streamValue *testStream) Subscribe(channel string, handler func([]byte)) func() {
+	streamValue.mu.Lock()
+	defer streamValue.mu.Unlock()
+	streamValue.nextID++
+	id := streamValue.nextID
+	if streamValue.subscribers[channel] == nil {
+		streamValue.subscribers[channel] = map[int]func([]byte){}
+	}
+	streamValue.subscribers[channel][id] = handler
+	return func() {
+		streamValue.mu.Lock()
+		defer streamValue.mu.Unlock()
+		delete(streamValue.subscribers[channel], id)
+		if len(streamValue.subscribers[channel]) == 0 {
+			delete(streamValue.subscribers, channel)
+		}
+	}
+}
+
+func (streamValue *testStream) Broadcast(frame []byte) error {
+	streamValue.mu.Lock()
+	defer streamValue.mu.Unlock()
+	streamValue.broadcasts = append(streamValue.broadcasts, append([]byte(nil), frame...))
+	return nil
+}
+
+func (streamValue *testStream) Pipe(dst Stream) func() {
+	return Pipe(streamValue, dst)
+}
+
+func (streamValue *testStream) Stats() HubStats {
+	return HubStats{}
+}
+
+func (streamValue *testStream) cloneHandlersLocked(channel string) []func([]byte) {
+	handlers := streamValue.subscribers[channel]
+	if len(handlers) == 0 {
+		return nil
+	}
+	cloned := make([]func([]byte), 0, len(handlers))
+	for _, handler := range handlers {
+		cloned = append(cloned, handler)
+	}
+	return cloned
+}
 
 func TestHub_Pipe_Good(t *testing.T) {
 	sourceHub := NewHub()
@@ -144,6 +231,33 @@ func TestHub_Pipe_Ugly(t *testing.T) {
 		}
 	case <-time.After(2 * time.Second):
 		t.Fatal("timed out waiting for local frame")
+	}
+}
+
+func TestHub_Pipe_GenericPublishFallback_Good(t *testing.T) {
+	sourceStream := newTestStream()
+	destinationStream := newTestStream()
+
+	stop := Pipe(sourceStream, destinationStream)
+	defer stop()
+
+	if err := sourceStream.Publish("hashrate", []byte("123456")); err != nil {
+		t.Fatalf("Publish() error = %v", err)
+	}
+
+	destinationStream.mu.Lock()
+	defer destinationStream.mu.Unlock()
+	if len(destinationStream.published) != 1 {
+		t.Fatalf("len(published) = %d, want %d", len(destinationStream.published), 1)
+	}
+	if destinationStream.published[0].channel != "*" {
+		t.Fatalf("published channel = %q, want %q", destinationStream.published[0].channel, "*")
+	}
+	if string(destinationStream.published[0].frame) != "123456" {
+		t.Fatalf("published frame = %q, want %q", string(destinationStream.published[0].frame), "123456")
+	}
+	if len(destinationStream.broadcasts) != 0 {
+		t.Fatalf("len(broadcasts) = %d, want %d", len(destinationStream.broadcasts), 0)
 	}
 }
 
@@ -415,6 +529,38 @@ func TestHub_SendToChannel_Wildcard_Good(t *testing.T) {
 	}
 
 	t.Fatalf("wildcard handler count = %d, want 1", count)
+}
+
+func TestPeer_Close_Good(t *testing.T) {
+	peer := NewPeer("ws")
+	closed := make(chan struct{}, 1)
+
+	peer.SetCloseHook(func() {
+		closed <- struct{}{}
+	})
+	peer.Close()
+	peer.Close()
+
+	select {
+	case <-closed:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for close hook")
+	}
+
+	select {
+	case <-closed:
+		t.Fatal("close hook ran more than once")
+	case <-time.After(200 * time.Millisecond):
+	}
+
+	select {
+	case _, ok := <-peer.SendQueue():
+		if ok {
+			t.Fatal("SendQueue() channel still open after Close()")
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for closed SendQueue()")
+	}
 }
 
 func waitForRunningHub(t *testing.T, hub *Hub) {

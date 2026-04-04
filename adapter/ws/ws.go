@@ -127,6 +127,9 @@ func (adapter *Adapter) serveHTTP(w http.ResponseWriter, r *http.Request, channe
 	peer := stream.NewPeer("ws")
 	peer.UserID = result.UserID
 	peer.Claims = result.Claims
+	peer.SetCloseHook(func() {
+		_ = conn.Close()
+	})
 	_ = adapter.hub.AddPeer(peer)
 	defer adapter.hub.RemovePeer(peer)
 	for _, channel := range channels {

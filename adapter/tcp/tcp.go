@@ -117,6 +117,9 @@ func (adapter *Adapter) Dial(ctx context.Context, hub *stream.Hub) (*stream.Peer
 		return nil, err
 	}
 	peer := stream.NewPeer("tcp")
+	peer.SetCloseHook(func() {
+		_ = conn.Close()
+	})
 	_ = hub.AddPeer(peer)
 	_ = hub.SubscribePeer(peer, "*")
 	go adapter.pipePeer(ctx, conn, peer, hub)
@@ -180,6 +183,9 @@ func (adapter *Adapter) handleConn(ctx context.Context, conn net.Conn, hub *stre
 	peer := stream.NewPeer("tcp")
 	peer.UserID = result.UserID
 	peer.Claims = result.Claims
+	peer.SetCloseHook(func() {
+		_ = conn.Close()
+	})
 	_ = hub.AddPeer(peer)
 	_ = hub.SubscribePeer(peer, "*")
 	defer hub.RemovePeer(peer)

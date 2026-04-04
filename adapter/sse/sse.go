@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"strconv"
+	"sync"
 	"time"
 
 	"dappco.re/go/stream"
@@ -99,6 +100,13 @@ func (adapter *Adapter) serve(w http.ResponseWriter, r *http.Request, channels [
 	peer := stream.NewPeer("sse")
 	peer.UserID = result.UserID
 	peer.Claims = result.Claims
+	done := make(chan struct{})
+	var doneOnce sync.Once
+	peer.SetCloseHook(func() {
+		doneOnce.Do(func() {
+			close(done)
+		})
+	})
 	_ = adapter.hub.AddPeer(peer)
 	defer adapter.hub.RemovePeer(peer)
 
@@ -115,10 +123,12 @@ func (adapter *Adapter) serve(w http.ResponseWriter, r *http.Request, channels [
 	ticker := time.NewTicker(config.HeartbeatInterval)
 	defer ticker.Stop()
 
-	done := r.Context().Done()
+	requestDone := r.Context().Done()
 	for {
 		select {
 		case <-done:
+			return
+		case <-requestDone:
 			return
 		case frame, ok := <-peer.SendQueue():
 			if !ok {

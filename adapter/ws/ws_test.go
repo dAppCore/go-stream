@@ -314,6 +314,57 @@ func TestAdapter_Handler_InboundPublish_NoSelfEcho_Good(t *testing.T) {
 	_ = conn.SetReadDeadline(time.Time{})
 }
 
+func TestAdapter_Handler_PeerClose_Good(t *testing.T) {
+	hub := stream.NewHub()
+	hubContext, hubCancel := context.WithCancel(context.Background())
+	defer hubCancel()
+	go hub.Run(hubContext)
+
+	adapter := New(Config{})
+	adapter.Mount(hub)
+
+	server := httptest.NewServer(http.HandlerFunc(adapter.Handler()))
+	defer server.Close()
+
+	conn := dialWebSocket(t, server.URL, nil)
+	defer conn.Close()
+
+	var peer *stream.Peer
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		for candidate := range hub.AllPeers() {
+			peer = candidate
+			break
+		}
+		if peer != nil {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if peer == nil {
+		t.Fatal("timed out waiting for websocket peer")
+	}
+
+	peer.Close()
+
+	readDone := make(chan error, 1)
+	go func() {
+		_, _, err := conn.ReadMessage()
+		readDone <- err
+	}()
+
+	select {
+	case err := <-readDone:
+		if err == nil {
+			t.Fatal("ReadMessage() error = nil, want closed websocket")
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for peer close to close websocket")
+	}
+
+	waitForPeerCount(t, hub, 0)
+}
+
 func dialWebSocket(t *testing.T, serverURL string, header http.Header) *websocket.Conn {
 	t.Helper()
 	conn, resp, err := websocket.DefaultDialer.Dial(websocketURL(serverURL), header)
