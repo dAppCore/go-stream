@@ -97,12 +97,12 @@ type Peer struct {
 	closeOnce     sync.Once
 }
 
-// NewPeer creates a peer with a generated identifier and a buffered send queue.
+// NewPeer creates a peer with a generated UUID and a buffered send queue.
 //
 //	peer := stream.NewPeer("ws")
 func NewPeer(transport string) *Peer {
 	return &Peer{
-		ID:            randomID(),
+		ID:            randomUUID(),
 		Transport:     transport,
 		send:          make(chan []byte, 256),
 		subscriptions: map[string]bool{},
@@ -272,9 +272,11 @@ var (
 	_ time.Duration
 )
 
-func randomID() string {
+func randomUUID() string {
 	var raw [16]byte
 	_, _ = rand.Read(raw[:])
+	raw[6] = (raw[6] & 0x0f) | 0x40
+	raw[8] = (raw[8] & 0x3f) | 0x80
 	return hex.EncodeToString(raw[:4]) + "-" +
 		hex.EncodeToString(raw[4:6]) + "-" +
 		hex.EncodeToString(raw[6:8]) + "-" +
