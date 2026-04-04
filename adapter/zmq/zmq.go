@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/url"
 	"sync"
+	"time"
 
 	"github.com/go-zeromq/zmq4"
 
@@ -40,6 +41,14 @@ type Config struct {
 	Endpoint string
 	Role     Role
 	Topics   []string
+
+	// ConnAuthenticator validates the first received frame before normal dispatch.
+	// When nil, the adapter accepts the connection without handshake validation.
+	ConnAuthenticator stream.ConnAuthenticator
+
+	// HandshakeTimeout limits how long the adapter waits for the first frame when
+	// ConnAuthenticator is configured. Defaults to 5 seconds.
+	HandshakeTimeout time.Duration
 }
 
 // Adapter is the ZMQ transport adapter.
@@ -55,6 +64,9 @@ type Adapter struct {
 
 // New creates a ZMQ adapter. Call Mount and Start before use.
 func New(config Config) *Adapter {
+	if config.HandshakeTimeout == 0 {
+		config.HandshakeTimeout = 5 * time.Second
+	}
 	return &Adapter{config: config}
 }
 
@@ -118,6 +130,20 @@ func (a *Adapter) Start(ctx context.Context) error {
 	if !a.isReceiver() {
 		<-runContext.Done()
 		return nil
+	}
+
+	if a.config.ConnAuthenticator != nil {
+		handshake, err := a.recvWithTimeout(runContext, socket, a.config.HandshakeTimeout)
+		if err != nil {
+			if err == context.Canceled {
+				return nil
+			}
+			return err
+		}
+		result := a.config.ConnAuthenticator.AuthenticateConn(handshake.Bytes())
+		if !result.Valid {
+			return stream.ErrAuthRejected
+		}
 	}
 
 	for {
@@ -255,6 +281,38 @@ func decodeMessage(message zmq4.Msg) (string, []byte, bool) {
 		return channel, frame, true
 	}
 	return "", nil, false
+}
+
+func (a *Adapter) recvWithTimeout(ctx context.Context, socket zmq4.Socket, timeout time.Duration) (zmq4.Msg, error) {
+	if timeout <= 0 {
+		msg, err := socket.Recv()
+		return msg, err
+	}
+
+	type result struct {
+		message zmq4.Msg
+		err     error
+	}
+
+	receive := make(chan result, 1)
+	go func() {
+		msg, err := socket.Recv()
+		receive <- result{message: msg, err: err}
+	}()
+
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+
+	select {
+	case <-ctx.Done():
+		_ = socket.Close()
+		return zmq4.Msg{}, ctx.Err()
+	case outcome := <-receive:
+		return outcome.message, outcome.err
+	case <-timer.C:
+		_ = socket.Close()
+		return zmq4.Msg{}, stream.ErrHandshakeTimeout
+	}
 }
 
 func encodeMessage(channel string, frame []byte) []byte {

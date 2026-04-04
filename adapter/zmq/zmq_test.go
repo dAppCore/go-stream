@@ -141,6 +141,163 @@ func TestAdapter_Start_Ugly(t *testing.T) {
 	t.Fatal("timed out waiting for push/pull frame")
 }
 
+func TestAdapter_Start_Auth_Good(t *testing.T) {
+	hub := stream.NewHub()
+	hubContext, hubCancel := context.WithCancel(context.Background())
+	defer hubCancel()
+	go hub.Run(hubContext)
+
+	endpoint := randomTCPEndpoint(t)
+	subscriber := New(Config{
+		Mode:     ModePubSub,
+		Endpoint: endpoint,
+		Role:     RoleSubscriber,
+		Topics:   []string{"block"},
+		ConnAuthenticator: stream.ConnAuthenticatorFunc(func(handshake []byte) stream.AuthResult {
+			if string(handshake) != "block\x00hello" {
+				return stream.AuthResult{Valid: false}
+			}
+			return stream.AuthResult{Valid: true}
+		}),
+	})
+	subscriber.Mount(hub)
+
+	publisher := New(Config{
+		Mode:     ModePubSub,
+		Endpoint: endpoint,
+		Role:     RolePublisher,
+	})
+	publisher.Mount(stream.NewHub())
+
+	runContext, runCancel := context.WithCancel(context.Background())
+	defer runCancel()
+	go func() { _ = subscriber.Start(runContext) }()
+	go func() { _ = publisher.Start(runContext) }()
+	waitForAdapterRunning(t, subscriber)
+	waitForAdapterRunning(t, publisher)
+
+	received := make(chan []byte, 1)
+	unsubscribe := hub.Subscribe("block", func(frame []byte) {
+		received <- append([]byte(nil), frame...)
+	})
+	defer unsubscribe()
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if err := publisher.Publish("block", []byte("hello")); err != nil {
+			t.Fatalf("handshake Publish() error = %v", err)
+		}
+		if err := publisher.Publish("block", []byte("template")); err != nil {
+			t.Fatalf("Publish() error = %v", err)
+		}
+
+		select {
+		case frame := <-received:
+			if string(frame) != "template" {
+				t.Fatalf("received frame = %q, want %q", string(frame), "template")
+			}
+			return
+		case <-time.After(100 * time.Millisecond):
+		}
+	}
+
+	t.Fatal("timed out waiting for authenticated zmq frame")
+}
+
+func TestAdapter_Start_Auth_Ugly(t *testing.T) {
+	endpoint := randomTCPEndpoint(t)
+	hub := stream.NewHub()
+	hubContext, hubCancel := context.WithCancel(context.Background())
+	defer hubCancel()
+	go hub.Run(hubContext)
+
+	subscriber := New(Config{
+		Mode:     ModePubSub,
+		Endpoint: endpoint,
+		Role:     RoleSubscriber,
+		ConnAuthenticator: stream.ConnAuthenticatorFunc(func(handshake []byte) stream.AuthResult {
+			return stream.AuthResult{Valid: false}
+		}),
+		HandshakeTimeout: 500 * time.Millisecond,
+	})
+	subscriber.Mount(hub)
+
+	publisher := New(Config{
+		Mode:     ModePubSub,
+		Endpoint: endpoint,
+		Role:     RolePublisher,
+	})
+	publisher.Mount(stream.NewHub())
+
+	runContext, runCancel := context.WithCancel(context.Background())
+	defer runCancel()
+	errs := make(chan error, 1)
+	go func() { errs <- subscriber.Start(runContext) }()
+	go func() { _ = publisher.Start(runContext) }()
+	waitForAdapterRunning(t, subscriber)
+	waitForAdapterRunning(t, publisher)
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if err := publisher.Publish("block", []byte("hello")); err != nil {
+			t.Fatalf("handshake Publish() error = %v", err)
+		}
+
+		select {
+		case err := <-errs:
+			if err != stream.ErrAuthRejected {
+				t.Fatalf("Start() error = %v, want %v", err, stream.ErrAuthRejected)
+			}
+			return
+		case <-time.After(100 * time.Millisecond):
+		}
+	}
+
+	t.Fatal("timed out waiting for auth rejection")
+}
+
+func TestAdapter_Start_Auth_Timeout(t *testing.T) {
+	hub := stream.NewHub()
+	hubContext, hubCancel := context.WithCancel(context.Background())
+	defer hubCancel()
+	go hub.Run(hubContext)
+
+	subscriber := New(Config{
+		Mode:     ModePubSub,
+		Endpoint: randomTCPEndpoint(t),
+		Role:     RoleSubscriber,
+		ConnAuthenticator: stream.ConnAuthenticatorFunc(func(handshake []byte) stream.AuthResult {
+			return stream.AuthResult{Valid: true}
+		}),
+		HandshakeTimeout: 500 * time.Millisecond,
+	})
+	subscriber.Mount(hub)
+
+	publisher := New(Config{
+		Mode:     ModePubSub,
+		Endpoint: subscriber.config.Endpoint,
+		Role:     RolePublisher,
+	})
+	publisher.Mount(stream.NewHub())
+
+	runContext, runCancel := context.WithCancel(context.Background())
+	defer runCancel()
+	errs := make(chan error, 1)
+	go func() { errs <- subscriber.Start(runContext) }()
+	go func() { _ = publisher.Start(runContext) }()
+	waitForAdapterRunning(t, subscriber)
+	waitForAdapterRunning(t, publisher)
+
+	select {
+	case err := <-errs:
+		if err != stream.ErrHandshakeTimeout {
+			t.Fatalf("Start() error = %v, want %v", err, stream.ErrHandshakeTimeout)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for handshake timeout")
+	}
+}
+
 func randomTCPEndpoint(t *testing.T) string {
 	t.Helper()
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
