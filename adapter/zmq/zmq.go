@@ -17,6 +17,8 @@ import (
 	"dappco.re/go/stream"
 )
 
+const maxHandshakeFrameSize = 4 << 10
+
 // Mode selects the ZMQ socket pattern.
 type Mode int
 
@@ -145,6 +147,9 @@ func (adapter *Adapter) Start(ctx context.Context) error {
 				return nil
 			}
 			return err
+		}
+		if len(handshake.Bytes()) > maxHandshakeFrameSize {
+			return stream.ErrAuthRejected
 		}
 		result := adapter.config.ConnAuthenticator.AuthenticateConn(handshake.Bytes())
 		if !result.Valid {

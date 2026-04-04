@@ -298,6 +298,59 @@ func TestAdapter_Start_Auth_Timeout(t *testing.T) {
 	}
 }
 
+func TestAdapter_Start_Auth_HandshakeTooLarge_Good(t *testing.T) {
+	hub := stream.NewHub()
+	hubContext, hubCancel := context.WithCancel(context.Background())
+	defer hubCancel()
+	go hub.Run(hubContext)
+
+	endpoint := randomTCPEndpoint(t)
+	subscriber := New(Config{
+		Mode:     ModePubSub,
+		Endpoint: endpoint,
+		Role:     RoleSubscriber,
+		ConnAuthenticator: stream.ConnAuthenticatorFunc(func(handshake []byte) stream.AuthResult {
+			return stream.AuthResult{Valid: true}
+		}),
+		HandshakeTimeout: 500 * time.Millisecond,
+	})
+	subscriber.Mount(hub)
+
+	publisher := New(Config{
+		Mode:     ModePubSub,
+		Endpoint: endpoint,
+		Role:     RolePublisher,
+	})
+	publisher.Mount(stream.NewHub())
+
+	runContext, runCancel := context.WithCancel(context.Background())
+	defer runCancel()
+	errs := make(chan error, 1)
+	go func() { errs <- subscriber.Start(runContext) }()
+	go func() { _ = publisher.Start(runContext) }()
+	waitForAdapterRunning(t, subscriber)
+	waitForAdapterRunning(t, publisher)
+
+	tooLargeHandshake := make([]byte, maxHandshakeFrameSize+1)
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if err := publisher.Publish("block", tooLargeHandshake); err != nil {
+			t.Fatalf("Publish() error = %v", err)
+		}
+
+		select {
+		case err := <-errs:
+			if err != stream.ErrAuthRejected {
+				t.Fatalf("Start() error = %v, want %v", err, stream.ErrAuthRejected)
+			}
+			return
+		case <-time.After(100 * time.Millisecond):
+		}
+	}
+
+	t.Fatal("timed out waiting for handshake rejection")
+}
+
 func randomTCPEndpoint(t *testing.T) string {
 	t.Helper()
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
