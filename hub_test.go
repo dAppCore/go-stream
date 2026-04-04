@@ -294,6 +294,98 @@ func TestHub_Broadcast_Ugly(t *testing.T) {
 	waitForPeerCount(t, hub, 0)
 }
 
+func TestHub_SubscribeE_Good(t *testing.T) {
+	hub := NewHub()
+	hubContext, hubCancel := context.WithCancel(context.Background())
+	defer hubCancel()
+
+	go hub.Run(hubContext)
+	waitForRunningHub(t, hub)
+
+	received := make(chan []byte, 1)
+	unsubscribe, err := hub.SubscribeE("block", func(frame []byte) {
+		received <- append([]byte(nil), frame...)
+	})
+	if err != nil {
+		t.Fatalf("SubscribeE() error = %v", err)
+	}
+	defer unsubscribe()
+
+	if err := hub.Publish("block", []byte("template")); err != nil {
+		t.Fatalf("Publish() error = %v", err)
+	}
+
+	select {
+	case frame := <-received:
+		if string(frame) != "template" {
+			t.Fatalf("received frame = %q, want %q", string(frame), "template")
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for subscribed frame")
+	}
+}
+
+func TestHub_SubscribeE_Bad(t *testing.T) {
+	hub := NewHub()
+
+	unsubscribe, err := hub.SubscribeE("", func(frame []byte) {})
+	if err != ErrEmptyChannel {
+		t.Fatalf("SubscribeE() error = %v, want %v", err, ErrEmptyChannel)
+	}
+	if unsubscribe == nil {
+		t.Fatal("SubscribeE() unsubscribe = nil")
+	}
+	unsubscribe()
+}
+
+func TestHub_SubscribeE_Ugly(t *testing.T) {
+	hub := NewHub()
+	hubContext, hubCancel := context.WithCancel(context.Background())
+	defer hubCancel()
+
+	go hub.Run(hubContext)
+	waitForRunningHub(t, hub)
+
+	panicked := 0
+	unsubscribe, err := hub.SubscribeE("event", func(frame []byte) {
+		panicked++
+		panic("boom")
+	})
+	if err != nil {
+		t.Fatalf("SubscribeE() error = %v", err)
+	}
+	defer unsubscribe()
+
+	received := make(chan []byte, 1)
+	safeUnsubscribe := hub.Subscribe("event", func(frame []byte) {
+		received <- append([]byte(nil), frame...)
+	})
+	defer safeUnsubscribe()
+
+	if err := hub.Publish("event", []byte("payload")); err != nil {
+		t.Fatalf("Publish() error = %v", err)
+	}
+
+	select {
+	case frame := <-received:
+		if string(frame) != "payload" {
+			t.Fatalf("received frame = %q, want %q", string(frame), "payload")
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for safe handler")
+	}
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if panicked == 1 {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	t.Fatalf("SubscribeE panic handler count = %d, want 1", panicked)
+}
+
 func TestHub_SendToChannel_Wildcard_Good(t *testing.T) {
 	hub := NewHub()
 	hubContext, hubCancel := context.WithCancel(context.Background())

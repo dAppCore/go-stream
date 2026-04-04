@@ -173,15 +173,22 @@ func (h *Hub) sendToChannel(channel string, frame []byte, notifyPublishSubscribe
 	return nil
 }
 
-// Subscribe registers a handler function invoked for every frame arriving on channel.
-// Returns an unsubscribe function. Multiple handlers per channel are allowed.
-// Handlers run in the hub's goroutine — keep them non-blocking.
+// SubscribeE registers a handler function invoked for every frame arriving on channel.
+// Returns an unsubscribe function and an error for invalid input. Multiple handlers
+// per channel are allowed. Handlers run in the hub's goroutine — keep them non-blocking.
 //
-//	unsub := hub.Subscribe("block", func(f []byte) { ... })
+//	unsub, err := hub.SubscribeE("block", func(f []byte) { ... })
+//	if err != nil { return err }
 //	defer unsub()
-func (h *Hub) Subscribe(channel string, handler func([]byte)) func() {
-	if h == nil || channel == "" || handler == nil {
-		return func() {}
+func (h *Hub) SubscribeE(channel string, handler func([]byte)) (func(), error) {
+	if h == nil {
+		return func() {}, core.E("stream.hub", "nil hub", nil)
+	}
+	if channel == "" {
+		return func() {}, ErrEmptyChannel
+	}
+	if handler == nil {
+		return func() {}, core.E("stream.hub", "nil handler", nil)
 	}
 	h.mu.Lock()
 	if h.handlers == nil {
@@ -207,7 +214,18 @@ func (h *Hub) Subscribe(channel string, handler func([]byte)) func() {
 				delete(h.handlers, channel)
 			}
 		}
-	}
+	}, nil
+}
+
+// Subscribe registers a handler function invoked for every frame arriving on channel.
+// Returns an unsubscribe function. Multiple handlers per channel are allowed.
+// Handlers run in the hub's goroutine — keep them non-blocking.
+//
+//	unsub := hub.Subscribe("block", func(f []byte) { ... })
+//	defer unsub()
+func (h *Hub) Subscribe(channel string, handler func([]byte)) func() {
+	unsub, _ := h.SubscribeE(channel, handler)
+	return unsub
 }
 
 // SubscribePeer adds peer to a named channel. Used by transport adapters when
