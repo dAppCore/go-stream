@@ -12,6 +12,12 @@ import (
 // Stream preserves the transport-agnostic stream interface for legacy callers.
 type Stream = stream.Stream
 
+// Frame preserves the legacy raw payload alias.
+type Frame = stream.Frame
+
+// Channel preserves the legacy channel name alias.
+type Channel = stream.Channel
+
 // Hub preserves the legacy go-ws Hub type name.
 type Hub = stream.Hub
 

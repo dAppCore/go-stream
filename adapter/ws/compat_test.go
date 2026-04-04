@@ -14,6 +14,16 @@ func TestCompat_LegacySurface_Good(t *testing.T) {
 		t.Fatal("NewAPIKeyAuth() = nil")
 	}
 
+	var frame Frame = []byte("payload")
+	if string(frame) != "payload" {
+		t.Fatalf("Frame alias produced %q, want %q", string(frame), "payload")
+	}
+
+	var channel Channel = "hashrate"
+	if channel != "hashrate" {
+		t.Fatalf("Channel alias produced %q, want %q", channel, "hashrate")
+	}
+
 	if StateDisconnected != 0 || StateConnecting != 1 || StateConnected != 2 {
 		t.Fatalf("unexpected connection states: %d %d %d", StateDisconnected, StateConnecting, StateConnected)
 	}
