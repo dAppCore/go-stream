@@ -24,6 +24,7 @@ import (
 //	})
 type Config struct {
 	Authenticator     stream.Authenticator
+	OnAuthFailure     func(r *http.Request, result stream.AuthResult)
 	HeartbeatInterval time.Duration
 	RetryMs           int
 }
@@ -101,6 +102,9 @@ func (adapter *Adapter) serve(w http.ResponseWriter, r *http.Request, channels [
 	if adapter.config.Authenticator != nil {
 		result = adapter.config.Authenticator.Authenticate(r)
 		if !result.Valid {
+			if adapter.config.OnAuthFailure != nil {
+				adapter.config.OnAuthFailure(r, result)
+			}
 			http.Error(w, "unauthorised", http.StatusUnauthorized)
 			return
 		}

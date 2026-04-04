@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -90,8 +91,12 @@ func TestAdapter_Handler_Bad(t *testing.T) {
 	defer hubCancel()
 	go hub.Run(hubContext)
 
+	var authFailureCount atomic.Int32
 	adapter := New(Config{
 		Authenticator: stream.NewAPIKeyAuth(map[string]string{"valid-key": "user-1"}),
+		OnAuthFailure: func(r *http.Request, result stream.AuthResult) {
+			authFailureCount.Add(1)
+		},
 	})
 	adapter.Mount(hub)
 
@@ -106,6 +111,9 @@ func TestAdapter_Handler_Bad(t *testing.T) {
 
 	if response.StatusCode != http.StatusUnauthorized {
 		t.Fatalf("StatusCode = %d, want %d", response.StatusCode, http.StatusUnauthorized)
+	}
+	if authFailureCount.Load() != 1 {
+		t.Fatalf("OnAuthFailure invoked %d times, want %d", authFailureCount.Load(), 1)
 	}
 }
 
