@@ -24,38 +24,40 @@ import (
 // Stream is the transport-agnostic event and data pipe.
 //
 //	hub := stream.NewHub()
-//	var s stream.Stream = hub
-//	s.Publish("hashrate", []byte(`{"h":123456}`))
-//	stop := s.Pipe(remoteHub)
+//	var streamBus stream.Stream = hub
+//	streamBus.Publish("hashrate", []byte(`{"h":123456}`))
+//	stop := streamBus.Pipe(remoteHub)
 //	defer stop()
 type Stream interface {
 	// Publish sends frame to all subscribers of channel.
-	// Returns core.E if the hub is not running.
 	//
 	//	hub.Publish("hashrate", []byte(`{"h":123456}`))
+	//
 	Publish(channel string, frame []byte) error
 
 	// Subscribe registers handler for all frames arriving on channel.
-	// Returns an unsubscribe function. Safe to call from multiple goroutines.
 	//
-	//	unsub := hub.Subscribe("block", func(f []byte) { ... })
-	//	defer unsub()
+	//	unsubscribe := hub.Subscribe("block", func(frame []byte) { handleBlock(frame) })
+	//	defer unsubscribe()
+	//
 	Subscribe(channel string, handler func([]byte)) func()
 
 	// Broadcast sends frame to every connected peer regardless of subscriptions.
 	//
 	//	hub.Broadcast([]byte(`{"type":"shutdown"}`))
+	//
 	Broadcast(frame []byte) error
 
 	// Pipe forwards every published frame to destination.
 	//
 	//	stop := localHub.Pipe(remoteHub)
 	//	defer stop()
+	//
 	Pipe(destination Stream) func()
 
 	// Stats returns a snapshot of current hub state.
 	//
-	//	s := hub.Stats()
+	//	stats := hub.Stats()
 	Stats() HubStats
 }
 
@@ -106,7 +108,7 @@ func NewPeer(transport string) *Peer {
 
 // Subscriptions returns a copy of this peer's current channel subscriptions.
 //
-//	channels := peer.Subscriptions()   // ["hashrate", "block"]
+//	channels := peer.Subscriptions() // ["hashrate", "block"]
 func (peer *Peer) Subscriptions() []string {
 	if peer == nil {
 		return nil

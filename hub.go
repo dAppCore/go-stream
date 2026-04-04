@@ -391,8 +391,8 @@ func (hub *Hub) Pipe(destination Stream) func() {
 
 // Stats returns a snapshot of current hub state.
 //
-//	s := hub.Stats()
-//	core.Print("stream", "peers=%d channels=%d", s.Peers, s.Channels)
+//	stats := hub.Stats()
+//	core.Print("stream", "peers=%d channels=%d", stats.Peers, stats.Channels)
 func (hub *Hub) Stats() HubStats {
 	if hub == nil {
 		return HubStats{}
