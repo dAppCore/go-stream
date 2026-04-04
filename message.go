@@ -4,7 +4,7 @@ package stream
 
 import "time"
 
-// MessageType is used with stream.Message for WebSocket envelopes.
+// MessageType identifies the payload shape in a stream.Message envelope.
 //
 //	msg := stream.Message{Type: stream.TypeEvent, Channel: "hashrate"}
 type MessageType string

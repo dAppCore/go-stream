@@ -16,7 +16,13 @@ type Authenticator interface {
 	Authenticate(request *http.Request) AuthResult
 }
 
-// AuthResult is the outcome of an authentication attempt.
+// AuthResult captures the outcome of an authentication attempt.
+//
+//	result := stream.AuthResult{
+//	    Valid:  true,
+//	    UserID: "user-42",
+//	    Claims: map[string]any{"role": "admin"},
+//	}
 type AuthResult struct {
 	// Valid indicates whether authentication succeeded.
 	Valid bool

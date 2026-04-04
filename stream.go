@@ -194,7 +194,16 @@ func (peer *Peer) SendQueue() <-chan []byte {
 	return peer.send
 }
 
-// ConnectionState represents the lifecycle state of a reconnecting client.
+// ConnectionState describes a reconnecting client's lifecycle.
+//
+//	switch client.State() {
+//	case stream.StateConnected:
+//	    // send frames
+//	case stream.StateConnecting:
+//	    // wait for dial
+//	default:
+//	    // disconnected
+//	}
 type ConnectionState int
 
 const (
