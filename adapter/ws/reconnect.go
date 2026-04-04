@@ -15,6 +15,13 @@ import (
 )
 
 // ReconnectConfig configures the client-side reconnecting WebSocket.
+//
+//	client := ws.NewReconnectingClient(ws.ReconnectConfig{
+//	    URL: "ws://127.0.0.1:8080/stream/ws",
+//	    OnMessage: func(message stream.Message) {
+//	        _ = message.Channel
+//	    },
+//	})
 type ReconnectConfig struct {
 	URL               string
 	InitialBackoff    time.Duration
@@ -30,6 +37,9 @@ type ReconnectConfig struct {
 }
 
 // ReconnectingClient is a WebSocket client with automatic reconnection.
+//
+//	client := ws.NewReconnectingClient(ws.ReconnectConfig{URL: "ws://127.0.0.1:8080/stream/ws"})
+//	_ = client.Connect(context.Background())
 type ReconnectingClient struct {
 	config ReconnectConfig
 	state  stream.ConnectionState
@@ -53,6 +63,7 @@ func NewReconnectingClient(config ReconnectConfig) *ReconnectingClient {
 	return &ReconnectingClient{config: config, state: stream.StateDisconnected}
 }
 
+// client := ws.NewReconnectingClient(ws.ReconnectConfig{URL: "ws://127.0.0.1:8080/stream/ws"})
 // err := client.Connect(ctx)
 func (client *ReconnectingClient) Connect(ctx context.Context) error {
 	if client == nil {
@@ -171,6 +182,8 @@ func (client *ReconnectingClient) Send(msg stream.Message) error {
 }
 
 // State returns the current connection state.
+//
+//	state := client.State()
 func (client *ReconnectingClient) State() stream.ConnectionState {
 	if client == nil {
 		return stream.StateDisconnected

@@ -173,6 +173,69 @@ func TestAdapter_ServeHTTP_Good(t *testing.T) {
 	}
 }
 
+func TestAdapter_HandlerForChannel_Good(t *testing.T) {
+	hub := stream.NewHub()
+	hubContext, hubCancel := context.WithCancel(context.Background())
+	defer hubCancel()
+	go hub.Run(hubContext)
+
+	adapter := New(Config{HeartbeatInterval: 20 * time.Millisecond})
+	adapter.Mount(hub)
+
+	server := httptest.NewServer(http.HandlerFunc(adapter.HandlerForChannel("hashrate")))
+	defer server.Close()
+
+	response, err := http.Get(server.URL)
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	defer response.Body.Close()
+
+	waitForPeerCount(t, hub, 1)
+	if err := hub.Publish("hashrate", []byte("654321")); err != nil {
+		t.Fatalf("Publish() error = %v", err)
+	}
+
+	reader := bufio.NewReader(response.Body)
+	for {
+		line, err := reader.ReadString('\n')
+		if err != nil {
+			t.Fatalf("ReadString() error = %v", err)
+		}
+		if strings.TrimSpace(line) == "data: 654321" {
+			return
+		}
+	}
+}
+
+func TestAdapter_Handler_RetryMs_Good(t *testing.T) {
+	hub := stream.NewHub()
+	hubContext, hubCancel := context.WithCancel(context.Background())
+	defer hubCancel()
+	go hub.Run(hubContext)
+
+	adapter := New(Config{RetryMs: 1234, HeartbeatInterval: time.Second})
+	adapter.Mount(hub)
+
+	server := httptest.NewServer(http.HandlerFunc(adapter.Handler()))
+	defer server.Close()
+
+	response, err := http.Get(server.URL + "?channel=hashrate")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	defer response.Body.Close()
+
+	reader := bufio.NewReader(response.Body)
+	line, err := reader.ReadString('\n')
+	if err != nil {
+		t.Fatalf("ReadString() error = %v", err)
+	}
+	if strings.TrimSpace(line) != "retry: 1234" {
+		t.Fatalf("first line = %q, want %q", strings.TrimSpace(line), "retry: 1234")
+	}
+}
+
 func waitForPeerCount(t *testing.T, hub *stream.Hub, expected int) {
 	t.Helper()
 	deadline := time.Now().Add(2 * time.Second)

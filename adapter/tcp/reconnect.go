@@ -13,6 +13,14 @@ import (
 )
 
 // ReconnectConfig configures the client-side reconnecting TCP connection.
+//
+//	client := tcp.NewReconnectingTCP(tcp.ReconnectConfig{
+//	    Addr: "127.0.0.1:9000",
+//	    OnMessage: func(channel string, frame []byte) {
+//	        _ = channel
+//	        _ = frame
+//	    },
+//	})
 type ReconnectConfig struct {
 	Addr              string
 	InitialBackoff    time.Duration

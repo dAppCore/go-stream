@@ -16,6 +16,12 @@ import (
 )
 
 // Config configures the SSE adapter.
+//
+//	adapter := sse.New(sse.Config{
+//	    Authenticator:     stream.NewAPIKeyAuth(map[string]string{"sk-live": "user-42"}),
+//	    HeartbeatInterval: 15 * time.Second,
+//	    RetryMs:           3000,
+//	})
 type Config struct {
 	Authenticator     stream.Authenticator
 	HeartbeatInterval time.Duration
@@ -23,12 +29,18 @@ type Config struct {
 }
 
 // Adapter is the SSE transport adapter for a stream.Hub.
+//
+//	adapter := sse.New(sse.Config{})
+//	adapter.Mount(hub)
+//	http.Handle("/stream/events", adapter.Handler())
 type Adapter struct {
 	hub    *stream.Hub
 	config Config
 }
 
 // New creates an SSE adapter.
+//
+//	adapter := sse.New(sse.Config{HeartbeatInterval: 15 * time.Second})
 func New(config Config) *Adapter {
 	if config.HeartbeatInterval == 0 {
 		config.HeartbeatInterval = 15 * time.Second
@@ -40,6 +52,8 @@ func New(config Config) *Adapter {
 }
 
 // Mount wires the adapter to a hub.
+//
+//	adapter.Mount(hub)
 func (adapter *Adapter) Mount(hub *stream.Hub) {
 	adapter.hub = hub
 }
@@ -54,6 +68,7 @@ func (adapter *Adapter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // Handler returns an http.HandlerFunc that accepts SSE connections.
 //
 //	http.Handle("/stream/events", adapter.Handler())
+//	http.Get("http://127.0.0.1:8080/stream/events?channel=hashrate")
 func (adapter *Adapter) Handler() http.HandlerFunc {
 	return adapter.ServeHTTP
 }
