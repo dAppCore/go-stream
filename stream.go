@@ -230,19 +230,19 @@ func Pipe(src Stream, dst Stream) func() {
 	stops := make([]func(), 0, 2)
 	if publisher, ok := src.(publishSubscriber); ok {
 		stops = append(stops, publisher.SubscribePublished(func(channel string, frame []byte) {
-			_ = dst.Publish(channel, frame)
+			_ = dst.Publish(channel, cloneFrame(frame))
 		}))
 	}
 	if broadcaster, ok := src.(broadcastSubscriber); ok {
 		stops = append(stops, broadcaster.SubscribeBroadcast(func(frame []byte) {
-			_ = dst.Broadcast(frame)
+			_ = dst.Broadcast(cloneFrame(frame))
 		}))
 	}
 	if len(stops) == 0 {
 		// Generic Stream implementations do not expose channel names, so fall back
 		// to publishing on the wildcard channel.
 		stop := src.Subscribe("*", func(frame []byte) {
-			_ = dst.Publish("*", frame)
+			_ = dst.Publish("*", cloneFrame(frame))
 		})
 		var once sync.Once
 		return func() {
@@ -291,4 +291,11 @@ func encodeTCPFrame(channel string, frame []byte) []byte {
 	copy(output[8:8+len(channelBytes)], channelBytes)
 	copy(output[8+len(channelBytes):], frame)
 	return output
+}
+
+func cloneFrame(frame []byte) []byte {
+	if len(frame) == 0 {
+		return nil
+	}
+	return append([]byte(nil), frame...)
 }
