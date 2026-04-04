@@ -43,11 +43,11 @@ type AuthenticatorFunc func(request *http.Request) AuthResult
 //	authenticator := stream.AuthenticatorFunc(func(request *http.Request) stream.AuthResult {
 //	    return stream.AuthResult{Valid: true, UserID: request.Header.Get("X-User")}
 //	})
-func (function AuthenticatorFunc) Authenticate(request *http.Request) AuthResult {
-	if function == nil || request == nil {
+func (authenticatorFunc AuthenticatorFunc) Authenticate(request *http.Request) AuthResult {
+	if authenticatorFunc == nil || request == nil {
 		return AuthResult{Valid: false}
 	}
-	return function(request)
+	return authenticatorFunc(request)
 }
 
 // APIKeyAuthenticator validates `Authorization: Bearer <key>` against a static map.
@@ -154,11 +154,11 @@ type ConnAuthenticatorFunc func(handshake []byte) AuthResult
 //	auth := stream.ConnAuthenticatorFunc(func(handshake []byte) stream.AuthResult {
 //	    return stream.AuthResult{Valid: true}
 //	})
-func (function ConnAuthenticatorFunc) AuthenticateConn(handshake []byte) AuthResult {
-	if function == nil {
+func (connAuthenticatorFunc ConnAuthenticatorFunc) AuthenticateConn(handshake []byte) AuthResult {
+	if connAuthenticatorFunc == nil {
 		return AuthResult{Valid: false}
 	}
-	return function(handshake)
+	return connAuthenticatorFunc(handshake)
 }
 
 func bearerTokenFromRequest(request *http.Request) (string, AuthResult) {
