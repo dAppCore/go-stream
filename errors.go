@@ -10,25 +10,38 @@ import "dappco.re/go/core"
 //	    return
 //	}
 var (
-	// ErrMissingAuthHeader is returned when no Authorization header is present.
+	// if err := auth.Authenticate(request); err == stream.ErrMissingAuthHeader {
+	//     http.Error(w, "missing auth", http.StatusUnauthorized)
+	// }
 	ErrMissingAuthHeader = core.E("stream.auth", "missing Authorization header", nil)
 
-	// ErrMalformedAuthHeader is returned when the header is not "Bearer <token>".
+	// if err := auth.Authenticate(request); err == stream.ErrMalformedAuthHeader {
+	//     http.Error(w, "bad auth header", http.StatusUnauthorized)
+	// }
 	ErrMalformedAuthHeader = core.E("stream.auth", "malformed Authorization header", nil)
 
-	// ErrInvalidAPIKey is returned when the API key is not in the key map.
+	// if err := auth.Authenticate(request); err == stream.ErrInvalidAPIKey {
+	//     http.Error(w, "unknown key", http.StatusUnauthorized)
+	// }
 	ErrInvalidAPIKey = core.E("stream.auth", "invalid API key", nil)
 
-	// ErrHandshakeTimeout is returned when the TCP/ZMQ peer did not send a
-	// handshake within the configured deadline.
+	// if err := adapter.Listen(ctx); err == stream.ErrHandshakeTimeout {
+	//     return
+	// }
 	ErrHandshakeTimeout = core.E("stream.auth", "handshake timeout", nil)
 
-	// ErrAuthRejected is returned when ConnAuthenticator denies the handshake.
+	// if err := adapter.Listen(ctx); err == stream.ErrAuthRejected {
+	//     return
+	// }
 	ErrAuthRejected = core.E("stream.auth", "connection rejected by authenticator", nil)
 
-	// ErrHubNotRunning is returned when Publish or Broadcast is called before Run.
+	// if err := hub.Publish("hashrate", frame); err == stream.ErrHubNotRunning {
+	//     go hub.Run(ctx)
+	// }
 	ErrHubNotRunning = core.E("stream.hub", "hub not running", nil)
 
-	// ErrEmptyChannel is returned when Subscribe is called with an empty channel name.
+	// if _, err := hub.SubscribeE("", func([]byte) {}); err == stream.ErrEmptyChannel {
+	//     return
+	// }
 	ErrEmptyChannel = core.E("stream.hub", "empty channel", nil)
 )
