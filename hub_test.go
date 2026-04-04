@@ -190,9 +190,15 @@ func TestHub_Pipe_Bad(t *testing.T) {
 	})
 	defer unsubscribe()
 
-	stop()
-	// Idempotent teardown should be safe.
-	stop()
+	var stopWG sync.WaitGroup
+	for i := 0; i < 8; i++ {
+		stopWG.Add(1)
+		go func() {
+			defer stopWG.Done()
+			stop()
+		}()
+	}
+	stopWG.Wait()
 
 	if err := sourceHub.Publish("block", []byte("template")); err != nil {
 		t.Fatalf("Publish() error = %v", err)

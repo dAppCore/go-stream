@@ -238,14 +238,14 @@ func Pipe(src Stream, destination Stream) func() {
 	}
 	stops := make([]func(), 0, 2)
 	if publisher, ok := src.(publishSubscriber); ok {
-		stops = append(stops, publisher.SubscribePublished(func(channel string, frame []byte) {
+		stops = append(stops, onceFunc(publisher.SubscribePublished(func(channel string, frame []byte) {
 			_ = destination.Publish(channel, cloneFrame(frame))
-		}))
+		})))
 	}
 	if broadcaster, ok := src.(broadcastSubscriber); ok {
-		stops = append(stops, broadcaster.SubscribeBroadcast(func(frame []byte) {
+		stops = append(stops, onceFunc(broadcaster.SubscribeBroadcast(func(frame []byte) {
 			_ = destination.Broadcast(cloneFrame(frame))
-		}))
+		})))
 	}
 	if len(stops) == 0 {
 		// Generic Stream implementations do not expose channel names, so fall back
@@ -253,19 +253,13 @@ func Pipe(src Stream, destination Stream) func() {
 		stop := src.Subscribe("*", func(frame []byte) {
 			_ = destination.Publish("*", cloneFrame(frame))
 		})
-		var once sync.Once
-		return func() {
-			once.Do(stop)
+		return onceFunc(stop)
+	}
+	return onceFunc(func() {
+		for index := len(stops) - 1; index >= 0; index-- {
+			stops[index]()
 		}
-	}
-	var once sync.Once
-	return func() {
-		once.Do(func() {
-			for index := len(stops) - 1; index >= 0; index-- {
-				stops[index]()
-			}
-		})
-	}
+	})
 }
 
 // Ensure Hub satisfies Stream at compile time.
@@ -307,4 +301,14 @@ func cloneFrame(frame []byte) []byte {
 		return nil
 	}
 	return append([]byte(nil), frame...)
+}
+
+func onceFunc(fn func()) func() {
+	if fn == nil {
+		return func() {}
+	}
+	var once sync.Once
+	return func() {
+		once.Do(fn)
+	}
 }

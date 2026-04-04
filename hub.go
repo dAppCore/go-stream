@@ -218,7 +218,7 @@ func (hub *Hub) SubscribeWithError(channel string, handler func([]byte)) (func()
 	hub.handlers[channel][id] = handler
 	hub.mu.Unlock()
 
-	return func() {
+	return onceFunc(func() {
 		hub.mu.Lock()
 		defer hub.mu.Unlock()
 		if handlers := hub.handlers[channel]; handlers != nil {
@@ -227,7 +227,7 @@ func (hub *Hub) SubscribeWithError(channel string, handler func([]byte)) (func()
 				delete(hub.handlers, channel)
 			}
 		}
-	}, nil
+	}), nil
 }
 
 // SubscribeE is a compatibility alias for SubscribeWithError.
@@ -420,11 +420,11 @@ func (hub *Hub) SubscribeBroadcast(handler func([]byte)) func() {
 	hub.broadcastHandlers[id] = handler
 	hub.mu.Unlock()
 
-	return func() {
+	return onceFunc(func() {
 		hub.mu.Lock()
 		defer hub.mu.Unlock()
 		delete(hub.broadcastHandlers, id)
-	}
+	})
 }
 
 // PeerCount returns the number of connected peers.
@@ -755,11 +755,11 @@ func (hub *Hub) subscribePublished(handler func(string, []byte)) func() {
 	hub.publishers[id] = handler
 	hub.mu.Unlock()
 
-	return func() {
+	return onceFunc(func() {
 		hub.mu.Lock()
 		defer hub.mu.Unlock()
 		delete(hub.publishers, id)
-	}
+	})
 }
 
 func (hub *Hub) invokeBroadcastHandlers(handlers []func([]byte), frame []byte) {
