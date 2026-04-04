@@ -4,9 +4,7 @@ package stream
 
 import "time"
 
-// MessageType identifies the payload shape in a stream.Message envelope.
-//
-//	msg := stream.Message{Type: stream.TypeEvent, Channel: "hashrate"}
+// msg := stream.Message{Type: stream.TypeEvent, Channel: "hashrate"}
 type MessageType string
 
 const (
@@ -20,8 +18,6 @@ const (
 	TypeUnsubscribe   MessageType = "unsubscribe"    // client cancels channel subscription
 )
 
-// Message is the JSON envelope for WebSocket frames.
-//
 //	msg := stream.Message{
 //	    Type:    stream.TypeEvent,
 //	    Channel: "hashrate",

@@ -8,21 +8,18 @@ import (
 	"dappco.re/go/core"
 )
 
-// Authenticator validates an HTTP request during connection setup.
-//
-//	authenticator := stream.NewAPIKeyAuth(map[string]string{"sk-prod-1": "user-42"})
-//	result := authenticator.Authenticate(request)
+//	authenticator := stream.AuthenticatorFunc(func(request *http.Request) stream.AuthResult {
+//	    token := request.Header.Get("X-Api-Key")
+//	    if token == "" {
+//	        return stream.AuthResult{Valid: false, Error: stream.ErrMissingAuthHeader}
+//	    }
+//	    return stream.AuthResult{Valid: true, UserID: lookupUser(token)}
+//	})
 type Authenticator interface {
 	Authenticate(request *http.Request) AuthResult
 }
 
-// AuthResult captures the outcome of an authentication attempt.
-//
-//	result := stream.AuthResult{
-//	    Valid:  true,
-//	    UserID: "user-42",
-//	    Claims: map[string]any{"role": "admin"},
-//	}
+// result := stream.AuthResult{Valid: true, UserID: "user-42", Claims: map[string]any{"role": "admin"}}
 type AuthResult struct {
 	// Valid indicates whether authentication succeeded.
 	Valid bool
@@ -56,10 +53,8 @@ func (authenticatorFunc AuthenticatorFunc) Authenticate(request *http.Request) A
 	return authenticatorFunc(request)
 }
 
-// APIKeyAuthenticator validates `Authorization: Bearer <key>` against a static map.
-//
-//	auth := stream.NewAPIKeyAuth(map[string]string{"sk-prod-1": "user-42"})
-//	result := auth.Authenticate(r)
+// auth := stream.NewAPIKeyAuth(map[string]string{"sk-prod-1": "user-42"})
+// result := auth.Authenticate(r)
 type APIKeyAuthenticator struct {
 	Keys map[string]string
 }

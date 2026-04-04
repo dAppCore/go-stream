@@ -4,48 +4,49 @@ package stream
 
 import "time"
 
-// HubConfig controls hub behaviour and lifecycle callbacks.
-//
-//	config := stream.HubConfig{
+//	cfg := stream.HubConfig{
 //	    HeartbeatInterval: 30 * time.Second,
-//	    OnConnect:         func(p *stream.Peer) { metrics.Inc("peers") },
-//	    ChannelAuthoriser: func(p *stream.Peer, ch string) bool {
-//	        return p.Claims["role"] == "admin" || ch == "public"
+//	    OnConnect:         func(peer *stream.Peer) { metrics.Inc("peers") },
+//	    ChannelAuthoriser: func(peer *stream.Peer, channel string) bool {
+//	        return peer.Claims["role"] == "admin" || channel == "public"
 //	    },
 //	}
 type HubConfig struct {
 	// HeartbeatInterval is the server-side ping interval for WebSocket peers.
+	// Example: `HeartbeatInterval: 30 * time.Second`.
 	// Defaults to 30 seconds. Ignored by SSE and TCP adapters.
 	HeartbeatInterval time.Duration
 
 	// PongTimeout is the deadline after a ping before the WS connection is closed.
+	// Example: `PongTimeout: 60 * time.Second`.
 	// Must be greater than HeartbeatInterval. Defaults to 60 seconds.
 	PongTimeout time.Duration
 
 	// WriteTimeout is the per-write deadline for WS and TCP adapters.
+	// Example: `WriteTimeout: 10 * time.Second`.
 	// Defaults to 10 seconds.
 	WriteTimeout time.Duration
 
-	// OnConnect is called when a peer registers. Optional.
+	// OnConnect runs when a peer registers.
 	//
-	//	OnConnect: func(p *stream.Peer) { metrics.Inc("peers") },
+	//		OnConnect: func(peer *stream.Peer) { metrics.Inc("peers") },
 	OnConnect func(peer *Peer)
 
-	// OnDisconnect is called when a peer unregisters. Optional.
+	// OnDisconnect runs when a peer unregisters.
 	OnDisconnect func(peer *Peer)
 
-	// ChannelAuthoriser optionally decides whether a peer may subscribe to a channel.
-	// Return true to allow. When nil, all subscriptions are allowed.
+	// ChannelAuthoriser decides whether a peer may subscribe to a channel.
 	//
-	//	ChannelAuthoriser: func(p *stream.Peer, ch string) bool {
-	//	    return p.Claims["role"] == "admin" || ch == "public"
-	//	},
+	//		ChannelAuthoriser: func(peer *stream.Peer, channel string) bool {
+	//		    return peer.Claims["role"] == "admin" || channel == "public"
+	//		},
+	// When nil, all subscriptions are allowed.
 	ChannelAuthoriser func(peer *Peer, channel string) bool
 }
 
 // DefaultHubConfig returns sensible defaults.
 //
-//	config := stream.DefaultHubConfig()
+//	cfg := stream.DefaultHubConfig()
 func DefaultHubConfig() HubConfig {
 	return HubConfig{
 		HeartbeatInterval: 30 * time.Second,
