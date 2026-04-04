@@ -72,6 +72,7 @@ func NewHubWithConfig(config HubConfig) *Hub {
 // Config returns a normalised copy of the hub configuration.
 //
 //	cfg := hub.Config()
+//	writeTimeout := cfg.WriteTimeout
 func (hub *Hub) Config() HubConfig {
 	if hub == nil {
 		return DefaultHubConfig()
@@ -381,14 +382,19 @@ func (hub *Hub) Stats() HubStats {
 
 // SubscribePublished registers a handler invoked for each published channel frame.
 //
-//	_ = hub.SubscribePublished(func(channel string, frame []byte) { ... })
+//	stop := hub.SubscribePublished(func(channel string, frame []byte) {
+//	    _ = channel
+//	    _ = frame
+//	})
 func (hub *Hub) SubscribePublished(handler func(string, []byte)) func() {
 	return hub.subscribePublished(handler)
 }
 
 // SubscribeBroadcast registers a handler invoked for each broadcast frame.
 //
-//	_ = hub.SubscribeBroadcast(func(frame []byte) { ... })
+//	stop := hub.SubscribeBroadcast(func(frame []byte) {
+//	    _ = frame
+//	})
 func (hub *Hub) SubscribeBroadcast(handler func([]byte)) func() {
 	if hub == nil || handler == nil {
 		return func() {}
@@ -503,7 +509,9 @@ func (hub *Hub) AllChannels() iter.Seq[string] {
 
 // AddPeer registers a peer with the hub and invokes OnConnect.
 //
-//	hub.AddPeer(stream.NewPeer("ws"))
+//	peer := stream.NewPeer("ws")
+//	peer.UserID = "user-42"
+//	_ = hub.AddPeer(peer)
 func (hub *Hub) AddPeer(peer *Peer) error {
 	if hub == nil {
 		return core.E("stream.hub", "nil hub", nil)

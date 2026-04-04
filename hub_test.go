@@ -191,6 +191,8 @@ func TestHub_Pipe_Bad(t *testing.T) {
 	defer unsubscribe()
 
 	stop()
+	// Idempotent teardown should be safe.
+	stop()
 
 	if err := sourceHub.Publish("block", []byte("template")); err != nil {
 		t.Fatalf("Publish() error = %v", err)

@@ -217,6 +217,7 @@ type Envelope struct {
 // Returns a stop function. Safe to call from multiple goroutines.
 //
 //	stop := stream.Pipe(zmqHub, wsHub)
+//	Forward ZMQ frames to WebSocket clients.
 //	defer stop()
 func Pipe(src Stream, dst Stream) func() {
 	if src == nil || dst == nil || src == dst {
@@ -242,14 +243,21 @@ func Pipe(src Stream, dst Stream) func() {
 	if len(stops) == 0 {
 		// Generic Stream implementations do not expose channel names, so fall back
 		// to forwarding the frame as a broadcast.
-		return src.Subscribe("*", func(frame []byte) {
+		stop := src.Subscribe("*", func(frame []byte) {
 			_ = dst.Broadcast(frame)
 		})
-	}
-	return func() {
-		for index := len(stops) - 1; index >= 0; index-- {
-			stops[index]()
+		var once sync.Once
+		return func() {
+			once.Do(stop)
 		}
+	}
+	var once sync.Once
+	return func() {
+		once.Do(func() {
+			for index := len(stops) - 1; index >= 0; index-- {
+				stops[index]()
+			}
+		})
 	}
 }
 
