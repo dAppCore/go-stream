@@ -128,23 +128,18 @@ func (hub *Hub) Run(ctx context.Context) {
 	}
 }
 
-// Send a frame to one channel.
-//
-//	_ = hub.SendToChannel("process:abc123", frame)
+// _ = hub.SendToChannel("process:abc123", frame)
+// _ = hub.SendToChannel("block", []byte("template"))
 func (hub *Hub) SendToChannel(channel string, frame []byte) error {
 	return hub.sendToChannel(channel, frame, true)
 }
 
-// PublishFromPeer delivers a channel frame while excluding the source peer from fan-out.
-//
-//	_ = hub.PublishFromPeer(peer, "block", frame)
+// _ = hub.PublishFromPeer(peer, "block", frame)
 func (hub *Hub) PublishFromPeer(source *Peer, channel string, frame []byte) error {
 	return hub.sendToChannelFromPeer(source, channel, frame, true)
 }
 
-// PublishFromBridge delivers frame to subscribers without notifying publish hooks.
-//
-//	_ = hub.PublishFromBridge("block", frame)
+// _ = hub.PublishFromBridge("block", frame)
 func (hub *Hub) PublishFromBridge(channel string, frame []byte) error {
 	return hub.sendToChannel(channel, frame, false)
 }
@@ -324,16 +319,12 @@ func (hub *Hub) Broadcast(frame []byte) error {
 	return hub.broadcastFrame(frame, true)
 }
 
-// BroadcastFromPeer delivers a broadcast frame while excluding the source peer from fan-out.
-//
-//	_ = hub.BroadcastFromPeer(peer, []byte("shutdown"))
+// _ = hub.BroadcastFromPeer(peer, []byte("shutdown"))
 func (hub *Hub) BroadcastFromPeer(source *Peer, frame []byte) error {
 	return hub.broadcastFrameFromPeer(source, frame, true)
 }
 
-// BroadcastFromBridge delivers frame to peers without notifying broadcast hooks.
-//
-//	_ = hub.BroadcastFromBridge([]byte("shutdown"))
+// _ = hub.BroadcastFromBridge([]byte("shutdown"))
 func (hub *Hub) BroadcastFromBridge(frame []byte) error {
 	return hub.broadcastFrame(frame, false)
 }
