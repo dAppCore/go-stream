@@ -230,7 +230,11 @@ func (state ConnectionState) String() string {
 
 // Envelope keeps bridge metadata beside the raw frame.
 //
-//	envelope := stream.Envelope{SourceID: "node-a", Channel: "block", Frame: []byte("template")}
+//	envelope := stream.Envelope{
+//	    SourceID: "node-a",
+//	    Channel:  "block",
+//	    Frame:    []byte("template"),
+//	}
 type Envelope struct {
 	SourceID string
 	Channel  string

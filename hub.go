@@ -128,7 +128,7 @@ func (hub *Hub) Run(ctx context.Context) {
 
 // Send a frame to one channel.
 //
-//	hub.SendToChannel("process:abc123", frame)
+//	_ = hub.SendToChannel("process:abc123", frame)
 func (hub *Hub) SendToChannel(channel string, frame []byte) error {
 	return hub.sendToChannel(channel, frame, true)
 }
@@ -310,14 +310,14 @@ func (hub *Hub) UnsubscribePeer(peer *Peer, channel string) {
 
 // Publish one frame to one channel.
 //
-//	hub.Publish("hashrate", frame)
+//	_ = hub.Publish("hashrate", frame)
 func (hub *Hub) Publish(channel string, frame []byte) error {
 	return hub.sendToChannel(channel, frame, true)
 }
 
 // Broadcast one frame to every connected peer.
 //
-//	hub.Broadcast([]byte(`{"type":"shutdown"}`))
+//	_ = hub.Broadcast([]byte(`{"type":"shutdown"}`))
 func (hub *Hub) Broadcast(frame []byte) error {
 	return hub.broadcastFrame(frame, true)
 }
