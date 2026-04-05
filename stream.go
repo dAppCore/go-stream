@@ -5,8 +5,8 @@
 //	hub := stream.NewHub()
 //	go hub.Run(ctx)
 //	hub.Publish("hashrate", []byte(`{"h":123456}`))
-//	unsub := hub.Subscribe("block", func(frame []byte) { handleBlock(frame) })
-//	defer unsub()
+//	unsubscribe := hub.Subscribe("block", func(frame []byte) { handleBlock(frame) })
+//	defer unsubscribe()
 package stream
 
 import (

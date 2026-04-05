@@ -332,6 +332,67 @@ func TestHub_Publish_Ugly(t *testing.T) {
 	}
 }
 
+func TestHub_Running_Good(t *testing.T) {
+	hub := NewHub()
+	if hub.Running() {
+		t.Fatal("Running() = true before Run()")
+	}
+
+	hubContext, hubCancel := context.WithCancel(context.Background())
+	defer hubCancel()
+
+	go hub.Run(hubContext)
+	waitForRunningHub(t, hub)
+
+	if !hub.Running() {
+		t.Fatal("Running() = false while Run() is active")
+	}
+
+	hubCancel()
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if !hub.Running() {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	t.Fatal("Running() stayed true after context cancellation")
+}
+
+func TestHub_Running_Bad(t *testing.T) {
+	var hub *Hub
+	if hub.Running() {
+		t.Fatal("nil hub Running() = true, want false")
+	}
+}
+
+func TestHub_Running_Ugly(t *testing.T) {
+	hub := NewHub()
+	hubContext, hubCancel := context.WithCancel(context.Background())
+	defer hubCancel()
+
+	go hub.Run(hubContext)
+	waitForRunningHub(t, hub)
+
+	observed := make(chan bool, 1)
+	go func() {
+		observed <- hub.Running()
+	}()
+
+	select {
+	case running := <-observed:
+		if !running {
+			t.Fatal("Running() = false while hub is active")
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for concurrent Running() read")
+	}
+
+	hubCancel()
+}
+
 func TestHub_Broadcast_Good(t *testing.T) {
 	hub := NewHub()
 	hubContext, hubCancel := context.WithCancel(context.Background())

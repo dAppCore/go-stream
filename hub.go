@@ -76,6 +76,16 @@ func (hub *Hub) Config() HubConfig {
 	return normalizeHubConfig(config)
 }
 
+// running := hub.Running()
+func (hub *Hub) Running() bool {
+	if hub == nil {
+		return false
+	}
+	hub.mu.RLock()
+	defer hub.mu.RUnlock()
+	return hub.running
+}
+
 // go hub.Run(ctx)
 func (hub *Hub) Run(ctx context.Context) {
 	if hub == nil {
@@ -221,7 +231,7 @@ func (hub *Hub) SubscribeE(channel string, handler func([]byte)) (func(), error)
 	return hub.SubscribeWithError(channel, handler)
 }
 
-// Register a handler for one channel.
+// Subscribe a handler for one channel.
 //
 //	unsubscribe := hub.Subscribe("block", func(frame []byte) { handleBlock(frame) })
 //	defer unsubscribe()
