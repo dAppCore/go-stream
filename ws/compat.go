@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: EUPL-1.2
 
-// Package ws preserves the legacy go-ws compatibility surface while the new
-// transport-agnostic stream package does the actual work.
+//	hub := ws.NewHub()
+//	go hub.Run(ctx)
+//	http.Handle("/stream/ws", hub.Handler())
 package ws
 
 import (
