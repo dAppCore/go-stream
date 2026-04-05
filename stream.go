@@ -68,11 +68,9 @@ type Frame = []byte
 // Channel is a named topic string used for pub/sub routing.
 type Channel = string
 
-// Peer represents one connected endpoint.
-//
-//	peer := stream.NewPeer("ws")
-//	peer.UserID = authResult.UserID
-//	peer.Claims = authResult.Claims
+// peer := stream.NewPeer("ws")
+// peer.UserID = authResult.UserID
+// peer.Claims = authResult.Claims
 type Peer struct {
 	// ID is a random UUID assigned on creation.
 	ID string

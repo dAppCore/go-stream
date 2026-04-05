@@ -11,14 +11,12 @@ import (
 	"dappco.re/go/core"
 )
 
-// Hub is the central channel-based broker.
+// hub := stream.NewHub()
+// go hub.Run(ctx)
 //
-//	hub := stream.NewHub()
-//	go hub.Run(ctx)
-//
-//	wsAdapter := ws.New(ws.Config{Authenticator: auth})
-//	wsAdapter.Mount(hub)
-//	http.Handle("/stream/ws", wsAdapter.Handler())
+// wsAdapter := ws.New(ws.Config{Authenticator: auth})
+// wsAdapter.Mount(hub)
+// http.Handle("/stream/ws", wsAdapter.Handler())
 type Hub struct {
 	peers             map[*Peer]bool
 	broadcastQueue    chan broadcastDelivery
