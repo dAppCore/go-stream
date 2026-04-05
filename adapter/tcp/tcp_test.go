@@ -6,6 +6,7 @@ import (
 	"context"
 	"io"
 	"net"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -307,6 +308,95 @@ func TestTCP_Dial_NilContext_Good(t *testing.T) {
 	}
 
 	<-serverDone
+}
+
+func TestReconnectingTCP_State_Good(t *testing.T) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("Listen() error = %v", err)
+	}
+	defer listener.Close()
+
+	serverDone := make(chan struct{})
+	go func() {
+		defer close(serverDone)
+		connection, acceptErr := listener.Accept()
+		if acceptErr != nil {
+			return
+		}
+		defer connection.Close()
+		time.Sleep(100 * time.Millisecond)
+	}()
+
+	client := NewReconnectingTCP(ReconnectConfig{
+		Addr:           listener.Addr().String(),
+		InitialBackoff: 10 * time.Millisecond,
+		MaxBackoff:     10 * time.Millisecond,
+	})
+	if client.State() != stream.StateDisconnected {
+		t.Fatalf("State() = %v, want %v", client.State(), stream.StateDisconnected)
+	}
+
+	connectContext, connectCancel := context.WithCancel(context.Background())
+	defer connectCancel()
+	connectDone := make(chan error, 1)
+	go func() {
+		connectDone <- client.Connect(connectContext)
+	}()
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if client.State() == stream.StateConnected {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if client.State() != stream.StateConnected {
+		t.Fatalf("State() = %v, want %v", client.State(), stream.StateConnected)
+	}
+
+	connectCancel()
+	select {
+	case err := <-connectDone:
+		if err != nil {
+			t.Fatalf("Connect() error = %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for Connect() to return")
+	}
+
+	if err := client.Close(); err != nil {
+		t.Fatalf("Close() error = %v", err)
+	}
+	if client.State() != stream.StateDisconnected {
+		t.Fatalf("State() = %v, want %v", client.State(), stream.StateDisconnected)
+	}
+
+	<-serverDone
+}
+
+func TestReconnectingTCP_OnReconnect_Good(t *testing.T) {
+	var reconnectCount atomic.Int32
+	client := NewReconnectingTCP(ReconnectConfig{
+		Addr:           "127.0.0.1:1",
+		InitialBackoff: 10 * time.Millisecond,
+		MaxBackoff:     10 * time.Millisecond,
+		MaxRetries:     1,
+		OnReconnect: func(attempt int) {
+			reconnectCount.Store(int32(attempt))
+		},
+	})
+
+	err := client.Connect(context.Background())
+	if err == nil {
+		t.Fatal("Connect() error = nil, want dial error")
+	}
+	if reconnectCount.Load() != 1 {
+		t.Fatalf("OnReconnect attempt = %d, want %d", reconnectCount.Load(), 1)
+	}
+	if client.State() != stream.StateDisconnected {
+		t.Fatalf("State() = %v, want %v", client.State(), stream.StateDisconnected)
+	}
 }
 
 func waitForListenerAddress(t *testing.T, adapter *Adapter) string {

@@ -10,12 +10,16 @@ import (
 	"time"
 
 	"dappco.re/go/core"
+	"dappco.re/go/stream"
 )
 
 // ReconnectConfig configures the client-side reconnecting TCP connection.
 //
 //	client := tcp.NewReconnectingTCP(tcp.ReconnectConfig{
 //	    Addr: "127.0.0.1:9000",
+//	    OnReconnect: func(attempt int) {
+//	        core.Print(nil, "tcp reconnect attempt=%d", attempt)
+//	    },
 //	    OnMessage: func(channel string, frame []byte) {
 //	        _ = channel
 //	        _ = frame
@@ -30,6 +34,7 @@ type ReconnectConfig struct {
 	TLS               *tls.Config
 	OnConnect         func()
 	OnDisconnect      func()
+	OnReconnect       func(attempt int)
 	OnMessage         func(channel string, frame []byte)
 }
 
@@ -41,6 +46,7 @@ type ReconnectingTCP struct {
 
 	mu     sync.RWMutex
 	conn   net.Conn
+	state  stream.ConnectionState
 	closed bool
 }
 
@@ -55,7 +61,10 @@ func NewReconnectingTCP(config ReconnectConfig) *ReconnectingTCP {
 	if config.BackoffMultiplier <= 0 {
 		config.BackoffMultiplier = 2
 	}
-	return &ReconnectingTCP{config: config}
+	return &ReconnectingTCP{
+		config: config,
+		state:  stream.StateDisconnected,
+	}
 }
 
 // err := client.Connect(ctx)
@@ -74,11 +83,16 @@ func (client *ReconnectingTCP) Connect(ctx context.Context) error {
 			return nil
 		}
 
+		client.setState(stream.StateConnecting)
 		conn, err := client.dial(ctx)
 		if err != nil {
 			attempt++
+			client.setState(stream.StateDisconnected)
 			if client.config.MaxRetries > 0 && attempt > client.config.MaxRetries {
 				return err
+			}
+			if client.config.OnReconnect != nil {
+				client.config.OnReconnect(attempt)
 			}
 			if err := sleepContext(ctx, backoff); err != nil {
 				return err
@@ -97,6 +111,7 @@ func (client *ReconnectingTCP) Connect(ctx context.Context) error {
 		readErr := client.readLoop(ctx, conn)
 
 		client.clearConn(conn)
+		client.setState(stream.StateDisconnected)
 		_ = conn.Close()
 		if client.config.OnDisconnect != nil {
 			client.config.OnDisconnect()
@@ -112,6 +127,9 @@ func (client *ReconnectingTCP) Connect(ctx context.Context) error {
 		}
 		if client.config.MaxRetries > 0 && attempt > client.config.MaxRetries {
 			return readErr
+		}
+		if client.config.OnReconnect != nil {
+			client.config.OnReconnect(attempt)
 		}
 		if err := sleepContext(ctx, backoff); err != nil {
 			return err
@@ -136,6 +154,20 @@ func (client *ReconnectingTCP) Send(channel string, frame []byte) error {
 	return writeFull(conn, encodeFrame(channel, frame))
 }
 
+// State reports whether the reconnecting client is disconnected, connecting, or connected.
+//
+//	if client.State() == stream.StateConnected {
+//	    _ = client.Send("vpn:peer-abc123", encryptedPacket)
+//	}
+func (client *ReconnectingTCP) State() stream.ConnectionState {
+	if client == nil {
+		return stream.StateDisconnected
+	}
+	client.mu.RLock()
+	defer client.mu.RUnlock()
+	return client.state
+}
+
 // _ = client.Close()
 func (client *ReconnectingTCP) Close() error {
 	if client == nil {
@@ -145,6 +177,7 @@ func (client *ReconnectingTCP) Close() error {
 	client.closed = true
 	conn := client.conn
 	client.conn = nil
+	client.state = stream.StateDisconnected
 	client.mu.Unlock()
 	if conn != nil {
 		return conn.Close()
@@ -189,6 +222,7 @@ func (client *ReconnectingTCP) readLoop(ctx context.Context, conn net.Conn) erro
 func (client *ReconnectingTCP) setConn(conn net.Conn) {
 	client.mu.Lock()
 	client.conn = conn
+	client.state = stream.StateConnected
 	client.mu.Unlock()
 }
 
@@ -196,7 +230,14 @@ func (client *ReconnectingTCP) clearConn(conn net.Conn) {
 	client.mu.Lock()
 	if client.conn == conn {
 		client.conn = nil
+		client.state = stream.StateDisconnected
 	}
+	client.mu.Unlock()
+}
+
+func (client *ReconnectingTCP) setState(state stream.ConnectionState) {
+	client.mu.Lock()
+	client.state = state
 	client.mu.Unlock()
 }
 
