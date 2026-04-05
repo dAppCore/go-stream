@@ -164,12 +164,11 @@ func (client *ReconnectingTCP) Send(channel string, frame []byte) error {
 		return core.E("stream.tcp", "nil reconnecting tcp", nil)
 	}
 	client.mu.RLock()
-	conn := client.conn
-	client.mu.RUnlock()
-	if conn == nil {
+	defer client.mu.RUnlock()
+	if client.conn == nil {
 		return core.E("stream.tcp", "not connected", nil)
 	}
-	return writeFull(conn, encodeFrame(channel, frame))
+	return writeFull(client.conn, encodeFrame(channel, frame))
 }
 
 //	if client.State() == stream.StateConnected {

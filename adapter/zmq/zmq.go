@@ -221,14 +221,12 @@ func (adapter *Adapter) Publish(channel string, frame []byte) error {
 	}
 
 	adapter.mu.RLock()
-	socket := adapter.socket
-	running := adapter.running
-	adapter.mu.RUnlock()
-	if !running || socket == nil {
+	defer adapter.mu.RUnlock()
+	if !adapter.running || adapter.socket == nil {
 		return core.E("stream.zmq", "adapter not started", nil)
 	}
 
-	return socket.Send(zmq4.NewMsg(encodeMessage(channel, frame)))
+	return adapter.socket.Send(zmq4.NewMsg(encodeMessage(channel, frame)))
 }
 
 // defer adapter.Stop()
@@ -237,10 +235,13 @@ func (adapter *Adapter) Stop() error {
 		return nil
 	}
 
-	adapter.mu.RLock()
+	adapter.mu.Lock()
 	cancel := adapter.cancel
 	socket := adapter.socket
-	adapter.mu.RUnlock()
+	adapter.running = false
+	adapter.cancel = nil
+	adapter.socket = nil
+	adapter.mu.Unlock()
 
 	if cancel != nil {
 		cancel()
