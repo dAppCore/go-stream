@@ -76,9 +76,7 @@ func (hub *Hub) Config() HubConfig {
 	return normalizeHubConfig(config)
 }
 
-// Run owns the hub event loop until ctx is cancelled.
-//
-//	go hub.Run(ctx)
+// go hub.Run(ctx)
 func (hub *Hub) Run(ctx context.Context) {
 	if hub == nil {
 		return
@@ -128,18 +126,17 @@ func (hub *Hub) Run(ctx context.Context) {
 	}
 }
 
-// _ = hub.SendToChannel("process:abc123", frame)
-// _ = hub.SendToChannel("block", []byte("template"))
+// _ = hub.SendToChannel("hashrate", []byte(`{"h":123456}`))
 func (hub *Hub) SendToChannel(channel string, frame []byte) error {
 	return hub.sendToChannel(channel, frame, true)
 }
 
-// _ = hub.PublishFromPeer(peer, "block", frame)
+// _ = hub.PublishFromPeer(peer, "block", []byte("template"))
 func (hub *Hub) PublishFromPeer(source *Peer, channel string, frame []byte) error {
 	return hub.sendToChannelFromPeer(source, channel, frame, true)
 }
 
-// _ = hub.PublishFromBridge("block", frame)
+// _ = hub.PublishFromBridge("block", []byte("template"))
 func (hub *Hub) PublishFromBridge(channel string, frame []byte) error {
 	return hub.sendToChannel(channel, frame, false)
 }
@@ -233,9 +230,7 @@ func (hub *Hub) Subscribe(channel string, handler func([]byte)) func() {
 	return unsub
 }
 
-// Add one peer to one channel.
-//
-//	hub.SubscribePeer(peer, "hashrate")
+// _ = hub.SubscribePeer(peer, "hashrate")
 func (hub *Hub) SubscribePeer(peer *Peer, channel string) error {
 	if hub == nil {
 		return core.E("stream.hub", "nil hub", nil)
@@ -265,10 +260,7 @@ func (hub *Hub) SubscribePeer(peer *Peer, channel string) error {
 	return nil
 }
 
-// CanSubscribePeer reports whether peer may subscribe to channel.
-//
-//	err := hub.CanSubscribePeer(peer, "hashrate")
-//	if err == stream.ErrAuthRejected { return }
+// err := hub.CanSubscribePeer(peer, "hashrate")
 func (hub *Hub) CanSubscribePeer(peer *Peer, channel string) error {
 	if hub == nil {
 		return core.E("stream.hub", "nil hub", nil)
@@ -287,9 +279,7 @@ func (hub *Hub) CanSubscribePeer(peer *Peer, channel string) error {
 	return nil
 }
 
-// Remove one peer from one channel.
-//
-//	hub.UnsubscribePeer(peer, "hashrate")
+// hub.UnsubscribePeer(peer, "hashrate")
 func (hub *Hub) UnsubscribePeer(peer *Peer, channel string) {
 	if hub == nil || peer == nil || channel == "" {
 		return
@@ -305,16 +295,12 @@ func (hub *Hub) UnsubscribePeer(peer *Peer, channel string) {
 	}
 }
 
-// Publish one frame to one channel.
-//
-//	_ = hub.Publish("hashrate", frame)
+// _ = hub.Publish("hashrate", []byte(`{"h":123456}`))
 func (hub *Hub) Publish(channel string, frame []byte) error {
 	return hub.sendToChannel(channel, frame, true)
 }
 
-// Broadcast one frame to every connected peer.
-//
-//	_ = hub.Broadcast([]byte(`{"type":"shutdown"}`))
+// _ = hub.Broadcast([]byte(`{"type":"shutdown"}`))
 func (hub *Hub) Broadcast(frame []byte) error {
 	return hub.broadcastFrame(frame, true)
 }
@@ -360,18 +346,12 @@ func (hub *Hub) broadcastFrameFromPeer(source *Peer, frame []byte, notifyBroadca
 	return nil
 }
 
-// Forward published frames to another stream.
-//
-//	stop := hub.Pipe(remoteHub)
-//	defer stop()
+// stop := hub.Pipe(remoteHub)
 func (hub *Hub) Pipe(destination Stream) func() {
 	return Pipe(hub, destination)
 }
 
-// Stats snapshots peers and per-channel subscriber counts.
-//
-//	stats := hub.Stats()
-//	core.Print("stream", "peers=%d channels=%d", stats.Peers, stats.Channels)
+// stats := hub.Stats()
 func (hub *Hub) Stats() HubStats {
 	if hub == nil {
 		return HubStats{}
@@ -392,21 +372,12 @@ func (hub *Hub) Stats() HubStats {
 	}
 }
 
-// SubscribePublished registers a handler invoked for each published channel frame.
-//
-//	stop := hub.SubscribePublished(func(channel string, frame []byte) {
-//	    _ = channel
-//	    _ = frame
-//	})
+// stop := hub.SubscribePublished(func(channel string, frame []byte) { _ = channel })
 func (hub *Hub) SubscribePublished(handler func(string, []byte)) func() {
 	return hub.subscribePublished(handler)
 }
 
-// SubscribeBroadcast registers a handler invoked for each broadcast frame.
-//
-//	stop := hub.SubscribeBroadcast(func(frame []byte) {
-//	    _ = frame
-//	})
+// stop := hub.SubscribeBroadcast(func(frame []byte) { _ = frame })
 func (hub *Hub) SubscribeBroadcast(handler func([]byte)) func() {
 	if hub == nil || handler == nil {
 		return func() {}
@@ -427,9 +398,7 @@ func (hub *Hub) SubscribeBroadcast(handler func([]byte)) func() {
 	})
 }
 
-// PeerCount reads the current connected-peer total.
-//
-//	n := hub.PeerCount()
+// n := hub.PeerCount()
 func (hub *Hub) PeerCount() int {
 	if hub == nil {
 		return 0
@@ -439,9 +408,7 @@ func (hub *Hub) PeerCount() int {
 	return len(hub.peers)
 }
 
-// ChannelCount reads how many named channels currently have subscribers.
-//
-//	n := hub.ChannelCount()
+// n := hub.ChannelCount()
 func (hub *Hub) ChannelCount() int {
 	if hub == nil {
 		return 0
@@ -458,9 +425,7 @@ func (hub *Hub) ChannelCount() int {
 	return count
 }
 
-// ChannelSubscriberCount reads one channel's current subscriber total.
-//
-//	n := hub.ChannelSubscriberCount("hashrate")
+// n := hub.ChannelSubscriberCount("hashrate")
 func (hub *Hub) ChannelSubscriberCount(channel string) int {
 	if hub == nil {
 		return 0
@@ -470,9 +435,7 @@ func (hub *Hub) ChannelSubscriberCount(channel string) int {
 	return len(hub.channels[channel])
 }
 
-// AllPeers iterates the current connected peers.
-//
-//	for peer := range hub.AllPeers() { log.Println(peer.UserID) }
+// for peer := range hub.AllPeers() { _ = peer.UserID }
 func (hub *Hub) AllPeers() iter.Seq[*Peer] {
 	if hub == nil {
 		return func(yield func(*Peer) bool) {}
@@ -492,9 +455,7 @@ func (hub *Hub) AllPeers() iter.Seq[*Peer] {
 	}
 }
 
-// AllChannels iterates active channel names in sorted order.
-//
-//	for ch := range hub.AllChannels() { log.Println(ch) }
+// for channel := range hub.AllChannels() { _ = channel }
 func (hub *Hub) AllChannels() iter.Seq[string] {
 	if hub == nil {
 		return func(yield func(string) bool) {}
@@ -518,11 +479,8 @@ func (hub *Hub) AllChannels() iter.Seq[string] {
 	}
 }
 
-// AddPeer registers a peer with the hub and invokes OnConnect.
-//
-//	peer := stream.NewPeer("ws")
-//	peer.UserID = "user-42"
-//	_ = hub.AddPeer(peer)
+// peer := stream.NewPeer("ws")
+// _ = hub.AddPeer(peer)
 func (hub *Hub) AddPeer(peer *Peer) error {
 	if hub == nil {
 		return core.E("stream.hub", "nil hub", nil)
@@ -550,9 +508,7 @@ func (hub *Hub) AddPeer(peer *Peer) error {
 	return nil
 }
 
-// RemovePeer unregisters a peer from the hub and invokes OnDisconnect.
-//
-//	hub.RemovePeer(peer)
+// hub.RemovePeer(peer)
 func (hub *Hub) RemovePeer(peer *Peer) {
 	if hub == nil || peer == nil {
 		return
