@@ -96,10 +96,8 @@ type Peer struct {
 	closeOnce     sync.Once
 }
 
-// Create a peer with a generated ID and buffered send queue.
-//
-//	peer := stream.NewPeer("ws")
-//	peer.UserID = "user-42"
+// peer := stream.NewPeer("ws")
+// peer.UserID = "user-42"
 func NewPeer(transport string) *Peer {
 	return &Peer{
 		ID:            randomUUID(),
@@ -109,9 +107,7 @@ func NewPeer(transport string) *Peer {
 	}
 }
 
-// Subscriptions snapshots the peer's active channels.
-//
-//	channels := peer.Subscriptions() // ["hashrate", "block"]
+// channels := peer.Subscriptions() // ["hashrate", "block"]
 func (peer *Peer) Subscriptions() []string {
 	if peer == nil {
 		return nil
@@ -126,9 +122,7 @@ func (peer *Peer) Subscriptions() []string {
 	return channels
 }
 
-// Send queues one outbound frame without blocking the caller.
-//
-//	ok := peer.Send(frame)
+// ok := peer.Send([]byte("template"))
 func (peer *Peer) Send(frame []byte) bool {
 	if peer == nil {
 		return false
@@ -150,10 +144,8 @@ func (peer *Peer) Send(frame []byte) bool {
 	}
 }
 
-// Close signals the transport adapter to shut down this connection.
-//
-//	peer.SetCloseHook(func() { _ = conn.Close() })
-//	peer.Close()
+// peer.SetCloseHook(func() { _ = conn.Close() })
+// peer.Close()
 func (peer *Peer) Close() {
 	if peer == nil {
 		return
