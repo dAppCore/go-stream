@@ -7,8 +7,8 @@
 //	    Timestamp: time.Now().UTC(),
 //	}
 //
-// frame, _ := core.JSONMarshal(msg)
-// _ = frame
+//	frame, _ := core.JSONMarshal(msg)
+//	hub.Publish("hashrate", frame.Value.([]byte))
 package stream
 
 import "time"
