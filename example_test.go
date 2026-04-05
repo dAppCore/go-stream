@@ -4,10 +4,10 @@ package stream_test
 
 import (
 	"context"
-	"fmt"
 	"net/http/httptest"
 	"time"
 
+	"dappco.re/go/core"
 	"dappco.re/go/stream"
 )
 
@@ -29,9 +29,9 @@ func ExampleNewHub() {
 
 	select {
 	case frame := <-received:
-		fmt.Println(frame)
+		core.Print(nil, "%s", frame)
 	case <-time.After(time.Second):
-		fmt.Println("timeout")
+		core.Print(nil, "%s", "timeout")
 	}
 
 	// Output:
@@ -62,9 +62,9 @@ func ExamplePipe() {
 
 	select {
 	case frame := <-received:
-		fmt.Println(frame)
+		core.Print(nil, "%s", frame)
 	case <-time.After(time.Second):
-		fmt.Println("timeout")
+		core.Print(nil, "%s", "timeout")
 	}
 
 	// Output:
@@ -85,7 +85,7 @@ func ExampleHub_Stats() {
 	_ = hub.SubscribePeer(peer, "hashrate")
 
 	stats := hub.Stats()
-	fmt.Println(stats.Peers, stats.Channels, stats.SubscriberCount["hashrate"])
+	core.Print(nil, "%d %d %d", stats.Peers, stats.Channels, stats.SubscriberCount["hashrate"])
 
 	// Output:
 	// 1 1 1
@@ -110,7 +110,7 @@ func ExampleNewAPIKeyAuth() {
 	request.Header.Set("Authorization", "Bearer sk-live")
 
 	result := authenticator.Authenticate(request)
-	fmt.Println(result.Valid, result.UserID)
+	core.Print(nil, "%t %s", result.Valid, result.UserID)
 
 	// Output:
 	// true user-42
@@ -124,14 +124,14 @@ func ExampleMessage() {
 		Data:      map[string]any{"h": 1234567},
 	}
 
-	fmt.Println(msg.Type, msg.Channel, msg.ProcessID, msg.Data)
+	core.Print(nil, "%s %s %s %v", msg.Type, msg.Channel, msg.ProcessID, msg.Data)
 
 	// Output:
 	// event hashrate agent-42 map[h:1234567]
 }
 
 func ExampleMessageType() {
-	fmt.Println(stream.TypeSubscribe)
+	core.Print(nil, "%s", stream.TypeSubscribe)
 
 	// Output:
 	// subscribe
