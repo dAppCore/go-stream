@@ -116,11 +116,6 @@ func (adapter *Adapter) serveHTTP(w http.ResponseWriter, r *http.Request, channe
 		return
 	}
 
-	if err := adapter.hub.AddPeer(peer); err != nil {
-		http.Error(w, "stream hub not running", http.StatusInternalServerError)
-		return
-	}
-
 	upgrader := websocket.Upgrader{
 		ReadBufferSize:  adapter.config.ReadBufferSize,
 		WriteBufferSize: adapter.config.WriteBufferSize,
@@ -134,15 +129,20 @@ func (adapter *Adapter) serveHTTP(w http.ResponseWriter, r *http.Request, channe
 
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		adapter.hub.RemovePeer(peer)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
+	if err := adapter.hub.AddPeer(peer); err != nil {
+		_ = conn.Close()
+		http.Error(w, "stream hub not running", http.StatusInternalServerError)
+		return
+	}
+	defer adapter.hub.RemovePeer(peer)
+
 	peer.SetCloseHook(func() {
 		_ = conn.Close()
 	})
-	defer adapter.hub.RemovePeer(peer)
 	for _, channel := range channels {
 		if channel == "" {
 			continue

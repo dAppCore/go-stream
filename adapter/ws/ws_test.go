@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -120,6 +121,40 @@ func TestAdapter_Handler_Bad(t *testing.T) {
 	if resp.StatusCode != http.StatusUnauthorized {
 		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusUnauthorized)
 	}
+}
+
+func TestAdapter_Handler_UpgradeFailure_DoesNotRegisterPeer_Good(t *testing.T) {
+	var connectCount atomic.Int32
+	hub := stream.NewHubWithConfig(stream.HubConfig{
+		OnConnect: func(peer *stream.Peer) {
+			connectCount.Add(1)
+		},
+	})
+	hubContext, hubCancel := context.WithCancel(context.Background())
+	defer hubCancel()
+	go hub.Run(hubContext)
+
+	adapter := New(Config{
+		CheckOrigin: func(r *http.Request) bool {
+			return false
+		},
+	})
+	adapter.Mount(hub)
+
+	server := httptest.NewServer(http.HandlerFunc(adapter.Handler()))
+	defer server.Close()
+
+	_, resp, err := websocket.DefaultDialer.Dial(websocketURL(server.URL), nil)
+	if err == nil {
+		t.Fatal("Dial() error = nil, want upgrade failure")
+	}
+	if resp == nil {
+		t.Fatal("Dial() response = nil, want handshake failure response")
+	}
+	if connectCount.Load() != 0 {
+		t.Fatalf("OnConnect invoked %d times, want %d", connectCount.Load(), 0)
+	}
+	waitForPeerCount(t, hub, 0)
 }
 
 func TestAdapter_Handler_HubNotRunning_Bad(t *testing.T) {
