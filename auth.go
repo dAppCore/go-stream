@@ -9,16 +9,16 @@ import (
 )
 
 //	authenticator := stream.AuthenticatorFunc(func(request *http.Request) stream.AuthResult {
-//	    return stream.AuthResult{Valid: true, UserID: "user-42"}
+//		return stream.AuthResult{Valid: true, UserID: "user-42"}
 //	})
 type Authenticator interface {
 	Authenticate(request *http.Request) AuthResult
 }
 
 //	result := stream.AuthResult{
-//	    Valid:  true,
-//	    UserID: "user-42",
-//	    Claims: map[string]any{"role": "admin"},
+//		Valid:  true,
+//		UserID: "user-42",
+//		Claims: map[string]any{"role": "admin"},
 //	}
 type AuthResult struct {
 	Valid bool
@@ -31,7 +31,7 @@ type AuthResult struct {
 }
 
 //	authenticator := stream.AuthenticatorFunc(func(request *http.Request) stream.AuthResult {
-//	    return stream.AuthResult{Valid: true, UserID: "user-42"}
+//		return stream.AuthResult{Valid: true, UserID: "user-42"}
 //	})
 type AuthenticatorFunc func(request *http.Request) AuthResult
 
@@ -81,12 +81,12 @@ func (authenticator *APIKeyAuthenticator) Authenticate(request *http.Request) Au
 }
 
 //	authenticator := &stream.BearerTokenAuth{
-//	    Validate: func(token string) stream.AuthResult {
-//	        if token == "sk-live" {
-//	            return stream.AuthResult{Valid: true, UserID: "user-42"}
-//	        }
-//	        return stream.AuthResult{Valid: false}
-//	    },
+//		Validate: func(token string) stream.AuthResult {
+//			if token == "sk-live" {
+//				return stream.AuthResult{Valid: true, UserID: "user-42"}
+//			}
+//			return stream.AuthResult{Valid: false}
+//		},
 //	}
 type BearerTokenAuth struct {
 	Validate func(token string) AuthResult
@@ -104,12 +104,12 @@ func (authenticator *BearerTokenAuth) Authenticate(request *http.Request) AuthRe
 }
 
 //	authenticator := &stream.QueryTokenAuth{
-//	    Validate: func(token string) stream.AuthResult {
-//	        if token == "sk-live" {
-//	            return stream.AuthResult{Valid: true, UserID: "user-42"}
-//	        }
-//	        return stream.AuthResult{Valid: false}
-//	    },
+//		Validate: func(token string) stream.AuthResult {
+//			if token == "sk-live" {
+//				return stream.AuthResult{Valid: true, UserID: "user-42"}
+//			}
+//			return stream.AuthResult{Valid: false}
+//		},
 //	}
 type QueryTokenAuth struct {
 	Validate func(token string) AuthResult
@@ -127,20 +127,20 @@ func (authenticator *QueryTokenAuth) Authenticate(request *http.Request) AuthRes
 }
 
 //	auth := stream.ConnAuthenticatorFunc(func(handshake []byte) stream.AuthResult {
-//	    if string(handshake) == "hello" {
-//	        return stream.AuthResult{Valid: true, UserID: "peer-1"}
-//	    }
-//	    return stream.AuthResult{Valid: false}
+//		if string(handshake) == "hello" {
+//			return stream.AuthResult{Valid: true, UserID: "peer-1"}
+//		}
+//		return stream.AuthResult{Valid: false}
 //	})
 type ConnAuthenticator interface {
 	AuthenticateConn(handshake []byte) AuthResult
 }
 
 //	auth := stream.ConnAuthenticatorFunc(func(handshake []byte) stream.AuthResult {
-//	    if string(handshake) == "hello" {
-//	        return stream.AuthResult{Valid: true, UserID: "peer-1"}
-//	    }
-//	    return stream.AuthResult{Valid: false}
+//		if string(handshake) == "hello" {
+//			return stream.AuthResult{Valid: true, UserID: "peer-1"}
+//		}
+//		return stream.AuthResult{Valid: false}
 //	})
 type ConnAuthenticatorFunc func(handshake []byte) AuthResult
 

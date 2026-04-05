@@ -23,14 +23,14 @@ import (
 // Stream is the transport-agnostic event and data pipe.
 //
 //	hub := stream.NewHub()
-//	var streamBus stream.Stream = hub
-//	streamBus.Publish("hashrate", []byte(`{"h":123456}`))
-//	stop := streamBus.Pipe(remoteHub)
+//	var bus stream.Stream = hub
+//	_ = bus.Publish("hashrate", []byte(`{"h":123456}`))
+//	stop := bus.Pipe(remoteHub)
 //	defer stop()
 type Stream interface {
 	// Publish sends frame to all subscribers of channel.
 	//
-	//	hub.Publish("hashrate", []byte(`{"h":123456}`))
+	//	_ = hub.Publish("hashrate", []byte(`{"h":123456}`))
 	//
 	Publish(channel string, frame []byte) error
 
@@ -43,7 +43,7 @@ type Stream interface {
 
 	// Broadcast sends frame to every connected peer regardless of subscriptions.
 	//
-	//	hub.Broadcast([]byte(`{"type":"shutdown"}`))
+	//	_ = hub.Broadcast([]byte(`{"type":"shutdown"}`))
 	//
 	Broadcast(frame []byte) error
 
@@ -94,6 +94,7 @@ type Peer struct {
 // Create a peer with a generated ID and buffered send queue.
 //
 //	peer := stream.NewPeer("ws")
+//	peer.UserID = "user-42"
 func NewPeer(transport string) *Peer {
 	return &Peer{
 		ID:            randomUUID(),
@@ -195,11 +196,11 @@ func (peer *Peer) SendQueue() <-chan []byte {
 //
 //	switch client.State() {
 //	case stream.StateConnected:
-//	    // send frames
+//		_ = client.Send(stream.Message{Type: stream.TypePing})
 //	case stream.StateConnecting:
-//	    // wait for dial
+//		time.Sleep(100 * time.Millisecond)
 //	default:
-//	    // disconnected
+//		// disconnected
 //	}
 type ConnectionState int
 

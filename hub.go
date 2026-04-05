@@ -35,15 +35,15 @@ type Hub struct {
 	mu                sync.RWMutex
 }
 
-//	hub := stream.NewHub()
-//	go hub.Run(ctx)
+// hub := stream.NewHub()
+// go hub.Run(ctx)
 func NewHub() *Hub {
 	return NewHubWithConfig(DefaultHubConfig())
 }
 
 //	hub := stream.NewHubWithConfig(stream.HubConfig{
-//	    HeartbeatInterval: 30 * time.Second,
-//	    OnConnect: func(peer *stream.Peer) { log.Println("connected", peer.ID) },
+//		HeartbeatInterval: 30 * time.Second,
+//		OnConnect: func(peer *stream.Peer) { log.Println("connected", peer.ID) },
 //	})
 func NewHubWithConfig(config HubConfig) *Hub {
 	config = normalizeHubConfig(config)
@@ -62,8 +62,8 @@ func NewHubWithConfig(config HubConfig) *Hub {
 	}
 }
 
-//	config := hub.Config()
-//	writeTimeout := config.WriteTimeout
+// config := hub.Config()
+// writeTimeout := config.WriteTimeout
 func (hub *Hub) Config() HubConfig {
 	if hub == nil {
 		return DefaultHubConfig()
