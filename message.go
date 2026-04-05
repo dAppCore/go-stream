@@ -1,5 +1,12 @@
 // SPDX-License-Identifier: EUPL-1.2
 
+// Package stream preserves the WebSocket message envelope.
+//
+//	msg := stream.Message{
+//	    Type:    stream.TypeEvent,
+//	    Channel: "hashrate",
+//	    Data:    map[string]any{"h": 1234567},
+//	}
 package stream
 
 import "time"
