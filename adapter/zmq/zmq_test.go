@@ -425,6 +425,27 @@ func TestAdapter_Start_Auth_HandshakeTooLarge_Good(t *testing.T) {
 	t.Fatal("timed out waiting for handshake rejection")
 }
 
+func TestModeAndRole_String_Good(t *testing.T) {
+	if ModePubSub.String() != "pubsub" {
+		t.Fatalf("ModePubSub.String() = %q, want %q", ModePubSub.String(), "pubsub")
+	}
+	if ModePushPull.String() != "pushpull" {
+		t.Fatalf("ModePushPull.String() = %q, want %q", ModePushPull.String(), "pushpull")
+	}
+	if RolePublisher.String() != "publisher" {
+		t.Fatalf("RolePublisher.String() = %q, want %q", RolePublisher.String(), "publisher")
+	}
+	if RoleSubscriber.String() != "subscriber" {
+		t.Fatalf("RoleSubscriber.String() = %q, want %q", RoleSubscriber.String(), "subscriber")
+	}
+	if RolePusher.String() != "pusher" {
+		t.Fatalf("RolePusher.String() = %q, want %q", RolePusher.String(), "pusher")
+	}
+	if RolePuller.String() != "puller" {
+		t.Fatalf("RolePuller.String() = %q, want %q", RolePuller.String(), "puller")
+	}
+}
+
 func randomTCPEndpoint(t *testing.T) string {
 	t.Helper()
 	listener, err := net.Listen("tcp", "127.0.0.1:0")

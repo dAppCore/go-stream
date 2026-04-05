@@ -35,6 +35,18 @@ const (
 	ModePushPull
 )
 
+// String returns the human-readable socket pattern name.
+func (mode Mode) String() string {
+	switch mode {
+	case ModePubSub:
+		return "pubsub"
+	case ModePushPull:
+		return "pushpull"
+	default:
+		return "unknown"
+	}
+}
+
 // role := zmq.RoleSubscriber
 type Role int
 
@@ -44,6 +56,22 @@ const (
 	RolePusher
 	RolePuller
 )
+
+// String returns the human-readable socket role name.
+func (role Role) String() string {
+	switch role {
+	case RolePublisher:
+		return "publisher"
+	case RoleSubscriber:
+		return "subscriber"
+	case RolePusher:
+		return "pusher"
+	case RolePuller:
+		return "puller"
+	default:
+		return "unknown"
+	}
+}
 
 //	config := zmq.Config{
 //	    Mode:     zmq.ModePubSub,

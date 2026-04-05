@@ -7,6 +7,11 @@ import "time"
 // messageType := stream.TypeEvent
 type MessageType string
 
+// String returns the canonical wire value for the message type.
+func (messageType MessageType) String() string {
+	return string(messageType)
+}
+
 const (
 	// message := stream.Message{Type: stream.TypeProcessOutput, ProcessID: "build-123"}
 	TypeProcessOutput MessageType = "process_output"
@@ -26,12 +31,12 @@ const (
 	TypeUnsubscribe MessageType = "unsubscribe"
 )
 
-// msg := stream.Message{
-//     Type:      stream.TypeEvent,
-//     Channel:   "hashrate",
-//     Data:      map[string]any{"h": 1234567},
-//     Timestamp: time.Now().UTC(),
-// }
+//	msg := stream.Message{
+//	    Type:      stream.TypeEvent,
+//	    Channel:   "hashrate",
+//	    Data:      map[string]any{"h": 1234567},
+//	    Timestamp: time.Now().UTC(),
+//	}
 //
 // frame, _ := core.JSONMarshal(msg)
 // _ = frame
