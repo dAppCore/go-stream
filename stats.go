@@ -4,20 +4,13 @@ package stream
 
 // stats := hub.Stats()
 // core.Print("stream", "peers=%d channels=%d", stats.Peers, stats.Channels)
-// // Example: peers=12 channels=4
 type HubStats struct {
-	// Peers is the number of currently connected peers across all transports.
-	//
-	// Example: peers=12
+	// core.Print("stream", "peers=%d", stats.Peers)
 	Peers int `json:"peers"`
 
-	// Channels is the number of active named channels with at least one subscriber.
-	//
-	// Example: channels=4
+	// core.Print("stream", "channels=%d", stats.Channels)
 	Channels int `json:"channels"`
 
-	// SubscriberCount maps channel name to subscriber count.
-	//
-	// Example: {"hashrate": 3, "block": 2}
+	// count := stats.SubscriberCount["hashrate"]
 	SubscriberCount map[string]int `json:"subscriber_count"`
 }

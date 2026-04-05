@@ -35,6 +35,7 @@ type AuthResult struct {
 //	})
 type AuthenticatorFunc func(request *http.Request) AuthResult
 
+// result := authenticatorFunc.Authenticate(request)
 func (authenticatorFunc AuthenticatorFunc) Authenticate(request *http.Request) AuthResult {
 	if authenticatorFunc == nil || request == nil {
 		return AuthResult{Valid: false}
@@ -92,6 +93,7 @@ type BearerTokenAuth struct {
 	Validate func(token string) AuthResult
 }
 
+// result := authenticator.Authenticate(request)
 func (authenticator *BearerTokenAuth) Authenticate(request *http.Request) AuthResult {
 	if authenticator == nil || authenticator.Validate == nil || request == nil {
 		return AuthResult{Valid: false}
@@ -115,6 +117,7 @@ type QueryTokenAuth struct {
 	Validate func(token string) AuthResult
 }
 
+// result := authenticator.Authenticate(request)
 func (authenticator *QueryTokenAuth) Authenticate(request *http.Request) AuthResult {
 	if authenticator == nil || authenticator.Validate == nil || request == nil {
 		return AuthResult{Valid: false}
@@ -144,6 +147,7 @@ type ConnAuthenticator interface {
 //	})
 type ConnAuthenticatorFunc func(handshake []byte) AuthResult
 
+// result := auth.AuthenticateConn([]byte("hello"))
 func (connAuthenticatorFunc ConnAuthenticatorFunc) AuthenticateConn(handshake []byte) AuthResult {
 	if connAuthenticatorFunc == nil {
 		return AuthResult{Valid: false}

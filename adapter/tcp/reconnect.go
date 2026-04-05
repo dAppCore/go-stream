@@ -13,8 +13,6 @@ import (
 	"dappco.re/go/stream"
 )
 
-// ReconnectConfig wires one reconnecting TCP client.
-//
 //	config := tcp.ReconnectConfig{
 //	    Addr: "127.0.0.1:9000",
 //	    OnReconnect: func(attempt int) {
@@ -25,7 +23,8 @@ import (
 //	        _ = frame
 //	    },
 //	}
-//	client := tcp.NewReconnectingTCP(config)
+//
+// client := tcp.NewReconnectingTCP(config)
 type ReconnectConfig struct {
 	Addr              string
 	HandshakeFrame    []byte
@@ -41,9 +40,7 @@ type ReconnectConfig struct {
 	OnMessage         func(channel string, frame []byte)
 }
 
-// ReconnectingTCP keeps one TCP session connected with backoff.
-//
-//	client := tcp.NewReconnectingTCP(tcp.ReconnectConfig{Addr: "10.69.69.165:9000"})
+// client := tcp.NewReconnectingTCP(tcp.ReconnectConfig{Addr: "10.69.69.165:9000"})
 type ReconnectingTCP struct {
 	config ReconnectConfig
 
@@ -161,9 +158,7 @@ func (client *ReconnectingTCP) Connect(ctx context.Context) error {
 	}
 }
 
-// Send transmits frame on channel through the TCP connection.
-//
-//	_ = client.Send("vpn:peer-abc123", encryptedPacket)
+// _ = client.Send("vpn:peer-abc123", encryptedPacket)
 func (client *ReconnectingTCP) Send(channel string, frame []byte) error {
 	if client == nil {
 		return core.E("stream.tcp", "nil reconnecting tcp", nil)
@@ -177,8 +172,6 @@ func (client *ReconnectingTCP) Send(channel string, frame []byte) error {
 	return writeFull(conn, encodeFrame(channel, frame))
 }
 
-// State exposes the reconnecting client's lifecycle state.
-//
 //	if client.State() == stream.StateConnected {
 //	    _ = client.Send("vpn:peer-abc123", encryptedPacket)
 //	}

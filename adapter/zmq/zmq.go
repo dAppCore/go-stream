@@ -27,7 +27,7 @@ import (
 
 const maxHandshakeFrameSize = 4 << 10
 
-// Mode selects the ZMQ socket pattern.
+// mode := zmq.ModePubSub
 type Mode int
 
 const (
@@ -35,7 +35,7 @@ const (
 	ModePushPull
 )
 
-// Role is the ZMQ socket role.
+// role := zmq.RoleSubscriber
 type Role int
 
 const (
@@ -90,9 +90,6 @@ func (adapter *Adapter) Mount(hub *stream.Hub) {
 }
 
 // go adapter.Start(ctx)
-//
-// Start connects the socket, validates the optional handshake, and forwards
-// received frames into the mounted hub until the context is cancelled.
 func (adapter *Adapter) Start(ctx context.Context) error {
 	if adapter == nil {
 		return core.E("stream.zmq", "nil adapter", nil)
@@ -207,9 +204,7 @@ func (adapter *Adapter) Publish(channel string, frame []byte) error {
 	return socket.Send(zmq4.NewMsg(encodeMessage(channel, frame)))
 }
 
-// Stop shuts down the adapter.
-//
-//	defer adapter.Stop()
+// defer adapter.Stop()
 func (adapter *Adapter) Stop() error {
 	if adapter == nil {
 		return nil

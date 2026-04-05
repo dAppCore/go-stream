@@ -31,9 +31,11 @@ type Config struct {
 }
 
 // bridge, err := redis.NewBridge(hub, redis.Config{Addr: "127.0.0.1:6379", Prefix: "pool"})
-// if err != nil {
-//     return err
-// }
+//
+//	if err != nil {
+//	    return err
+//	}
+//
 // go bridge.Start(ctx)
 // defer bridge.Stop()
 type Bridge struct {
@@ -83,9 +85,6 @@ func NewBridge(hub *stream.Hub, config Config) (*Bridge, error) {
 }
 
 // go bridge.Start(ctx)
-//
-// The bridge installs publish and broadcast hooks on the hub, then relays those
-// frames through Redis pub/sub until the context is cancelled or Stop is called.
 func (bridge *Bridge) Start(ctx context.Context) error {
 	if bridge == nil {
 		return core.E("stream.redis", "nil bridge", nil)
@@ -172,9 +171,6 @@ func (bridge *Bridge) Start(ctx context.Context) error {
 }
 
 // defer bridge.Stop()
-//
-// Stop cancels the running bridge, removes the Redis hooks, and closes the
-// underlying client and pub/sub session.
 func (bridge *Bridge) Stop() error {
 	if bridge == nil {
 		return nil
@@ -212,9 +208,6 @@ func (bridge *Bridge) Stop() error {
 }
 
 // _ = bridge.PublishToChannel("block", templateBytes)
-//
-// PublishToChannel preserves the channel name so all subscribers on other
-// instances receive the frame on the same logical route.
 func (bridge *Bridge) PublishToChannel(channel string, frame []byte) error {
 	if bridge == nil {
 		return core.E("stream.redis", "nil bridge", nil)
@@ -227,9 +220,6 @@ func (bridge *Bridge) PublishToChannel(channel string, frame []byte) error {
 }
 
 // _ = bridge.PublishBroadcast(shutdownFrame)
-//
-// PublishBroadcast delivers a frame to every bridge instance without channel
-// filtering.
 func (bridge *Bridge) PublishBroadcast(frame []byte) error {
 	if bridge == nil {
 		return core.E("stream.redis", "nil bridge", nil)
@@ -238,9 +228,7 @@ func (bridge *Bridge) PublishBroadcast(frame []byte) error {
 	return bridge.publish(bridge.broadcastChannel(), frame)
 }
 
-// SourceID exposes the bridge instance identifier used for echo prevention.
-//
-//	id := bridge.SourceID()
+// id := bridge.SourceID()
 func (bridge *Bridge) SourceID() string {
 	if bridge == nil {
 		return ""

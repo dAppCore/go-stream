@@ -4,7 +4,7 @@ package stream
 
 import "time"
 
-// msgType := stream.TypeEvent
+// messageType := stream.TypeEvent
 type MessageType string
 
 const (

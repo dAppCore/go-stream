@@ -14,15 +14,14 @@ import (
 	"dappco.re/go/stream"
 )
 
-// ReconnectConfig wires one reconnecting WebSocket client.
-//
 //	config := ws.ReconnectConfig{
 //	    URL: "ws://127.0.0.1:8080/stream/ws",
 //	    OnMessage: func(message stream.Message) {
 //	        _ = message.Channel
 //	    },
 //	}
-//	client := ws.NewReconnectingClient(config)
+//
+// client := ws.NewReconnectingClient(config)
 type ReconnectConfig struct {
 	URL               string
 	InitialBackoff    time.Duration
@@ -37,10 +36,8 @@ type ReconnectConfig struct {
 	Headers           http.Header
 }
 
-// ReconnectingClient keeps one WebSocket session connected with backoff.
-//
-//	client := ws.NewReconnectingClient(ws.ReconnectConfig{URL: "ws://127.0.0.1:8080/stream/ws"})
-//	_ = client.Connect(context.Background())
+// client := ws.NewReconnectingClient(ws.ReconnectConfig{URL: "ws://127.0.0.1:8080/stream/ws"})
+// _ = client.Connect(context.Background())
 type ReconnectingClient struct {
 	config ReconnectConfig
 	state  stream.ConnectionState
@@ -154,9 +151,7 @@ func (client *ReconnectingClient) Connect(ctx context.Context) error {
 	}
 }
 
-// Send marshals and sends a message through the WebSocket connection.
-//
-//	_ = client.Send(stream.Message{Type: stream.TypeEvent, Channel: "hashrate", Data: map[string]any{"h": 1234567}})
+// _ = client.Send(stream.Message{Type: stream.TypeEvent, Channel: "hashrate", Data: map[string]any{"h": 1234567}})
 func (client *ReconnectingClient) Send(msg stream.Message) error {
 	if client == nil {
 		return core.E("stream.ws", "nil reconnecting client", nil)
@@ -186,9 +181,7 @@ func (client *ReconnectingClient) Send(msg stream.Message) error {
 	return client.conn.WriteMessage(websocket.TextMessage, payload.Value.([]byte))
 }
 
-// State exposes the reconnecting client's lifecycle state.
-//
-//	state := client.State()
+// state := client.State()
 func (client *ReconnectingClient) State() stream.ConnectionState {
 	if client == nil {
 		return stream.StateDisconnected
