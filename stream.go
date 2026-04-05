@@ -62,14 +62,10 @@ type Stream interface {
 	Stats() HubStats
 }
 
-// Frame keeps transport payloads as raw bytes.
-//
-//	frame := stream.Frame([]byte(`{"type":"event"}`))
+// frame := stream.Frame([]byte(`{"type":"event"}`))
 type Frame = []byte
 
-// Channel keeps pub/sub routing keys explicit.
-//
-//	channel := stream.Channel("hashrate")
+// channel := stream.Channel("hashrate")
 type Channel = string
 
 // peer := stream.NewPeer("ws")
@@ -193,16 +189,14 @@ func (peer *Peer) SendQueue() <-chan []byte {
 	return peer.send
 }
 
-// ConnectionState describes a reconnecting client's lifecycle.
-//
-//	switch client.State() {
-//	case stream.StateConnected:
-//		_ = client.Send(stream.Message{Type: stream.TypePing})
-//	case stream.StateConnecting:
-//		time.Sleep(100 * time.Millisecond)
-//	default:
-//		// disconnected
-//	}
+// switch client.State() {
+// case stream.StateConnected:
+// 	_ = client.Send(stream.Message{Type: stream.TypePing})
+// case stream.StateConnecting:
+// 	time.Sleep(100 * time.Millisecond)
+// default:
+// 	// disconnected
+// }
 type ConnectionState int
 
 const (
@@ -211,10 +205,8 @@ const (
 	StateConnected
 )
 
-// String keeps connection-state logs stable and grep-friendly.
-//
-//	state := stream.StateConnected
-//	core.Print(nil, "connection state=%s", state.String())
+// state := stream.StateConnected
+// core.Print(nil, "connection state=%s", state.String())
 func (state ConnectionState) String() string {
 	switch state {
 	case StateConnecting:
@@ -226,13 +218,11 @@ func (state ConnectionState) String() string {
 	}
 }
 
-// Envelope keeps bridge metadata beside the raw frame.
-//
-//	envelope := stream.Envelope{
-//	    SourceID: "node-a",
-//	    Channel:  "block",
-//	    Frame:    []byte("template"),
-//	}
+// envelope := stream.Envelope{
+//     SourceID: "node-a",
+//     Channel:  "block",
+//     Frame:    []byte("template"),
+// }
 type Envelope struct {
 	SourceID string
 	Channel  string

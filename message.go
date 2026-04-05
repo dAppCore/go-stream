@@ -26,12 +26,12 @@ const (
 	TypeUnsubscribe MessageType = "unsubscribe"
 )
 
-//	msg := stream.Message{
-//	    Type:      stream.TypeEvent,
-//	    Channel:   "hashrate",
-//	    Data:      map[string]any{"h": 1234567},
-//	    Timestamp: time.Now().UTC(),
-//	}
+// msg := stream.Message{
+//     Type:      stream.TypeEvent,
+//     Channel:   "hashrate",
+//     Data:      map[string]any{"h": 1234567},
+//     Timestamp: time.Now().UTC(),
+// }
 //
 // frame, _ := core.JSONMarshal(msg)
 // _ = frame
