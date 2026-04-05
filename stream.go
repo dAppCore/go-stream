@@ -85,7 +85,7 @@ type Peer struct {
 	// Values: "ws", "sse", "tcp", "zmq"
 	Transport string
 
-	send          chan []byte
+	sendQueue     chan []byte
 	subscriptions map[string]bool
 	closeHook     func()
 	mu            sync.RWMutex
@@ -98,7 +98,7 @@ func NewPeer(transport string) *Peer {
 	return &Peer{
 		ID:            randomUUID(),
 		Transport:     transport,
-		send:          make(chan []byte, defaultPeerSendBufferSize),
+		sendQueue:     make(chan []byte, defaultPeerSendBufferSize),
 		subscriptions: map[string]bool{},
 	}
 }
@@ -128,12 +128,12 @@ func (peer *Peer) Send(frame []byte) bool {
 	}()
 	peer.mu.RLock()
 	defer peer.mu.RUnlock()
-	if peer.send == nil {
+	if peer.sendQueue == nil {
 		return false
 	}
 	payload := append([]byte(nil), frame...)
 	select {
-	case peer.send <- payload:
+	case peer.sendQueue <- payload:
 		return true
 	default:
 		return false
@@ -148,12 +148,12 @@ func (peer *Peer) Close() {
 	}
 	peer.closeOnce.Do(func() {
 		peer.mu.Lock()
-		send := peer.send
+		sendQueue := peer.sendQueue
 		closeHook := peer.closeHook
 		peer.closeHook = nil
 		peer.mu.Unlock()
-		if send != nil {
-			close(send)
+		if sendQueue != nil {
+			close(sendQueue)
 		}
 		if closeHook != nil {
 			closeHook()
@@ -186,7 +186,7 @@ func (peer *Peer) SendQueue() <-chan []byte {
 	}
 	peer.mu.RLock()
 	defer peer.mu.RUnlock()
-	return peer.send
+	return peer.sendQueue
 }
 
 // switch client.State() {
