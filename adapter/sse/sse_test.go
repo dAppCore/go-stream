@@ -117,6 +117,24 @@ func TestAdapter_Handler_Bad(t *testing.T) {
 	}
 }
 
+func TestAdapter_Handler_HubNotRunning_Bad(t *testing.T) {
+	adapter := New(Config{})
+	adapter.Mount(stream.NewHub())
+
+	server := httptest.NewServer(http.HandlerFunc(adapter.Handler()))
+	defer server.Close()
+
+	response, err := http.Get(server.URL + "?channel=hashrate")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	defer response.Body.Close()
+
+	if response.StatusCode != http.StatusInternalServerError {
+		t.Fatalf("StatusCode = %d, want %d", response.StatusCode, http.StatusInternalServerError)
+	}
+}
+
 func TestAdapter_Handler_ChannelAuthoriser_Bad(t *testing.T) {
 	hub := stream.NewHubWithConfig(stream.HubConfig{
 		ChannelAuthoriser: func(peer *stream.Peer, channel string) bool {

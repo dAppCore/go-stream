@@ -137,14 +137,25 @@ func (adapter *Adapter) serve(w http.ResponseWriter, r *http.Request, channels [
 		}
 	}
 
-	_ = adapter.hub.AddPeer(peer)
+	if !adapter.hub.Running() {
+		http.Error(w, "stream hub not running", http.StatusInternalServerError)
+		return
+	}
+
+	if err := adapter.hub.AddPeer(peer); err != nil {
+		http.Error(w, "stream hub not running", http.StatusInternalServerError)
+		return
+	}
 	defer adapter.hub.RemovePeer(peer)
 
 	for _, channel := range channels {
 		if channel == "" {
 			continue
 		}
-		_ = adapter.hub.SubscribePeer(peer, channel)
+		if err := adapter.hub.SubscribePeer(peer, channel); err != nil {
+			http.Error(w, "stream hub not running", http.StatusInternalServerError)
+			return
+		}
 	}
 
 	_, _ = io.WriteString(w, "retry: "+strconv.Itoa(config.RetryMs)+"\n\n")

@@ -145,8 +145,19 @@ func (adapter *Adapter) Dial(ctx context.Context, hub *stream.Hub) (*stream.Peer
 	peer.SetCloseHook(func() {
 		_ = conn.Close()
 	})
-	_ = hub.AddPeer(peer)
-	_ = hub.SubscribePeer(peer, "*")
+	if !hub.Running() {
+		_ = conn.Close()
+		return nil, stream.ErrHubNotRunning
+	}
+	if err := hub.AddPeer(peer); err != nil {
+		_ = conn.Close()
+		return nil, err
+	}
+	if err := hub.SubscribePeer(peer, "*"); err != nil {
+		hub.RemovePeer(peer)
+		_ = conn.Close()
+		return nil, err
+	}
 	go adapter.pipePeer(ctx, conn, peer, hub)
 	return peer, nil
 }
@@ -219,8 +230,16 @@ func (adapter *Adapter) handleConn(ctx context.Context, conn net.Conn, hub *stre
 	peer.SetCloseHook(func() {
 		_ = conn.Close()
 	})
-	_ = hub.AddPeer(peer)
-	_ = hub.SubscribePeer(peer, "*")
+	if !hub.Running() {
+		return
+	}
+	if err := hub.AddPeer(peer); err != nil {
+		return
+	}
+	if err := hub.SubscribePeer(peer, "*"); err != nil {
+		hub.RemovePeer(peer)
+		return
+	}
 	defer hub.RemovePeer(peer)
 
 	go adapter.writePump(ctx, conn, peer, hub.Config().WriteTimeout)

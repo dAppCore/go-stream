@@ -366,6 +366,39 @@ func TestTCP_Dial_NilContext_Good(t *testing.T) {
 	<-serverDone
 }
 
+func TestTCP_Dial_HubNotRunning_Bad(t *testing.T) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("Listen() error = %v", err)
+	}
+	defer listener.Close()
+
+	serverDone := make(chan struct{})
+	go func() {
+		defer close(serverDone)
+		connection, acceptErr := listener.Accept()
+		if acceptErr != nil {
+			return
+		}
+		defer connection.Close()
+		_, _, _ = readFrame(connection, 2*time.Second, MaxFrameSize)
+	}()
+
+	adapter := New(Config{Addr: listener.Addr().String()})
+	peer, err := adapter.Dial(context.Background(), stream.NewHub())
+	if err == nil {
+		if peer != nil {
+			peer.Close()
+		}
+		t.Fatal("Dial() error = nil, want hub lifecycle failure")
+	}
+	if peer != nil {
+		t.Fatalf("Dial() peer = %#v, want nil", peer)
+	}
+
+	<-serverDone
+}
+
 func TestTCP_Dial_Handshake_Good(t *testing.T) {
 	serverHub := stream.NewHub()
 	serverHubContext, serverHubCancel := context.WithCancel(context.Background())

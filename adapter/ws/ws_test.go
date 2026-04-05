@@ -122,6 +122,25 @@ func TestAdapter_Handler_Bad(t *testing.T) {
 	}
 }
 
+func TestAdapter_Handler_HubNotRunning_Bad(t *testing.T) {
+	adapter := New(Config{})
+	adapter.Mount(stream.NewHub())
+
+	server := httptest.NewServer(http.HandlerFunc(adapter.Handler()))
+	defer server.Close()
+
+	_, resp, err := websocket.DefaultDialer.Dial(websocketURL(server.URL), nil)
+	if err == nil {
+		t.Fatal("Dial() error = nil, want hub lifecycle failure")
+	}
+	if resp == nil {
+		t.Fatal("Dial() response = nil, want 500 response")
+	}
+	if resp.StatusCode != http.StatusInternalServerError {
+		t.Fatalf("StatusCode = %d, want %d", resp.StatusCode, http.StatusInternalServerError)
+	}
+}
+
 func TestAdapter_Handler_QueryChannelAuthoriser_Bad(t *testing.T) {
 	hub := stream.NewHubWithConfig(stream.HubConfig{
 		ChannelAuthoriser: func(peer *stream.Peer, channel string) bool {
