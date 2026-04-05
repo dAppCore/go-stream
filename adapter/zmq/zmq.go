@@ -70,7 +70,7 @@ type Adapter struct {
 	hub    *stream.Hub
 	config Config
 
-	mu      sync.RWMutex
+	mutex   sync.RWMutex
 	running bool
 	socket  zmq4.Socket
 	cancel  context.CancelFunc
@@ -119,9 +119,9 @@ func (adapter *Adapter) Start(ctx context.Context) error {
 		return err
 	}
 
-	adapter.mu.Lock()
+	adapter.mutex.Lock()
 	if adapter.running {
-		adapter.mu.Unlock()
+		adapter.mutex.Unlock()
 		_ = socket.Close()
 		runCancel()
 		return nil
@@ -129,14 +129,14 @@ func (adapter *Adapter) Start(ctx context.Context) error {
 	adapter.running = true
 	adapter.socket = socket
 	adapter.cancel = runCancel
-	adapter.mu.Unlock()
+	adapter.mutex.Unlock()
 
 	defer func() {
-		adapter.mu.Lock()
+		adapter.mutex.Lock()
 		adapter.running = false
 		adapter.socket = nil
 		adapter.cancel = nil
-		adapter.mu.Unlock()
+		adapter.mutex.Unlock()
 		runCancel()
 		_ = socket.Close()
 	}()
@@ -220,8 +220,8 @@ func (adapter *Adapter) Publish(channel string, frame []byte) error {
 		return core.E("stream.zmq", "publish not supported for this role", nil)
 	}
 
-	adapter.mu.RLock()
-	defer adapter.mu.RUnlock()
+	adapter.mutex.RLock()
+	defer adapter.mutex.RUnlock()
 	if !adapter.running || adapter.socket == nil {
 		return core.E("stream.zmq", "adapter not started", nil)
 	}
@@ -235,13 +235,13 @@ func (adapter *Adapter) Stop() error {
 		return nil
 	}
 
-	adapter.mu.Lock()
+	adapter.mutex.Lock()
 	cancel := adapter.cancel
 	socket := adapter.socket
 	adapter.running = false
 	adapter.cancel = nil
 	adapter.socket = nil
-	adapter.mu.Unlock()
+	adapter.mutex.Unlock()
 
 	if cancel != nil {
 		cancel()

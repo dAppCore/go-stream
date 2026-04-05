@@ -10,7 +10,7 @@ import (
 )
 
 type testStream struct {
-	mu          sync.Mutex
+	mutex       sync.Mutex
 	subscribers map[string]map[int]func([]byte)
 	nextID      int
 	published   []publishedFrame
@@ -29,14 +29,14 @@ func newTestStream() *testStream {
 }
 
 func (streamValue *testStream) Publish(channel string, frame []byte) error {
-	streamValue.mu.Lock()
+	streamValue.mutex.Lock()
 	streamValue.published = append(streamValue.published, publishedFrame{
 		channel: channel,
 		frame:   append([]byte(nil), frame...),
 	})
 	handlers := streamValue.cloneHandlersLocked(channel)
 	wildcardHandlers := streamValue.cloneHandlersLocked("*")
-	streamValue.mu.Unlock()
+	streamValue.mutex.Unlock()
 
 	for _, handler := range handlers {
 		handler(frame)
@@ -50,8 +50,8 @@ func (streamValue *testStream) Publish(channel string, frame []byte) error {
 }
 
 func (streamValue *testStream) Subscribe(channel string, handler func([]byte)) func() {
-	streamValue.mu.Lock()
-	defer streamValue.mu.Unlock()
+	streamValue.mutex.Lock()
+	defer streamValue.mutex.Unlock()
 	streamValue.nextID++
 	id := streamValue.nextID
 	if streamValue.subscribers[channel] == nil {
@@ -59,8 +59,8 @@ func (streamValue *testStream) Subscribe(channel string, handler func([]byte)) f
 	}
 	streamValue.subscribers[channel][id] = handler
 	return func() {
-		streamValue.mu.Lock()
-		defer streamValue.mu.Unlock()
+		streamValue.mutex.Lock()
+		defer streamValue.mutex.Unlock()
 		delete(streamValue.subscribers[channel], id)
 		if len(streamValue.subscribers[channel]) == 0 {
 			delete(streamValue.subscribers, channel)
@@ -69,8 +69,8 @@ func (streamValue *testStream) Subscribe(channel string, handler func([]byte)) f
 }
 
 func (streamValue *testStream) Broadcast(frame []byte) error {
-	streamValue.mu.Lock()
-	defer streamValue.mu.Unlock()
+	streamValue.mutex.Lock()
+	defer streamValue.mutex.Unlock()
 	streamValue.broadcasts = append(streamValue.broadcasts, append([]byte(nil), frame...))
 	return nil
 }
@@ -253,8 +253,8 @@ func TestHub_Pipe_GenericPublishFallback_Good(t *testing.T) {
 		t.Fatalf("Publish() error = %v", err)
 	}
 
-	destinationStream.mu.Lock()
-	defer destinationStream.mu.Unlock()
+	destinationStream.mutex.Lock()
+	defer destinationStream.mutex.Unlock()
 	if len(destinationStream.published) != 1 {
 		t.Fatalf("len(published) = %d, want %d", len(destinationStream.published), 1)
 	}
@@ -743,9 +743,9 @@ func waitForRunningHub(t *testing.T, hub *Hub) {
 	t.Helper()
 	deadline := time.Now().Add(2 * time.Second)
 	for time.Now().Before(deadline) {
-		hub.mu.RLock()
+		hub.mutex.RLock()
 		running := hub.running
-		hub.mu.RUnlock()
+		hub.mutex.RUnlock()
 		if running {
 			return
 		}

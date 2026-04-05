@@ -54,7 +54,7 @@ type Adapter struct {
 	hub    *stream.Hub
 	config Config
 
-	mu       sync.Mutex
+	mutex    sync.Mutex
 	listener net.Listener
 }
 
@@ -92,11 +92,11 @@ func (adapter *Adapter) Listen(ctx context.Context) error {
 	}
 	defer func() {
 		_ = listener.Close()
-		adapter.mu.Lock()
+		adapter.mutex.Lock()
 		if adapter.listener == listener {
 			adapter.listener = nil
 		}
-		adapter.mu.Unlock()
+		adapter.mutex.Unlock()
 	}()
 
 	go func() {
@@ -163,8 +163,8 @@ func (adapter *Adapter) Dial(ctx context.Context, hub *stream.Hub) (*stream.Peer
 }
 
 func (adapter *Adapter) listen() (net.Listener, error) {
-	adapter.mu.Lock()
-	defer adapter.mu.Unlock()
+	adapter.mutex.Lock()
+	defer adapter.mutex.Unlock()
 	if adapter.listener != nil {
 		return adapter.listener, nil
 	}

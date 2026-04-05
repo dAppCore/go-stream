@@ -34,7 +34,7 @@ type Hub struct {
 	done              chan struct{}
 	doneOnce          sync.Once
 	running           bool
-	mu                sync.RWMutex
+	mutex             sync.RWMutex
 }
 
 // hub := stream.NewHub()
@@ -70,9 +70,9 @@ func (hub *Hub) Config() HubConfig {
 	if hub == nil {
 		return DefaultHubConfig()
 	}
-	hub.mu.RLock()
+	hub.mutex.RLock()
 	config := hub.config
-	hub.mu.RUnlock()
+	hub.mutex.RUnlock()
 	return normalizeHubConfig(config)
 }
 
@@ -81,8 +81,8 @@ func (hub *Hub) Running() bool {
 	if hub == nil {
 		return false
 	}
-	hub.mu.RLock()
-	defer hub.mu.RUnlock()
+	hub.mutex.RLock()
+	defer hub.mutex.RUnlock()
 	return hub.running
 }
 
@@ -94,22 +94,22 @@ func (hub *Hub) Run(ctx context.Context) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	hub.mu.Lock()
+	hub.mutex.Lock()
 	if hub.running {
-		hub.mu.Unlock()
+		hub.mutex.Unlock()
 		return
 	}
 	hub.running = true
-	hub.mu.Unlock()
+	hub.mutex.Unlock()
 
 	defer func() {
-		hub.mu.Lock()
+		hub.mutex.Lock()
 		peers := make([]*Peer, 0, len(hub.peers))
 		for peer := range hub.peers {
 			peers = append(peers, peer)
 		}
 		hub.running = false
-		hub.mu.Unlock()
+		hub.mutex.Unlock()
 
 		for _, peer := range peers {
 			hub.removePeer(peer)
@@ -159,13 +159,13 @@ func (hub *Hub) sendToChannelFromPeer(source *Peer, channel string, frame []byte
 	if hub == nil {
 		return core.E("stream.hub", "nil hub", nil)
 	}
-	hub.mu.RLock()
+	hub.mutex.RLock()
 	running := hub.running
 	peersToSend := hub.collectChannelPeersLocked(channel, source)
 	hasHandlers := len(hub.channelHandlers[channel]) > 0
 	hasWildcardHandlers := len(hub.channelHandlers["*"]) > 0 && channel != "*"
 	hasPublishers := notifyPublishSubscribers && len(hub.publishHandlers) > 0
-	hub.mu.RUnlock()
+	hub.mutex.RUnlock()
 	if !running {
 		return ErrHubNotRunning
 	}
@@ -198,7 +198,7 @@ func (hub *Hub) SubscribeWithError(channel string, handler func([]byte)) (func()
 	if handler == nil {
 		return func() {}, core.E("stream.hub", "nil handler", nil)
 	}
-	hub.mu.Lock()
+	hub.mutex.Lock()
 	if hub.channelHandlers == nil {
 		hub.channelHandlers = map[string]map[uint64]func([]byte){}
 	}
@@ -211,11 +211,11 @@ func (hub *Hub) SubscribeWithError(channel string, handler func([]byte)) (func()
 		hub.channelHandlers[channel] = map[uint64]func([]byte){}
 	}
 	hub.channelHandlers[channel][id] = handler
-	hub.mu.Unlock()
+	hub.mutex.Unlock()
 
 	return onceFunction(func() {
-		hub.mu.Lock()
-		defer hub.mu.Unlock()
+		hub.mutex.Lock()
+		defer hub.mutex.Unlock()
 		if handlers := hub.channelHandlers[channel]; handlers != nil {
 			delete(handlers, id)
 			if len(handlers) == 0 {
@@ -250,8 +250,8 @@ func (hub *Hub) SubscribePeer(peer *Peer, channel string) error {
 	if channel == "" {
 		return ErrEmptyChannel
 	}
-	hub.mu.Lock()
-	defer hub.mu.Unlock()
+	hub.mutex.Lock()
+	defer hub.mutex.Unlock()
 	if hub.config.ChannelAuthoriser != nil && channel != "*" && !hub.config.ChannelAuthoriser(peer, channel) {
 		return ErrAuthRejected
 	}
@@ -280,8 +280,8 @@ func (hub *Hub) CanSubscribePeer(peer *Peer, channel string) error {
 	if channel == "" {
 		return ErrEmptyChannel
 	}
-	hub.mu.RLock()
-	defer hub.mu.RUnlock()
+	hub.mutex.RLock()
+	defer hub.mutex.RUnlock()
 	if hub.config.ChannelAuthoriser != nil && channel != "*" && !hub.config.ChannelAuthoriser(peer, channel) {
 		return ErrAuthRejected
 	}
@@ -293,8 +293,8 @@ func (hub *Hub) UnsubscribePeer(peer *Peer, channel string) {
 	if hub == nil || peer == nil || channel == "" {
 		return
 	}
-	hub.mu.Lock()
-	defer hub.mu.Unlock()
+	hub.mutex.Lock()
+	defer hub.mutex.Unlock()
 	delete(peer.subscriptions, channel)
 	if peers := hub.channels[channel]; peers != nil {
 		delete(peers, peer)
@@ -332,9 +332,9 @@ func (hub *Hub) broadcastFrameFromPeer(source *Peer, frame []byte, notifyBroadca
 	if hub == nil {
 		return core.E("stream.hub", "nil hub", nil)
 	}
-	hub.mu.RLock()
+	hub.mutex.RLock()
 	running := hub.running
-	hub.mu.RUnlock()
+	hub.mutex.RUnlock()
 	if !running {
 		return ErrHubNotRunning
 	}
@@ -365,8 +365,8 @@ func (hub *Hub) Stats() HubStats {
 	if hub == nil {
 		return HubStats{}
 	}
-	hub.mu.RLock()
-	defer hub.mu.RUnlock()
+	hub.mutex.RLock()
+	defer hub.mutex.RUnlock()
 	subscriberCount := map[string]int{}
 	for channel, peers := range hub.channels {
 		if channel == "*" {
@@ -395,18 +395,18 @@ func (hub *Hub) SubscribeBroadcast(handler func([]byte)) func() {
 	if hub == nil || handler == nil {
 		return func() {}
 	}
-	hub.mu.Lock()
+	hub.mutex.Lock()
 	if hub.broadcastHandlers == nil {
 		hub.broadcastHandlers = map[uint64]func([]byte){}
 	}
 	hub.nextHandlerID++
 	id := hub.nextHandlerID
 	hub.broadcastHandlers[id] = handler
-	hub.mu.Unlock()
+	hub.mutex.Unlock()
 
 	return onceFunction(func() {
-		hub.mu.Lock()
-		defer hub.mu.Unlock()
+		hub.mutex.Lock()
+		defer hub.mutex.Unlock()
 		delete(hub.broadcastHandlers, id)
 	})
 }
@@ -416,8 +416,8 @@ func (hub *Hub) PeerCount() int {
 	if hub == nil {
 		return 0
 	}
-	hub.mu.RLock()
-	defer hub.mu.RUnlock()
+	hub.mutex.RLock()
+	defer hub.mutex.RUnlock()
 	return len(hub.peers)
 }
 
@@ -426,8 +426,8 @@ func (hub *Hub) ChannelCount() int {
 	if hub == nil {
 		return 0
 	}
-	hub.mu.RLock()
-	defer hub.mu.RUnlock()
+	hub.mutex.RLock()
+	defer hub.mutex.RUnlock()
 	count := 0
 	for channel, peers := range hub.channels {
 		if channel == "*" || len(peers) == 0 {
@@ -443,8 +443,8 @@ func (hub *Hub) ChannelSubscriberCount(channel string) int {
 	if hub == nil {
 		return 0
 	}
-	hub.mu.RLock()
-	defer hub.mu.RUnlock()
+	hub.mutex.RLock()
+	defer hub.mutex.RUnlock()
 	return len(hub.channels[channel])
 }
 
@@ -455,12 +455,12 @@ func (hub *Hub) AllPeers() iter.Seq[*Peer] {
 	if hub == nil {
 		return func(yield func(*Peer) bool) {}
 	}
-	hub.mu.RLock()
+	hub.mutex.RLock()
 	peers := make([]*Peer, 0, len(hub.peers))
 	for peer := range hub.peers {
 		peers = append(peers, peer)
 	}
-	hub.mu.RUnlock()
+	hub.mutex.RUnlock()
 	sort.SliceStable(peers, func(left, right int) bool {
 		if peers[left] == nil {
 			return false
@@ -486,7 +486,7 @@ func (hub *Hub) AllChannels() iter.Seq[string] {
 	if hub == nil {
 		return func(yield func(string) bool) {}
 	}
-	hub.mu.RLock()
+	hub.mutex.RLock()
 	channels := make([]string, 0, len(hub.channels))
 	for channel, peers := range hub.channels {
 		if channel == "*" || len(peers) == 0 {
@@ -494,7 +494,7 @@ func (hub *Hub) AllChannels() iter.Seq[string] {
 		}
 		channels = append(channels, channel)
 	}
-	hub.mu.RUnlock()
+	hub.mutex.RUnlock()
 	sort.Strings(channels)
 	return func(yield func(string) bool) {
 		for _, channel := range channels {
@@ -520,9 +520,9 @@ func (hub *Hub) AddPeer(peer *Peer) error {
 	if peer.subscriptions == nil {
 		peer.subscriptions = map[string]bool{}
 	}
-	hub.mu.RLock()
+	hub.mutex.RLock()
 	running := hub.running
-	hub.mu.RUnlock()
+	hub.mutex.RUnlock()
 	if running {
 		select {
 		case hub.register <- peer:
@@ -539,9 +539,9 @@ func (hub *Hub) RemovePeer(peer *Peer) {
 	if hub == nil || peer == nil {
 		return
 	}
-	hub.mu.RLock()
+	hub.mutex.RLock()
 	running := hub.running
-	hub.mu.RUnlock()
+	hub.mutex.RUnlock()
 	if running {
 		select {
 		case hub.unregister <- peer:
@@ -589,17 +589,17 @@ func (hub *Hub) addPeer(peer *Peer) {
 	if hub == nil || peer == nil {
 		return
 	}
-	hub.mu.Lock()
+	hub.mutex.Lock()
 	if hub.peers == nil {
 		hub.peers = map[*Peer]bool{}
 	}
 	if hub.peers[peer] {
-		hub.mu.Unlock()
+		hub.mutex.Unlock()
 		return
 	}
 	hub.peers[peer] = true
 	onConnect := hub.config.OnConnect
-	hub.mu.Unlock()
+	hub.mutex.Unlock()
 	if onConnect != nil {
 		onConnect(peer)
 	}
@@ -609,9 +609,9 @@ func (hub *Hub) removePeer(peer *Peer) {
 	if hub == nil || peer == nil {
 		return
 	}
-	hub.mu.Lock()
+	hub.mutex.Lock()
 	if !hub.peers[peer] {
-		hub.mu.Unlock()
+		hub.mutex.Unlock()
 		return
 	}
 	delete(hub.peers, peer)
@@ -625,7 +625,7 @@ func (hub *Hub) removePeer(peer *Peer) {
 	peer.subscriptions = map[string]bool{}
 	peer.mutex.Unlock()
 	onDisconnect := hub.config.OnDisconnect
-	hub.mu.Unlock()
+	hub.mutex.Unlock()
 	peer.Close()
 	if onDisconnect != nil {
 		onDisconnect(peer)
@@ -636,14 +636,14 @@ func (hub *Hub) broadcastToPeers(_ *Peer, frame []byte, notifyBroadcastSubscribe
 	if hub == nil {
 		return
 	}
-	hub.mu.RLock()
+	hub.mutex.RLock()
 	peers := make([]*Peer, 0, len(hub.peers))
 	for peer := range hub.peers {
 		peers = append(peers, peer)
 	}
 	handlers := cloneChannelHandlers(hub.channelHandlers["*"])
 	broadcastHandlers := cloneBroadcastHandlers(hub.broadcastHandlers)
-	hub.mu.RUnlock()
+	hub.mutex.RUnlock()
 	for _, peer := range peers {
 		hub.sendBroadcastToPeer(peer, frame)
 	}
@@ -705,11 +705,11 @@ func (hub *Hub) processPublishDelivery(channel string, frame []byte, notifyPubli
 	if hub == nil {
 		return
 	}
-	hub.mu.RLock()
+	hub.mutex.RLock()
 	handlers := cloneChannelHandlers(hub.channelHandlers[channel])
 	wildcardHandlers := cloneChannelHandlers(hub.channelHandlers["*"])
 	publishHandlers := clonePublishHandlers(hub.publishHandlers)
-	hub.mu.RUnlock()
+	hub.mutex.RUnlock()
 
 	hub.invokeHandlers(handlers, frame)
 	if channel != "*" {
@@ -724,18 +724,18 @@ func (hub *Hub) subscribePublished(handler func(string, []byte)) func() {
 	if hub == nil || handler == nil {
 		return func() {}
 	}
-	hub.mu.Lock()
+	hub.mutex.Lock()
 	if hub.publishHandlers == nil {
 		hub.publishHandlers = map[uint64]func(string, []byte){}
 	}
 	hub.nextHandlerID++
 	id := hub.nextHandlerID
 	hub.publishHandlers[id] = handler
-	hub.mu.Unlock()
+	hub.mutex.Unlock()
 
 	return onceFunction(func() {
-		hub.mu.Lock()
-		defer hub.mu.Unlock()
+		hub.mutex.Lock()
+		defer hub.mutex.Unlock()
 		delete(hub.publishHandlers, id)
 	})
 }

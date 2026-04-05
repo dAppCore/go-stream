@@ -632,9 +632,9 @@ func waitForListenerAddress(t *testing.T, adapter *Adapter) string {
 	t.Helper()
 	deadline := time.Now().Add(2 * time.Second)
 	for time.Now().Before(deadline) {
-		adapter.mu.Lock()
+		adapter.mutex.Lock()
 		listener := adapter.listener
-		adapter.mu.Unlock()
+		adapter.mutex.Unlock()
 		if listener != nil {
 			return listener.Addr().String()
 		}

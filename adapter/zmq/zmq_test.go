@@ -444,9 +444,9 @@ func waitForAdapterRunning(t *testing.T, adapter *Adapter) {
 	t.Helper()
 	deadline := time.Now().Add(2 * time.Second)
 	for time.Now().Before(deadline) {
-		adapter.mu.RLock()
+		adapter.mutex.RLock()
 		running := adapter.running
-		adapter.mu.RUnlock()
+		adapter.mutex.RUnlock()
 		if running {
 			time.Sleep(100 * time.Millisecond)
 			return

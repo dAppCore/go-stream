@@ -44,7 +44,7 @@ type ReconnectConfig struct {
 type ReconnectingTCP struct {
 	config ReconnectConfig
 
-	mu     sync.RWMutex
+	mutex  sync.RWMutex
 	conn   net.Conn
 	state  stream.ConnectionState
 	closed bool
@@ -163,8 +163,8 @@ func (client *ReconnectingTCP) Send(channel string, frame []byte) error {
 	if client == nil {
 		return core.E("stream.tcp", "nil reconnecting tcp", nil)
 	}
-	client.mu.RLock()
-	defer client.mu.RUnlock()
+	client.mutex.RLock()
+	defer client.mutex.RUnlock()
 	if client.conn == nil {
 		return core.E("stream.tcp", "not connected", nil)
 	}
@@ -178,8 +178,8 @@ func (client *ReconnectingTCP) State() stream.ConnectionState {
 	if client == nil {
 		return stream.StateDisconnected
 	}
-	client.mu.RLock()
-	defer client.mu.RUnlock()
+	client.mutex.RLock()
+	defer client.mutex.RUnlock()
 	return client.state
 }
 
@@ -188,12 +188,12 @@ func (client *ReconnectingTCP) Close() error {
 	if client == nil {
 		return nil
 	}
-	client.mu.Lock()
+	client.mutex.Lock()
 	client.closed = true
 	conn := client.conn
 	client.conn = nil
 	client.state = stream.StateDisconnected
-	client.mu.Unlock()
+	client.mutex.Unlock()
 	if conn != nil {
 		return conn.Close()
 	}
@@ -235,30 +235,30 @@ func (client *ReconnectingTCP) readLoop(ctx context.Context, conn net.Conn) erro
 }
 
 func (client *ReconnectingTCP) setConn(conn net.Conn) {
-	client.mu.Lock()
+	client.mutex.Lock()
 	client.conn = conn
 	client.state = stream.StateConnected
-	client.mu.Unlock()
+	client.mutex.Unlock()
 }
 
 func (client *ReconnectingTCP) clearConn(conn net.Conn) {
-	client.mu.Lock()
+	client.mutex.Lock()
 	if client.conn == conn {
 		client.conn = nil
 		client.state = stream.StateDisconnected
 	}
-	client.mu.Unlock()
+	client.mutex.Unlock()
 }
 
 func (client *ReconnectingTCP) setState(state stream.ConnectionState) {
-	client.mu.Lock()
+	client.mutex.Lock()
 	client.state = state
-	client.mu.Unlock()
+	client.mutex.Unlock()
 }
 
 func (client *ReconnectingTCP) isClosed() bool {
-	client.mu.RLock()
-	defer client.mu.RUnlock()
+	client.mutex.RLock()
+	defer client.mutex.RUnlock()
 	return client.closed
 }
 

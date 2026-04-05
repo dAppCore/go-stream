@@ -43,7 +43,7 @@ type Bridge struct {
 	config   Config
 	sourceID string
 
-	mu            sync.RWMutex
+	mutex         sync.RWMutex
 	running       bool
 	cancel        context.CancelFunc
 	pubsub        *redis.PubSub
@@ -93,13 +93,13 @@ func (bridge *Bridge) Start(ctx context.Context) error {
 		ctx = context.Background()
 	}
 
-	bridge.mu.Lock()
+	bridge.mutex.Lock()
 	if bridge.running {
-		bridge.mu.Unlock()
+		bridge.mutex.Unlock()
 		return nil
 	}
 	bridge.running = true
-	bridge.mu.Unlock()
+	bridge.mutex.Unlock()
 
 	runContext, runCancel := context.WithCancel(ctx)
 	client := newRedisClient(bridge.config)
@@ -114,16 +114,16 @@ func (bridge *Bridge) Start(ctx context.Context) error {
 		_ = bridge.publishWithClient(client, bridge.broadcastChannel(), frame)
 	})
 
-	bridge.mu.Lock()
+	bridge.mutex.Lock()
 	bridge.cancel = runCancel
 	bridge.client = client
 	bridge.pubsub = pubsub
 	bridge.publishStop = publishStop
 	bridge.broadcastStop = broadcastStop
-	bridge.mu.Unlock()
+	bridge.mutex.Unlock()
 
 	defer func() {
-		bridge.mu.Lock()
+		bridge.mutex.Lock()
 		publishStop := bridge.publishStop
 		broadcastStop := bridge.broadcastStop
 		bridge.running = false
@@ -132,7 +132,7 @@ func (bridge *Bridge) Start(ctx context.Context) error {
 		bridge.pubsub = nil
 		bridge.publishStop = nil
 		bridge.broadcastStop = nil
-		bridge.mu.Unlock()
+		bridge.mutex.Unlock()
 		if publishStop != nil {
 			publishStop()
 		}
@@ -176,14 +176,14 @@ func (bridge *Bridge) Stop() error {
 		return nil
 	}
 
-	bridge.mu.RLock()
+	bridge.mutex.RLock()
 	running := bridge.running
 	cancel := bridge.cancel
 	pubsub := bridge.pubsub
 	client := bridge.client
 	publishStop := bridge.publishStop
 	broadcastStop := bridge.broadcastStop
-	bridge.mu.RUnlock()
+	bridge.mutex.RUnlock()
 
 	if !running {
 		return nil
@@ -237,10 +237,10 @@ func (bridge *Bridge) SourceID() string {
 }
 
 func (bridge *Bridge) publish(channel string, frame []byte) error {
-	bridge.mu.RLock()
+	bridge.mutex.RLock()
 	running := bridge.running
 	client := bridge.client
-	bridge.mu.RUnlock()
+	bridge.mutex.RUnlock()
 	if !running {
 		return core.E("stream.redis", "bridge not started", nil)
 	}

@@ -42,7 +42,7 @@ type ReconnectingClient struct {
 	config ReconnectConfig
 	state  stream.ConnectionState
 
-	mu     sync.RWMutex
+	mutex  sync.RWMutex
 	conn   *websocket.Conn
 	closed bool
 }
@@ -103,10 +103,10 @@ func (client *ReconnectingClient) Connect(ctx context.Context) error {
 			continue
 		}
 
-		client.mu.Lock()
+		client.mutex.Lock()
 		client.conn = conn
 		client.state = stream.StateConnected
-		client.mu.Unlock()
+		client.mutex.Unlock()
 		stopClose := context.AfterFunc(ctx, func() {
 			_ = conn.Close()
 		})
@@ -119,12 +119,12 @@ func (client *ReconnectingClient) Connect(ctx context.Context) error {
 		readErr := client.readLoop(ctx, conn)
 		stopClose()
 
-		client.mu.Lock()
+		client.mutex.Lock()
 		if client.conn == conn {
 			client.conn = nil
 		}
 		client.state = stream.StateDisconnected
-		client.mu.Unlock()
+		client.mutex.Unlock()
 		_ = conn.Close()
 		if client.config.OnDisconnect != nil {
 			client.config.OnDisconnect()
@@ -167,14 +167,14 @@ func (client *ReconnectingClient) Send(msg stream.Message) error {
 		return core.E("stream.ws", "failed to marshal message", nil)
 	}
 
-	client.mu.RLock()
+	client.mutex.RLock()
 	conn := client.conn
-	client.mu.RUnlock()
+	client.mutex.RUnlock()
 	if conn == nil {
 		return core.E("stream.ws", "not connected", nil)
 	}
-	client.mu.Lock()
-	defer client.mu.Unlock()
+	client.mutex.Lock()
+	defer client.mutex.Unlock()
 	if client.conn == nil {
 		return core.E("stream.ws", "not connected", nil)
 	}
@@ -186,8 +186,8 @@ func (client *ReconnectingClient) State() stream.ConnectionState {
 	if client == nil {
 		return stream.StateDisconnected
 	}
-	client.mu.RLock()
-	defer client.mu.RUnlock()
+	client.mutex.RLock()
+	defer client.mutex.RUnlock()
 	return client.state
 }
 
@@ -196,12 +196,12 @@ func (client *ReconnectingClient) Close() error {
 	if client == nil {
 		return nil
 	}
-	client.mu.Lock()
+	client.mutex.Lock()
 	client.closed = true
 	conn := client.conn
 	client.conn = nil
 	client.state = stream.StateDisconnected
-	client.mu.Unlock()
+	client.mutex.Unlock()
 	if conn != nil {
 		return conn.Close()
 	}
@@ -233,15 +233,15 @@ func (client *ReconnectingClient) readLoop(ctx context.Context, conn *websocket.
 }
 
 func (client *ReconnectingClient) isClosed() bool {
-	client.mu.RLock()
-	defer client.mu.RUnlock()
+	client.mutex.RLock()
+	defer client.mutex.RUnlock()
 	return client.closed
 }
 
 func (client *ReconnectingClient) setState(state stream.ConnectionState) {
-	client.mu.Lock()
+	client.mutex.Lock()
 	client.state = state
-	client.mu.Unlock()
+	client.mutex.Unlock()
 }
 
 func nextBackoff(current time.Duration, multiplier float64, maximum time.Duration) time.Duration {
