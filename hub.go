@@ -451,6 +451,15 @@ func (hub *Hub) AllPeers() iter.Seq[*Peer] {
 		peers = append(peers, peer)
 	}
 	hub.mu.RUnlock()
+	sort.SliceStable(peers, func(left, right int) bool {
+		if peers[left] == nil {
+			return false
+		}
+		if peers[right] == nil {
+			return true
+		}
+		return peers[left].ID < peers[right].ID
+	})
 	return func(yield func(*Peer) bool) {
 		for _, peer := range peers {
 			if !yield(peer) {
@@ -764,6 +773,15 @@ func (hub *Hub) collectChannelPeersLocked(channel string, source *Peer) []*Peer 
 	for peer := range combined {
 		peers = append(peers, peer)
 	}
+	sort.SliceStable(peers, func(left, right int) bool {
+		if peers[left] == nil {
+			return false
+		}
+		if peers[right] == nil {
+			return true
+		}
+		return peers[left].ID < peers[right].ID
+	})
 	return peers
 }
 
