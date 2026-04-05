@@ -185,6 +185,10 @@ func (adapter *Adapter) dial(ctx context.Context) (net.Conn, error) {
 
 func (adapter *Adapter) handleConn(ctx context.Context, conn net.Conn, hub *stream.Hub) {
 	defer conn.Close()
+	stopClose := context.AfterFunc(ctx, func() {
+		_ = conn.Close()
+	})
+	defer stopClose()
 
 	channel, frame, err := readFrame(conn, adapter.config.HandshakeTimeout, maxHandshakeFrameSize)
 	if err != nil {
@@ -238,6 +242,10 @@ func dispatchFrame(hub *stream.Hub, peer *stream.Peer, channel string, frame []b
 
 func (adapter *Adapter) pipePeer(ctx context.Context, conn net.Conn, peer *stream.Peer, hub *stream.Hub) {
 	defer conn.Close()
+	stopClose := context.AfterFunc(ctx, func() {
+		_ = conn.Close()
+	})
+	defer stopClose()
 	go adapter.writePump(ctx, conn, peer, hub.Config().WriteTimeout)
 	for {
 		channel, frame, err := readFrame(conn, 0, MaxFrameSize)

@@ -8,6 +8,7 @@
 package ws
 
 import (
+	"context"
 	"net/http"
 	"time"
 
@@ -139,6 +140,10 @@ func (adapter *Adapter) serveHTTP(w http.ResponseWriter, r *http.Request, channe
 		_ = adapter.hub.SubscribePeer(peer, channel)
 	}
 	defer conn.Close()
+	stopClose := context.AfterFunc(r.Context(), func() {
+		_ = conn.Close()
+	})
+	defer stopClose()
 
 	hubConfig := adapter.hub.Config()
 	if hubConfig.PongTimeout > 0 {

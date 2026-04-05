@@ -103,6 +103,9 @@ func (client *ReconnectingTCP) Connect(ctx context.Context) error {
 		}
 
 		client.setConn(conn)
+		stopClose := context.AfterFunc(ctx, func() {
+			_ = conn.Close()
+		})
 		backoff = client.config.InitialBackoff
 		attempt = 0
 		if client.config.OnConnect != nil {
@@ -110,6 +113,7 @@ func (client *ReconnectingTCP) Connect(ctx context.Context) error {
 		}
 
 		readErr := client.readLoop(ctx, conn)
+		stopClose()
 
 		client.clearConn(conn)
 		client.setState(stream.StateDisconnected)

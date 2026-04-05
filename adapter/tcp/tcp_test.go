@@ -160,6 +160,48 @@ func TestTCP_Listen_NoSelfEcho_Good(t *testing.T) {
 	}
 }
 
+func TestTCP_Listen_ContextCancel_ClosesPeer_Good(t *testing.T) {
+	hub := stream.NewHub()
+	hubContext, hubCancel := context.WithCancel(context.Background())
+	defer hubCancel()
+	go hub.Run(hubContext)
+
+	adapter := New(Config{
+		Addr: "127.0.0.1:0",
+	})
+	adapter.Mount(hub)
+
+	listenContext, listenCancel := context.WithCancel(context.Background())
+	go func() {
+		_ = adapter.Listen(listenContext)
+	}()
+
+	address := waitForListenerAddress(t, adapter)
+	connection, err := net.Dial("tcp", address)
+	if err != nil {
+		t.Fatalf("Dial() error = %v", err)
+	}
+	defer connection.Close()
+
+	if _, err := connection.Write(encodeFrame("", []byte("hello"))); err != nil {
+		t.Fatalf("Write() error = %v", err)
+	}
+
+	waitForPeerCount(t, hub, 1)
+
+	listenCancel()
+
+	channel, frame, err := readFrame(connection, 2*time.Second, MaxFrameSize)
+	if err == nil {
+		t.Fatalf("readFrame() = (%q, %q, nil), want connection close", channel, string(frame))
+	}
+	if err == stream.ErrHandshakeTimeout {
+		t.Fatalf("readFrame() error = %v, want connection close", err)
+	}
+
+	waitForPeerCount(t, hub, 0)
+}
+
 func TestTCP_Listen_Bad(t *testing.T) {
 	hub := stream.NewHub()
 	hubContext, hubCancel := context.WithCancel(context.Background())
