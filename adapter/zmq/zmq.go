@@ -9,6 +9,7 @@
 //	})
 //	adapter.Mount(hub)
 //	go adapter.Start(ctx)
+//	defer adapter.Stop()
 package zmq
 
 import (
@@ -89,6 +90,9 @@ func (adapter *Adapter) Mount(hub *stream.Hub) {
 }
 
 // go adapter.Start(ctx)
+//
+// Start connects the socket, validates the optional handshake, and forwards
+// received frames into the mounted hub until the context is cancelled.
 func (adapter *Adapter) Start(ctx context.Context) error {
 	if adapter == nil {
 		return core.E("stream.zmq", "nil adapter", nil)
@@ -204,6 +208,8 @@ func (adapter *Adapter) Publish(channel string, frame []byte) error {
 }
 
 // Stop shuts down the adapter.
+//
+//	defer adapter.Stop()
 func (adapter *Adapter) Stop() error {
 	if adapter == nil {
 		return nil
