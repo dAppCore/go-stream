@@ -71,6 +71,26 @@ func ExamplePipe() {
 	// {"height":42}
 }
 
+func ExampleHub_Stats() {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	hub := stream.NewHub()
+	go hub.Run(ctx)
+
+	peer := stream.NewPeer("ws")
+	_ = hub.AddPeer(peer)
+	defer hub.RemovePeer(peer)
+
+	_ = hub.SubscribePeer(peer, "hashrate")
+
+	stats := hub.Stats()
+	fmt.Println(stats.Peers, stats.Channels, stats.SubscriberCount["hashrate"])
+
+	// Output:
+	// 1 1 1
+}
+
 func waitForHub(hub *stream.Hub) {
 	deadline := time.Now().Add(time.Second)
 	for time.Now().Before(deadline) {
