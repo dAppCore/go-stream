@@ -45,7 +45,7 @@ func NewHub() *Hub {
 
 //	hub := stream.NewHubWithConfig(stream.HubConfig{
 //		HeartbeatInterval: 30 * time.Second,
-//		OnConnect: func(peer *stream.Peer) { log.Println("connected", peer.ID) },
+//		OnConnect: func(peer *stream.Peer) { core.Print("stream", "connected %s", peer.ID) },
 //	})
 func NewHubWithConfig(config HubConfig) *Hub {
 	config = normalizeHubConfig(config)

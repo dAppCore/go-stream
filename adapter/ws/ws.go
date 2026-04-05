@@ -21,7 +21,7 @@ import (
 //	config := ws.Config{
 //	    Authenticator: stream.NewAPIKeyAuth(keys),
 //	    OnAuthFailure: func(r *http.Request, res stream.AuthResult) {
-//	        log.Printf("ws auth fail from %s", r.RemoteAddr)
+//	        core.Print("stream", "ws auth fail from %s", r.RemoteAddr)
 //	    },
 //	}
 type Config struct {
