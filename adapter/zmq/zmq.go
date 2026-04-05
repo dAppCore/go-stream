@@ -142,10 +142,15 @@ func (adapter *Adapter) Start(ctx context.Context) error {
 	}()
 
 	if !adapter.isReceiver() {
+		peer := adapter.registerPeer(socket, stream.AuthResult{})
+		if peer != nil {
+			defer adapter.hub.RemovePeer(peer)
+		}
 		<-runContext.Done()
 		return nil
 	}
 
+	authResult := stream.AuthResult{Valid: true}
 	if adapter.config.ConnAuthenticator != nil {
 		handshake, err := adapter.recvWithTimeout(runContext, socket, adapter.config.HandshakeTimeout)
 		if err != nil {
@@ -157,10 +162,14 @@ func (adapter *Adapter) Start(ctx context.Context) error {
 		if len(handshake.Bytes()) > maxHandshakeFrameSize {
 			return stream.ErrAuthRejected
 		}
-		authResult := adapter.config.ConnAuthenticator.AuthenticateConn(handshake.Bytes())
+		authResult = adapter.config.ConnAuthenticator.AuthenticateConn(handshake.Bytes())
 		if !authResult.Valid {
 			return stream.ErrAuthRejected
 		}
+	}
+	peer := adapter.registerPeer(socket, authResult)
+	if peer != nil {
+		defer adapter.hub.RemovePeer(peer)
 	}
 
 	for {
@@ -182,6 +191,24 @@ func (adapter *Adapter) Start(ctx context.Context) error {
 		}
 		_ = adapter.hub.Publish(channel, frame)
 	}
+}
+
+func (adapter *Adapter) registerPeer(socket zmq4.Socket, authResult stream.AuthResult) *stream.Peer {
+	if adapter == nil || adapter.hub == nil {
+		return nil
+	}
+	peer := stream.NewPeer("zmq")
+	peer.UserID = authResult.UserID
+	peer.Claims = authResult.Claims
+	if socket != nil {
+		peer.SetCloseHook(func() {
+			_ = socket.Close()
+		})
+	}
+	if err := adapter.hub.AddPeer(peer); err != nil {
+		return nil
+	}
+	return peer
 }
 
 // _ = adapter.Publish("block", templateBytes)

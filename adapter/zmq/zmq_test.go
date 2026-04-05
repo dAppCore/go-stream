@@ -204,6 +204,80 @@ func TestAdapter_Start_Auth_Good(t *testing.T) {
 	t.Fatal("timed out waiting for authenticated zmq frame")
 }
 
+func TestAdapter_Start_RegistersPeer_Good(t *testing.T) {
+	connected := make(chan *stream.Peer, 1)
+	hub := stream.NewHubWithConfig(stream.HubConfig{
+		OnConnect: func(peer *stream.Peer) {
+			select {
+			case connected <- peer:
+			default:
+			}
+		},
+	})
+	hubContext, hubCancel := context.WithCancel(context.Background())
+	defer hubCancel()
+	go hub.Run(hubContext)
+
+	endpoint := randomTCPEndpoint(t)
+	subscriber := New(Config{
+		Mode:     ModePubSub,
+		Endpoint: endpoint,
+		Role:     RoleSubscriber,
+		Topics:   []string{"block"},
+		ConnAuthenticator: stream.ConnAuthenticatorFunc(func(handshake []byte) stream.AuthResult {
+			if string(handshake) != "block\x00hello" {
+				return stream.AuthResult{Valid: false}
+			}
+			return stream.AuthResult{
+				Valid:  true,
+				UserID: "node-42",
+				Claims: map[string]any{"role": "worker"},
+			}
+		}),
+	})
+	subscriber.Mount(hub)
+
+	publisher := New(Config{
+		Mode:     ModePubSub,
+		Endpoint: endpoint,
+		Role:     RolePublisher,
+	})
+	publisher.Mount(stream.NewHub())
+
+	runContext, runCancel := context.WithCancel(context.Background())
+	defer runCancel()
+	go func() { _ = subscriber.Start(runContext) }()
+	go func() { _ = publisher.Start(runContext) }()
+	waitForAdapterRunning(t, subscriber)
+	waitForAdapterRunning(t, publisher)
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if err := publisher.Publish("block", []byte("hello")); err != nil {
+			t.Fatalf("handshake Publish() error = %v", err)
+		}
+		select {
+		case peer := <-connected:
+			if peer.Transport != "zmq" {
+				t.Fatalf("connected peer transport = %q, want %q", peer.Transport, "zmq")
+			}
+			if peer.UserID != "node-42" {
+				t.Fatalf("connected peer userID = %q, want %q", peer.UserID, "node-42")
+			}
+			if role, _ := peer.Claims["role"].(string); role != "worker" {
+				t.Fatalf("connected peer role = %q, want %q", role, "worker")
+			}
+			if peers := hub.PeerCount(); peers != 1 {
+				t.Fatalf("PeerCount() = %d, want %d", peers, 1)
+			}
+			return
+		case <-time.After(100 * time.Millisecond):
+		}
+	}
+
+	t.Fatal("timed out waiting for zmq peer registration")
+}
+
 func TestAdapter_Start_Auth_Ugly(t *testing.T) {
 	endpoint := randomTCPEndpoint(t)
 	hub := stream.NewHub()
