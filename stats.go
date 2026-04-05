@@ -1,7 +1,5 @@
 // SPDX-License-Identifier: EUPL-1.2
 
-// Package stream snapshots hub state.
-//
 //	stats := hub.Stats()
 //	core.Print("stream", "peers=%d channels=%d", stats.Peers, stats.Channels)
 package stream

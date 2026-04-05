@@ -1,7 +1,5 @@
 // SPDX-License-Identifier: EUPL-1.2
 
-// Package redis bridges a hub through Redis pub/sub.
-//
 //	bridge, err := redis.NewBridge(hub, redis.Config{Addr: "redis:6379", Prefix: "pool"})
 //	if err != nil {
 //		return err

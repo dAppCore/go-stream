@@ -1,7 +1,5 @@
 // SPDX-License-Identifier: EUPL-1.2
 
-// Package tcp carries hub frames over raw TCP.
-//
 //	adapter := tcp.New(tcp.Config{Addr: ":9000"})
 //	adapter.Mount(hub)
 //	go adapter.Listen(ctx)

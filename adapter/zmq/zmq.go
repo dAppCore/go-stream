@@ -1,7 +1,5 @@
 // SPDX-License-Identifier: EUPL-1.2
 
-// Package zmq wires a hub to ZeroMQ sockets.
-//
 //	adapter := zmq.New(zmq.Config{
 //		Mode:     zmq.ModePubSub,
 //		Endpoint: "tcp://127.0.0.1:5555",

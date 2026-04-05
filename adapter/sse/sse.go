@@ -1,7 +1,5 @@
 // SPDX-License-Identifier: EUPL-1.2
 
-// Package sse streams hub frames over Server-Sent Events.
-//
 //	adapter := sse.New(sse.Config{HeartbeatInterval: 15 * time.Second})
 //	adapter.Mount(hub)
 //	http.Handle("/stream/events", adapter.Handler())

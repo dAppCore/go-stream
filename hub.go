@@ -1,7 +1,5 @@
 // SPDX-License-Identifier: EUPL-1.2
 
-// Package stream composes hubs, peers, and pipes.
-//
 //	hub := stream.NewHub()
 //	go hub.Run(ctx)
 //	stop := hub.Pipe(remoteHub)

@@ -1,7 +1,5 @@
 // SPDX-License-Identifier: EUPL-1.2
 
-// Package ws mounts gorilla/websocket on a stream hub.
-//
 //	adapter := ws.New(ws.Config{Authenticator: auth})
 //	adapter.Mount(hub)
 //	http.Handle("/stream/ws", adapter.Handler())
