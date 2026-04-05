@@ -630,16 +630,13 @@ func (hub *Hub) removePeer(peer *Peer) {
 	}
 }
 
-func (hub *Hub) broadcastToPeers(source *Peer, frame []byte, notifyBroadcastSubscribers bool) {
+func (hub *Hub) broadcastToPeers(_ *Peer, frame []byte, notifyBroadcastSubscribers bool) {
 	if hub == nil {
 		return
 	}
 	hub.mu.RLock()
 	peers := make([]*Peer, 0, len(hub.peers))
 	for peer := range hub.peers {
-		if peer == source {
-			continue
-		}
 		peers = append(peers, peer)
 	}
 	handlers := cloneChannelHandlers(hub.channelHandlers["*"])
@@ -763,19 +760,13 @@ func (hub *Hub) invokePublishHandlers(handlers []func(string, []byte), channel s
 	}
 }
 
-func (hub *Hub) collectChannelPeersLocked(channel string, source *Peer) []*Peer {
+func (hub *Hub) collectChannelPeersLocked(channel string, _ *Peer) []*Peer {
 	combined := map[*Peer]struct{}{}
 	for peer := range hub.channels[channel] {
-		if peer == source {
-			continue
-		}
 		combined[peer] = struct{}{}
 	}
 	if channel != "*" {
 		for peer := range hub.channels["*"] {
-			if peer == source {
-				continue
-			}
 			combined[peer] = struct{}{}
 		}
 	}

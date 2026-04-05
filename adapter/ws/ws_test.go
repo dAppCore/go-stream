@@ -5,7 +5,6 @@ package ws
 import (
 	"context"
 	"encoding/json"
-	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -300,7 +299,7 @@ func TestAdapter_Handler_InboundPublish_Good(t *testing.T) {
 	}
 }
 
-func TestAdapter_Handler_InboundPublish_NoSelfEcho_Good(t *testing.T) {
+func TestAdapter_Handler_InboundPublish_SelfDelivery_Good(t *testing.T) {
 	hub := stream.NewHub()
 	hubContext, hubCancel := context.WithCancel(context.Background())
 	defer hubCancel()
@@ -333,12 +332,23 @@ func TestAdapter_Handler_InboundPublish_NoSelfEcho_Good(t *testing.T) {
 		t.Fatalf("WriteJSON(event) error = %v", err)
 	}
 
-	_, _, err := conn.ReadMessage()
-	if err == nil {
-		t.Fatal("ReadMessage() error = nil, want read timeout without self-echo")
+	messageType, payload, err := conn.ReadMessage()
+	if err != nil {
+		t.Fatalf("ReadMessage() error = %v", err)
 	}
-	if netErr, ok := err.(net.Error); !ok || !netErr.Timeout() {
-		t.Fatalf("ReadMessage() error = %v, want timeout", err)
+	if messageType != websocket.TextMessage {
+		t.Fatalf("messageType = %d, want %d", messageType, websocket.TextMessage)
+	}
+
+	var decoded stream.Message
+	if err := json.Unmarshal(payload, &decoded); err != nil {
+		t.Fatalf("received invalid JSON frame: %q", string(payload))
+	}
+	if decoded.Type != stream.TypeEvent {
+		t.Fatalf("decoded.Type = %q, want %q", decoded.Type, stream.TypeEvent)
+	}
+	if decoded.Channel != "agent" {
+		t.Fatalf("decoded.Channel = %q, want %q", decoded.Channel, "agent")
 	}
 	_ = conn.SetReadDeadline(time.Time{})
 }

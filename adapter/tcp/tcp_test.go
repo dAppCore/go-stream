@@ -108,7 +108,7 @@ func TestTCP_Listen_NoAuthenticator_Good(t *testing.T) {
 	}
 }
 
-func TestTCP_Listen_NoSelfEcho_Good(t *testing.T) {
+func TestTCP_Listen_SelfDelivery_Good(t *testing.T) {
 	hub := stream.NewHub()
 	hubContext, hubCancel := context.WithCancel(context.Background())
 	defer hubCancel()
@@ -151,12 +151,15 @@ func TestTCP_Listen_NoSelfEcho_Good(t *testing.T) {
 		t.Fatal("timed out waiting for published TCP frame")
 	}
 
-	channel, frame, err := readFrame(connection, 200*time.Millisecond, MaxFrameSize)
-	if err == nil {
-		t.Fatalf("readFrame() = (%q, %q, nil), want timeout without self-echo", channel, string(frame))
+	channel, frame, err := readFrame(connection, 2*time.Second, MaxFrameSize)
+	if err != nil {
+		t.Fatalf("readFrame() error = %v", err)
 	}
-	if err != stream.ErrHandshakeTimeout {
-		t.Fatalf("readFrame() error = %v, want %v", err, stream.ErrHandshakeTimeout)
+	if channel != "block" {
+		t.Fatalf("readFrame() channel = %q, want %q", channel, "block")
+	}
+	if string(frame) != "template" {
+		t.Fatalf("readFrame() frame = %q, want %q", string(frame), "template")
 	}
 }
 
@@ -189,9 +192,20 @@ func TestTCP_Listen_ContextCancel_ClosesPeer_Good(t *testing.T) {
 
 	waitForPeerCount(t, hub, 1)
 
+	channel, frame, err := readFrame(connection, 2*time.Second, MaxFrameSize)
+	if err != nil {
+		t.Fatalf("readFrame() initial echo error = %v", err)
+	}
+	if channel != "" {
+		t.Fatalf("readFrame() initial echo channel = %q, want %q", channel, "")
+	}
+	if string(frame) != "hello" {
+		t.Fatalf("readFrame() initial echo frame = %q, want %q", string(frame), "hello")
+	}
+
 	listenCancel()
 
-	channel, frame, err := readFrame(connection, 2*time.Second, MaxFrameSize)
+	channel, frame, err = readFrame(connection, 2*time.Second, MaxFrameSize)
 	if err == nil {
 		t.Fatalf("readFrame() = (%q, %q, nil), want connection close", channel, string(frame))
 	}
