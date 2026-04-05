@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: EUPL-1.2
 
-// Package tcp is the raw TCP transport adapter for stream.Hub.
-// Length-prefixed framing over plain or TLS TCP. Used by go-p2p VPN tunnels
-// and go-proxy stratum sessions where WebSocket overhead is undesirable.
+// Package tcp carries hub frames over raw TCP.
+//
+//	adapter := tcp.New(tcp.Config{Addr: ":9000"})
+//	adapter.Mount(hub)
+//	go adapter.Listen(ctx)
 package tcp
 
 import (

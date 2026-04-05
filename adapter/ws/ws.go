@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: EUPL-1.2
 
-// Package ws is the WebSocket transport adapter for stream.Hub.
-// It wires gorilla/websocket onto the hub, handling HTTP upgrade,
-// per-client read/write pumps, and authentication.
+// Package ws mounts gorilla/websocket on a stream hub.
 //
 //	adapter := ws.New(ws.Config{Authenticator: auth})
 //	adapter.Mount(hub)

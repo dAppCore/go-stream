@@ -1,8 +1,12 @@
 // SPDX-License-Identifier: EUPL-1.2
 
-// Package redis is the Redis pub/sub bridge for stream.Hub.
-// Enables cross-instance coordination: multiple Hub instances on different nodes
-// using the same Redis backend coordinate broadcasts and channel messages transparently.
+// Package redis bridges a hub through Redis pub/sub.
+//
+//	bridge, err := redis.NewBridge(hub, redis.Config{Addr: "redis:6379", Prefix: "pool"})
+//	if err != nil {
+//	    return err
+//	}
+//	go bridge.Start(ctx)
 package redis
 
 import (

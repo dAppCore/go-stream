@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: EUPL-1.2
 
-// Package stream is the transport-agnostic event and data pipe for the CoreGO
-// ecosystem.
+// Package stream wires one hub to many transports.
 //
 //	hub := stream.NewHub()
 //	go hub.Run(ctx)

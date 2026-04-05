@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: EUPL-1.2
 
-// Package sse is the Server-Sent Events transport adapter for stream.Hub.
-// Lightweight server-push over HTTP/1.1 - no upgrade required.
-// Used by core/api for live stats, agent event streams, and /live_stats endpoints.
+// Package sse streams hub frames over Server-Sent Events.
+//
+//	adapter := sse.New(sse.Config{HeartbeatInterval: 15 * time.Second})
+//	adapter.Mount(hub)
+//	http.Handle("/stream/events", adapter.Handler())
 package sse
 
 import (
