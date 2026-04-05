@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: EUPL-1.2
 
-//	stats := hub.Stats()
-//	core.Print("stream", "peers=%d channels=%d", stats.Peers, stats.Channels)
 package stream
 
+// HubStats matches the snapshot returned by hub.Stats().
 type HubStats struct {
 	// stats := hub.Stats()
 	// core.Print("stream", "peers=%d", stats.Peers)

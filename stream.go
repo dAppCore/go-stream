@@ -125,6 +125,7 @@ func (peer *Peer) Send(frame []byte) bool {
 	}
 }
 
+// peer := stream.NewPeer("ws")
 // peer.SetCloseHook(func() { _ = conn.Close() })
 // peer.Close()
 func (peer *Peer) Close() {

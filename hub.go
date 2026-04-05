@@ -140,7 +140,7 @@ func (hub *Hub) Run(ctx context.Context) {
 	}
 }
 
-// _ = hub.SendToChannel("hashrate", []byte(`{"h":123456}`))
+// hub.SendToChannel("hashrate", []byte(`{"h":123456}`))
 func (hub *Hub) SendToChannel(channel string, frame []byte) error {
 	return hub.sendToChannel(channel, frame, true)
 }
