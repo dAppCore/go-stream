@@ -273,6 +273,7 @@ var (
 	_ time.Duration
 )
 
+// id := randomUUID() // "a1b2c3d4-e5f6-4a7b-8c9d-e0f1a2b3c4d5"
 func randomUUID() string {
 	var raw [16]byte
 	_, _ = rand.Read(raw[:])
@@ -285,6 +286,8 @@ func randomUUID() string {
 		hex.EncodeToString(raw[10:])
 }
 
+// wire := encodeTCPFrame("block", []byte("template"))
+// _ = conn.Write(wire)
 func encodeTCPFrame(channel string, frame []byte) []byte {
 	channelBytes := []byte(channel)
 	payloadLength := uint32(4 + len(channelBytes) + len(frame))
@@ -296,6 +299,7 @@ func encodeTCPFrame(channel string, frame []byte) []byte {
 	return output
 }
 
+// copy := cloneFrame(original)
 func cloneFrame(frame []byte) []byte {
 	if len(frame) == 0 {
 		return nil
@@ -303,6 +307,9 @@ func cloneFrame(frame []byte) []byte {
 	return append([]byte(nil), frame...)
 }
 
+// stop := onceFunction(func() { unsubscribe() })
+// stop() // executes once
+// stop() // no-op
 func onceFunction(handler func()) func() {
 	if handler == nil {
 		return func() {}

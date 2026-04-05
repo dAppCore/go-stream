@@ -864,6 +864,180 @@ func TestPeer_Close_Good(t *testing.T) {
 	}
 }
 
+func TestHub_Run_Good(t *testing.T) {
+	hub := NewHub()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	go hub.Run(ctx)
+	waitForRunningHub(t, hub)
+
+	peer := NewPeer("ws")
+	if err := hub.AddPeer(peer); err != nil {
+		t.Fatalf("AddPeer() error = %v", err)
+	}
+	waitForPeerCount(t, hub, 1)
+
+	cancel()
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if !hub.Running() {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if hub.Running() {
+		t.Fatal("hub still running after context cancellation")
+	}
+	if hub.PeerCount() != 0 {
+		t.Fatalf("PeerCount() = %d after shutdown, want 0", hub.PeerCount())
+	}
+}
+
+func TestHub_Run_Bad(t *testing.T) {
+	hub := NewHub()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	go hub.Run(ctx)
+	waitForRunningHub(t, hub)
+
+	// Second Run call is a no-op — hub remains running with the original context.
+	secondDone := make(chan struct{})
+	go func() {
+		hub.Run(ctx)
+		close(secondDone)
+	}()
+
+	select {
+	case <-secondDone:
+	case <-time.After(2 * time.Second):
+		t.Fatal("second Run() did not return immediately")
+	}
+
+	if !hub.Running() {
+		t.Fatal("hub stopped after second Run() call")
+	}
+}
+
+func TestHub_Run_Ugly(t *testing.T) {
+	hub := NewHub()
+	ctx, cancel := context.WithCancel(context.Background())
+
+	go hub.Run(ctx)
+	waitForRunningHub(t, hub)
+
+	peer := NewPeer("ws")
+	if err := hub.AddPeer(peer); err != nil {
+		t.Fatalf("AddPeer() error = %v", err)
+	}
+	waitForPeerCount(t, hub, 1)
+
+	// Cancel context while a broadcast is in flight.
+	go func() {
+		for i := 0; i < 100; i++ {
+			_ = hub.Broadcast([]byte("inflight"))
+		}
+	}()
+	cancel()
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if !hub.Running() {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if hub.Running() {
+		t.Fatal("hub still running after context cancellation during broadcast")
+	}
+	if hub.PeerCount() != 0 {
+		t.Fatalf("PeerCount() = %d after shutdown, want 0 (goroutine leak)", hub.PeerCount())
+	}
+}
+
+func TestHub_Subscribe_Good(t *testing.T) {
+	hub := NewHub()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	go hub.Run(ctx)
+	waitForRunningHub(t, hub)
+
+	received := make(chan []byte, 1)
+	unsubscribe := hub.Subscribe("hashrate", func(frame []byte) {
+		received <- append([]byte(nil), frame...)
+	})
+	defer unsubscribe()
+
+	if err := hub.Publish("hashrate", []byte("123456")); err != nil {
+		t.Fatalf("Publish() error = %v", err)
+	}
+
+	select {
+	case frame := <-received:
+		if string(frame) != "123456" {
+			t.Fatalf("received frame = %q, want %q", string(frame), "123456")
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for subscribed frame")
+	}
+}
+
+func TestHub_Subscribe_Bad(t *testing.T) {
+	hub := NewHub()
+
+	unsubscribe := hub.Subscribe("", func(frame []byte) {})
+	if unsubscribe == nil {
+		t.Fatal("Subscribe() with empty channel returned nil unsubscribe")
+	}
+	unsubscribe()
+}
+
+func TestHub_Subscribe_Ugly(t *testing.T) {
+	hub := NewHub()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	go hub.Run(ctx)
+	waitForRunningHub(t, hub)
+
+	panicked := 0
+	_ = hub.Subscribe("event", func(frame []byte) {
+		panicked++
+		panic("handler panic")
+	})
+
+	received := make(chan []byte, 1)
+	unsubscribe := hub.Subscribe("event", func(frame []byte) {
+		received <- append([]byte(nil), frame...)
+	})
+	defer unsubscribe()
+
+	if err := hub.Publish("event", []byte("payload")); err != nil {
+		t.Fatalf("Publish() error = %v", err)
+	}
+
+	select {
+	case frame := <-received:
+		if string(frame) != "payload" {
+			t.Fatalf("received frame = %q, want %q", string(frame), "payload")
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for safe handler after panic")
+	}
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if panicked == 1 {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatalf("panic handler count = %d, want 1", panicked)
+}
+
 func waitForRunningHub(t *testing.T, hub *Hub) {
 	t.Helper()
 	deadline := time.Now().Add(2 * time.Second)

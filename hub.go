@@ -155,10 +155,12 @@ func (hub *Hub) PublishFromBridge(channel string, frame []byte) error {
 	return hub.sendToChannel(channel, frame, false)
 }
 
+// _ = hub.sendToChannel("hashrate", []byte("123456"), true)
 func (hub *Hub) sendToChannel(channel string, frame []byte, notifyPublishSubscribers bool) error {
 	return hub.sendToChannelFromPeer(nil, channel, frame, notifyPublishSubscribers)
 }
 
+// _ = hub.sendToChannelFromPeer(peer, "hashrate", []byte("123456"), true)
 func (hub *Hub) sendToChannelFromPeer(source *Peer, channel string, frame []byte, notifyPublishSubscribers bool) error {
 	if hub == nil {
 		return core.E("stream.hub", "nil hub", nil)
@@ -332,10 +334,12 @@ func (hub *Hub) BroadcastFromBridge(frame []byte) error {
 	return hub.broadcastFrame(frame, false)
 }
 
+// _ = hub.broadcastFrame(frame, true)
 func (hub *Hub) broadcastFrame(frame []byte, notifyBroadcastSubscribers bool) error {
 	return hub.broadcastFrameFromPeer(nil, frame, notifyBroadcastSubscribers)
 }
 
+// _ = hub.broadcastFrameFromPeer(peer, frame, true)
 func (hub *Hub) broadcastFrameFromPeer(source *Peer, frame []byte, notifyBroadcastSubscribers bool) error {
 	if hub == nil {
 		return core.E("stream.hub", "nil hub", nil)
@@ -596,6 +600,7 @@ func (hub *Hub) RemovePeer(peer *Peer) {
 	hub.removePeer(peer)
 }
 
+// hub.sendToPeer(peer, "hashrate", []byte("123456"))
 func (hub *Hub) sendToPeer(peer *Peer, channel string, frame []byte) {
 	if peer == nil {
 		return
@@ -607,6 +612,7 @@ func (hub *Hub) sendToPeer(peer *Peer, channel string, frame []byte) {
 	_ = peer.Send(frame)
 }
 
+// hub.sendBroadcastToPeer(peer, []byte("shutdown"))
 func (hub *Hub) sendBroadcastToPeer(peer *Peer, frame []byte) {
 	if peer == nil {
 		return
@@ -618,6 +624,7 @@ func (hub *Hub) sendBroadcastToPeer(peer *Peer, frame []byte) {
 	_ = peer.Send(frame)
 }
 
+// hub.invokeHandlers(handlers, frame)
 func (hub *Hub) invokeHandlers(handlers []func([]byte), frame []byte) {
 	for _, handler := range handlers {
 		func(handlerFunction func([]byte)) {
@@ -629,6 +636,7 @@ func (hub *Hub) invokeHandlers(handlers []func([]byte), frame []byte) {
 	}
 }
 
+// hub.addPeer(peer)
 func (hub *Hub) addPeer(peer *Peer) {
 	if hub == nil || peer == nil {
 		return
@@ -649,6 +657,7 @@ func (hub *Hub) addPeer(peer *Peer) {
 	}
 }
 
+// hub.removePeer(peer)
 func (hub *Hub) removePeer(peer *Peer) {
 	if hub == nil || peer == nil {
 		return
@@ -676,6 +685,7 @@ func (hub *Hub) removePeer(peer *Peer) {
 	}
 }
 
+// hub.broadcastToPeers(nil, frame, true)
 func (hub *Hub) broadcastToPeers(_ *Peer, frame []byte, notifyBroadcastSubscribers bool) {
 	if hub == nil {
 		return
@@ -697,18 +707,21 @@ func (hub *Hub) broadcastToPeers(_ *Peer, frame []byte, notifyBroadcastSubscribe
 	}
 }
 
+// item := publishDelivery{channel: "block", frame: data, notifyPublishSubscribers: true}
 type publishDelivery struct {
 	channel                  string
 	frame                    []byte
 	notifyPublishSubscribers bool
 }
 
+// item := broadcastDelivery{frame: data, notifyBroadcastSubscribers: true}
 type broadcastDelivery struct {
 	source                     *Peer
 	frame                      []byte
 	notifyBroadcastSubscribers bool
 }
 
+// hub.enqueuePublishDelivery("hashrate", frame, true)
 func (hub *Hub) enqueuePublishDelivery(channel string, frame []byte, notifyPublishSubscribers bool) {
 	if hub == nil {
 		return
@@ -725,6 +738,7 @@ func (hub *Hub) enqueuePublishDelivery(channel string, frame []byte, notifyPubli
 	}
 }
 
+// hub.enqueueBroadcast(broadcastDelivery{frame: data})
 func (hub *Hub) enqueueBroadcast(item broadcastDelivery) {
 	if hub == nil {
 		return
@@ -735,6 +749,7 @@ func (hub *Hub) enqueueBroadcast(item broadcastDelivery) {
 	}
 }
 
+// go hub.enqueuePublishDeliveryAsync(publishDelivery{channel: "block", frame: data})
 func (hub *Hub) enqueuePublishDeliveryAsync(item publishDelivery) {
 	if hub == nil {
 		return
@@ -745,6 +760,7 @@ func (hub *Hub) enqueuePublishDeliveryAsync(item publishDelivery) {
 	}
 }
 
+// hub.processPublishDelivery("hashrate", frame, true)
 func (hub *Hub) processPublishDelivery(channel string, frame []byte, notifyPublishSubscribers bool) {
 	if hub == nil {
 		return
@@ -764,6 +780,7 @@ func (hub *Hub) processPublishDelivery(channel string, frame []byte, notifyPubli
 	}
 }
 
+// stop := hub.subscribePublished(func(channel string, frame []byte) { ... })
 func (hub *Hub) subscribePublished(handler func(string, []byte)) func() {
 	if hub == nil || handler == nil {
 		return func() {}
@@ -784,6 +801,7 @@ func (hub *Hub) subscribePublished(handler func(string, []byte)) func() {
 	})
 }
 
+// hub.invokeBroadcastHandlers(handlers, frame)
 func (hub *Hub) invokeBroadcastHandlers(handlers []func([]byte), frame []byte) {
 	for _, handler := range handlers {
 		func(handlerFunction func([]byte)) {
@@ -795,6 +813,7 @@ func (hub *Hub) invokeBroadcastHandlers(handlers []func([]byte), frame []byte) {
 	}
 }
 
+// hub.invokePublishHandlers(handlers, "block", frame)
 func (hub *Hub) invokePublishHandlers(handlers []func(string, []byte), channel string, frame []byte) {
 	for _, handler := range handlers {
 		func(handlerFunction func(string, []byte)) {
@@ -806,6 +825,7 @@ func (hub *Hub) invokePublishHandlers(handlers []func(string, []byte), channel s
 	}
 }
 
+// peers := hub.collectChannelPeersLocked("hashrate", nil)
 func (hub *Hub) collectChannelPeersLocked(channel string, _ *Peer) []*Peer {
 	combined := map[*Peer]struct{}{}
 	for peer := range hub.channels[channel] {
@@ -832,6 +852,7 @@ func (hub *Hub) collectChannelPeersLocked(channel string, _ *Peer) []*Peer {
 	return peers
 }
 
+// cloned := cloneChannelHandlers(hub.channelHandlers["hashrate"])
 func cloneChannelHandlers(handlers map[uint64]func([]byte)) []func([]byte) {
 	if len(handlers) == 0 {
 		return nil
@@ -843,6 +864,7 @@ func cloneChannelHandlers(handlers map[uint64]func([]byte)) []func([]byte) {
 	return cloned
 }
 
+// cloned := clonePublishHandlers(hub.publishHandlers)
 func clonePublishHandlers(handlers map[uint64]func(string, []byte)) []func(string, []byte) {
 	if len(handlers) == 0 {
 		return nil
@@ -854,6 +876,7 @@ func clonePublishHandlers(handlers map[uint64]func(string, []byte)) []func(strin
 	return cloned
 }
 
+// cloned := cloneBroadcastHandlers(hub.broadcastHandlers)
 func cloneBroadcastHandlers(handlers map[uint64]func([]byte)) []func([]byte) {
 	if len(handlers) == 0 {
 		return nil

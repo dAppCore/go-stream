@@ -48,6 +48,7 @@ func DefaultHubConfig() HubConfig {
 	}
 }
 
+// config = normalizeHubConfig(config)
 func normalizeHubConfig(config HubConfig) HubConfig {
 	defaults := DefaultHubConfig()
 	if config.HeartbeatInterval == 0 {

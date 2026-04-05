@@ -168,6 +168,7 @@ func (connAuthenticatorFunc ConnAuthenticatorFunc) AuthenticateConn(handshake []
 	return normalizeAuthResult(connAuthenticatorFunc(handshake))
 }
 
+// token, result := bearerTokenFromRequest(request)
 func bearerTokenFromRequest(request *http.Request) (string, AuthResult) {
 	header := request.Header.Get("Authorization")
 	if header == "" {
@@ -183,6 +184,7 @@ func bearerTokenFromRequest(request *http.Request) (string, AuthResult) {
 	return token, AuthResult{Valid: true}
 }
 
+// result = normalizeAuthResult(result)
 func normalizeAuthResult(result AuthResult) AuthResult {
 	if !result.Valid {
 		return result
