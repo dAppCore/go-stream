@@ -1,15 +1,19 @@
 // SPDX-License-Identifier: EUPL-1.2
 
-//	bridge, err := redis.NewBridge(hub, redis.Config{Addr: "redis:6379", Prefix: "pool"})
+// bridge, err := redis.NewBridge(hub, redis.Config{Addr: "redis:6379", Prefix: "pool"})
+//
 //	if err != nil {
 //		return err
 //	}
-//	go bridge.Start(ctx)
+//
+// go bridge.Start(ctx)
 package redis
 
 import (
 	"context"
+	"crypto/rand"
 	"crypto/tls"
+	"encoding/hex"
 	"sync"
 	"time"
 
@@ -78,7 +82,7 @@ func NewBridge(hub *stream.Hub, config Config) (*Bridge, error) {
 	return &Bridge{
 		hub:      hub,
 		config:   config,
-		sourceID: stream.NewPeer("redis").ID,
+		sourceID: randomSourceID(),
 	}, nil
 }
 
@@ -298,4 +302,16 @@ func newRedisClient(config Config) *redis.Client {
 		DB:        config.DB,
 		TLSConfig: config.TLSConfig,
 	})
+}
+
+func randomSourceID() string {
+	var raw [16]byte
+	_, _ = rand.Read(raw[:])
+	raw[6] = (raw[6] & 0x0f) | 0x40
+	raw[8] = (raw[8] & 0x3f) | 0x80
+	return hex.EncodeToString(raw[:4]) + "-" +
+		hex.EncodeToString(raw[4:6]) + "-" +
+		hex.EncodeToString(raw[6:8]) + "-" +
+		hex.EncodeToString(raw[8:10]) + "-" +
+		hex.EncodeToString(raw[10:])
 }
