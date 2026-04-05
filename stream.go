@@ -1,12 +1,10 @@
 // SPDX-License-Identifier: EUPL-1.2
 
-// Package stream wires one hub to many transports.
-//
 //	hub := stream.NewHub()
 //	go hub.Run(ctx)
 //	hub.Publish("hashrate", []byte(`{"h":123456}`))
-//	unsubscribe := hub.Subscribe("block", func(frame []byte) { handleBlock(frame) })
-//	defer unsubscribe()
+//
+// Package stream wires one hub to many transports.
 package stream
 
 import (
@@ -71,9 +69,9 @@ type Peer struct {
 	// Values: "ws", "sse", "tcp", "zmq"
 	Transport string
 
-	sendQueue     chan []byte
+	sendBuffer    chan []byte
 	subscriptions map[string]bool
-	closeHook     func()
+	closeFunc     func()
 	mu            sync.RWMutex
 	closeOnce     sync.Once
 }
@@ -84,7 +82,7 @@ func NewPeer(transport string) *Peer {
 	return &Peer{
 		ID:            randomUUID(),
 		Transport:     transport,
-		sendQueue:     make(chan []byte, defaultPeerSendBufferSize),
+		sendBuffer:    make(chan []byte, defaultPeerSendBufferSize),
 		subscriptions: map[string]bool{},
 	}
 }
@@ -114,12 +112,12 @@ func (peer *Peer) Send(frame []byte) bool {
 	}()
 	peer.mu.RLock()
 	defer peer.mu.RUnlock()
-	if peer.sendQueue == nil {
+	if peer.sendBuffer == nil {
 		return false
 	}
 	payload := append([]byte(nil), frame...)
 	select {
-	case peer.sendQueue <- payload:
+	case peer.sendBuffer <- payload:
 		return true
 	default:
 		return false
@@ -134,29 +132,27 @@ func (peer *Peer) Close() {
 	}
 	peer.closeOnce.Do(func() {
 		peer.mu.Lock()
-		sendQueue := peer.sendQueue
-		closeHook := peer.closeHook
-		peer.closeHook = nil
+		sendBuffer := peer.sendBuffer
+		closeFunc := peer.closeFunc
+		peer.closeFunc = nil
 		peer.mu.Unlock()
-		if sendQueue != nil {
-			close(sendQueue)
+		if sendBuffer != nil {
+			close(sendBuffer)
 		}
-		if closeHook != nil {
-			closeHook()
+		if closeFunc != nil {
+			closeFunc()
 		}
 	})
 }
 
-// SetCloseHook installs the transport shutdown hook invoked by Close.
-//
-//	peer.SetCloseHook(func() { _ = conn.Close() })
-func (peer *Peer) SetCloseHook(closeHook func()) {
+// peer.SetCloseHook(func() { _ = conn.Close() })
+func (peer *Peer) SetCloseHook(closeFunc func()) {
 	if peer == nil {
 		return
 	}
 	peer.mu.Lock()
 	defer peer.mu.Unlock()
-	peer.closeHook = closeHook
+	peer.closeFunc = closeFunc
 }
 
 // SendQueue exposes the adapter-facing outbound queue.
@@ -172,7 +168,7 @@ func (peer *Peer) SendQueue() <-chan []byte {
 	}
 	peer.mu.RLock()
 	defer peer.mu.RUnlock()
-	return peer.sendQueue
+	return peer.sendBuffer
 }
 
 // switch client.State() {

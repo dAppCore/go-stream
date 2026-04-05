@@ -29,7 +29,7 @@ type Hub struct {
 	channelHandlers   map[string]map[uint64]func([]byte)
 	broadcastHandlers map[uint64]func([]byte)
 	publishHandlers   map[uint64]func(string, []byte)
-	nextID            uint64
+	nextHandlerID     uint64
 	config            HubConfig
 	done              chan struct{}
 	doneOnce          sync.Once
@@ -205,8 +205,8 @@ func (hub *Hub) SubscribeWithError(channel string, handler func([]byte)) (func()
 	if hub.channels == nil {
 		hub.channels = map[string]map[*Peer]bool{}
 	}
-	hub.nextID++
-	id := hub.nextID
+	hub.nextHandlerID++
+	id := hub.nextHandlerID
 	if hub.channelHandlers[channel] == nil {
 		hub.channelHandlers[channel] = map[uint64]func([]byte){}
 	}
@@ -255,8 +255,8 @@ func (hub *Hub) SubscribePeer(peer *Peer, channel string) error {
 	if hub.config.ChannelAuthoriser != nil && channel != "*" && !hub.config.ChannelAuthoriser(peer, channel) {
 		return ErrAuthRejected
 	}
-	if peer.sendQueue == nil {
-		peer.sendQueue = make(chan []byte, defaultPeerSendBufferSize)
+	if peer.sendBuffer == nil {
+		peer.sendBuffer = make(chan []byte, defaultPeerSendBufferSize)
 	}
 	if peer.subscriptions == nil {
 		peer.subscriptions = map[string]bool{}
@@ -399,8 +399,8 @@ func (hub *Hub) SubscribeBroadcast(handler func([]byte)) func() {
 	if hub.broadcastHandlers == nil {
 		hub.broadcastHandlers = map[uint64]func([]byte){}
 	}
-	hub.nextID++
-	id := hub.nextID
+	hub.nextHandlerID++
+	id := hub.nextHandlerID
 	hub.broadcastHandlers[id] = handler
 	hub.mu.Unlock()
 
@@ -514,8 +514,8 @@ func (hub *Hub) AddPeer(peer *Peer) error {
 	if peer == nil {
 		return core.E("stream.hub", "nil peer", nil)
 	}
-	if peer.sendQueue == nil {
-		peer.sendQueue = make(chan []byte, defaultPeerSendBufferSize)
+	if peer.sendBuffer == nil {
+		peer.sendBuffer = make(chan []byte, defaultPeerSendBufferSize)
 	}
 	if peer.subscriptions == nil {
 		peer.subscriptions = map[string]bool{}
@@ -728,8 +728,8 @@ func (hub *Hub) subscribePublished(handler func(string, []byte)) func() {
 	if hub.publishHandlers == nil {
 		hub.publishHandlers = map[uint64]func(string, []byte){}
 	}
-	hub.nextID++
-	id := hub.nextID
+	hub.nextHandlerID++
+	id := hub.nextHandlerID
 	hub.publishHandlers[id] = handler
 	hub.mu.Unlock()
 
