@@ -30,35 +30,21 @@ const defaultPeerSendBufferSize = 256
 //	stop := bus.Pipe(remoteHub)
 //	defer stop()
 type Stream interface {
-	// Publish sends frame to all subscribers of channel.
-	//
-	//	_ = hub.Publish("hashrate", []byte(`{"h":123456}`))
-	//
+	// _ = hub.Publish("hashrate", []byte(`{"h":123456}`))
 	Publish(channel string, frame []byte) error
 
-	// Subscribe registers handler for all frames arriving on channel.
-	//
-	//	unsubscribe := hub.Subscribe("block", func(frame []byte) { handleBlock(frame) })
-	//	defer unsubscribe()
-	//
+	// unsubscribe := hub.Subscribe("block", func(frame []byte) { handleBlock(frame) })
+	// defer unsubscribe()
 	Subscribe(channel string, handler func([]byte)) func()
 
-	// Broadcast sends frame to every connected peer regardless of subscriptions.
-	//
-	//	_ = hub.Broadcast([]byte(`{"type":"shutdown"}`))
-	//
+	// _ = hub.Broadcast([]byte(`{"type":"shutdown"}`))
 	Broadcast(frame []byte) error
 
-	// Pipe forwards every published frame to destination.
-	//
-	//	stop := localHub.Pipe(remoteHub)
-	//	defer stop()
-	//
+	// stop := localHub.Pipe(remoteHub)
+	// defer stop()
 	Pipe(destination Stream) func()
 
-	// Stats returns a snapshot of current hub state.
-	//
-	//	stats := hub.Stats()
+	// stats := hub.Stats()
 	Stats() HubStats
 }
 
