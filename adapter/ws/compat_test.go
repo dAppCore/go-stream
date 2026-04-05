@@ -24,6 +24,11 @@ func TestCompat_LegacySurface_Good(t *testing.T) {
 		t.Fatalf("Channel alias produced %q, want %q", channel, "hashrate")
 	}
 
+	var authoriser ChannelAuthoriser
+	if authoriser != nil {
+		t.Fatal("ChannelAuthoriser alias should default to nil")
+	}
+
 	if StateDisconnected != 0 || StateConnecting != 1 || StateConnected != 2 {
 		t.Fatalf("unexpected connection states: %d %d %d", StateDisconnected, StateConnecting, StateConnected)
 	}

@@ -26,6 +26,9 @@ type Channel = stream.Channel
 // HubConfig preserves the legacy go-ws HubConfig type name.
 type HubConfig = stream.HubConfig
 
+// ChannelAuthoriser preserves the legacy go-ws channel authoriser type name.
+type ChannelAuthoriser = stream.ChannelAuthoriser
+
 // HubStats preserves the legacy hub stats type name.
 type HubStats = stream.HubStats
 
