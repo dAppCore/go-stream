@@ -59,7 +59,7 @@ func TestTCP_Listen_Good(t *testing.T) {
 	}
 	defer connection.Close()
 
-	if _, err := connection.Write(encodeFrame("", []byte("hello"))); err != nil {
+	if _, err := connection.Write(encodeTCPFrame("", []byte("hello"))); err != nil {
 		t.Fatalf("Write() error = %v", err)
 	}
 
@@ -96,7 +96,7 @@ func TestTCP_Listen_NoAuthenticator_Good(t *testing.T) {
 	})
 	defer unsubscribe()
 
-	if _, err := connection.Write(encodeFrame("block", []byte("template"))); err != nil {
+	if _, err := connection.Write(encodeTCPFrame("block", []byte("template"))); err != nil {
 		t.Fatalf("Write() error = %v", err)
 	}
 
@@ -140,7 +140,7 @@ func TestTCP_Listen_SelfDelivery_Good(t *testing.T) {
 	})
 	defer unsubscribe()
 
-	if _, err := connection.Write(encodeFrame("block", []byte("template"))); err != nil {
+	if _, err := connection.Write(encodeTCPFrame("block", []byte("template"))); err != nil {
 		t.Fatalf("Write() error = %v", err)
 	}
 
@@ -153,15 +153,15 @@ func TestTCP_Listen_SelfDelivery_Good(t *testing.T) {
 		t.Fatal("timed out waiting for published TCP frame")
 	}
 
-	channel, frame, err := readFrame(connection, 2*time.Second, MaxFrameSize)
+	channel, frame, err := readTCPFrame(connection, 2*time.Second, MaxFrameSize)
 	if err != nil {
-		t.Fatalf("readFrame() error = %v", err)
+		t.Fatalf("readTCPFrame() error = %v", err)
 	}
 	if channel != "block" {
-		t.Fatalf("readFrame() channel = %q, want %q", channel, "block")
+		t.Fatalf("readTCPFrame() channel = %q, want %q", channel, "block")
 	}
 	if string(frame) != "template" {
-		t.Fatalf("readFrame() frame = %q, want %q", string(frame), "template")
+		t.Fatalf("readTCPFrame() frame = %q, want %q", string(frame), "template")
 	}
 }
 
@@ -188,31 +188,31 @@ func TestTCP_Listen_ContextCancel_ClosesPeer_Good(t *testing.T) {
 	}
 	defer connection.Close()
 
-	if _, err := connection.Write(encodeFrame("", []byte("hello"))); err != nil {
+	if _, err := connection.Write(encodeTCPFrame("", []byte("hello"))); err != nil {
 		t.Fatalf("Write() error = %v", err)
 	}
 
 	waitForPeerCount(t, hub, 1)
 
-	channel, frame, err := readFrame(connection, 2*time.Second, MaxFrameSize)
+	channel, frame, err := readTCPFrame(connection, 2*time.Second, MaxFrameSize)
 	if err != nil {
-		t.Fatalf("readFrame() initial echo error = %v", err)
+		t.Fatalf("readTCPFrame() initial echo error = %v", err)
 	}
 	if channel != "" {
-		t.Fatalf("readFrame() initial echo channel = %q, want %q", channel, "")
+		t.Fatalf("readTCPFrame() initial echo channel = %q, want %q", channel, "")
 	}
 	if string(frame) != "hello" {
-		t.Fatalf("readFrame() initial echo frame = %q, want %q", string(frame), "hello")
+		t.Fatalf("readTCPFrame() initial echo frame = %q, want %q", string(frame), "hello")
 	}
 
 	listenCancel()
 
-	channel, frame, err = readFrame(connection, 2*time.Second, MaxFrameSize)
+	channel, frame, err = readTCPFrame(connection, 2*time.Second, MaxFrameSize)
 	if err == nil {
-		t.Fatalf("readFrame() = (%q, %q, nil), want connection close", channel, string(frame))
+		t.Fatalf("readTCPFrame() = (%q, %q, nil), want connection close", channel, string(frame))
 	}
 	if err == stream.ErrHandshakeTimeout {
-		t.Fatalf("readFrame() error = %v, want connection close", err)
+		t.Fatalf("readTCPFrame() error = %v, want connection close", err)
 	}
 
 	waitForPeerCount(t, hub, 0)
@@ -245,7 +245,7 @@ func TestTCP_Listen_Bad(t *testing.T) {
 	}
 	defer connection.Close()
 
-	if _, err := connection.Write(encodeFrame("", []byte("nope"))); err != nil {
+	if _, err := connection.Write(encodeTCPFrame("", []byte("nope"))); err != nil {
 		t.Fatalf("Write() error = %v", err)
 	}
 
@@ -315,7 +315,7 @@ func TestTCP_Listen_NoAuthenticator_LargeInitialFrame_Good(t *testing.T) {
 	defer unsubscribe()
 
 	largeFrame := bytes.Repeat([]byte("a"), maxHandshakeFrameSize+1)
-	if _, err := connection.Write(encodeFrame("block", largeFrame)); err != nil {
+	if _, err := connection.Write(encodeTCPFrame("block", largeFrame)); err != nil {
 		t.Fatalf("Write() error = %v", err)
 	}
 
@@ -386,12 +386,12 @@ func TestReconnectingTCP_Send_Concurrent_Good(t *testing.T) {
 
 	receivedValues := map[byte]bool{}
 	for len(receivedValues) < senderCount {
-		channel, frame, readErr := readFrame(serverConnection, 2*time.Second, MaxFrameSize)
+		channel, frame, readErr := readTCPFrame(serverConnection, 2*time.Second, MaxFrameSize)
 		if readErr != nil {
-			t.Fatalf("readFrame() error = %v", readErr)
+			t.Fatalf("readTCPFrame() error = %v", readErr)
 		}
 		if channel != "hashrate" {
-			t.Fatalf("readFrame() channel = %q, want %q", channel, "hashrate")
+			t.Fatalf("readTCPFrame() channel = %q, want %q", channel, "hashrate")
 		}
 		if len(frame) != 1 {
 			t.Fatalf("len(frame) = %d, want %d", len(frame), 1)
@@ -428,7 +428,7 @@ func TestTCP_Listen_AuthHandshakeTooLarge_Good(t *testing.T) {
 	defer connection.Close()
 
 	tooLargeHandshake := make([]byte, maxHandshakeFrameSize+1)
-	if _, err := connection.Write(encodeFrame("", tooLargeHandshake)); err != nil {
+	if _, err := connection.Write(encodeTCPFrame("", tooLargeHandshake)); err != nil {
 		t.Fatalf("Write() error = %v", err)
 	}
 
@@ -455,7 +455,7 @@ func TestTCP_Dial_NilContext_Good(t *testing.T) {
 			return
 		}
 		defer connection.Close()
-		_, _ = connection.Write(encodeFrame("block", []byte("template")))
+		_, _ = connection.Write(encodeTCPFrame("block", []byte("template")))
 		time.Sleep(50 * time.Millisecond)
 	}()
 
@@ -502,7 +502,7 @@ func TestTCP_Dial_HubNotRunning_Bad(t *testing.T) {
 			return
 		}
 		defer connection.Close()
-		_, _, _ = readFrame(connection, 2*time.Second, MaxFrameSize)
+		_, _, _ = readTCPFrame(connection, 2*time.Second, MaxFrameSize)
 	}()
 
 	adapter := New(Config{Addr: listener.Addr().String()})
@@ -687,7 +687,7 @@ func TestReconnectingTCP_Connect_Handshake_Good(t *testing.T) {
 		}
 		defer connection.Close()
 
-		channel, frame, readErr := readFrame(connection, time.Second, MaxFrameSize)
+		channel, frame, readErr := readTCPFrame(connection, time.Second, MaxFrameSize)
 		if readErr != nil {
 			return
 		}
@@ -695,7 +695,7 @@ func TestReconnectingTCP_Connect_Handshake_Good(t *testing.T) {
 			return
 		}
 		received <- append([]byte(nil), frame...)
-		_ = writeFull(connection, encodeFrame("block", []byte("template")))
+		_ = writeAll(connection, encodeTCPFrame("block", []byte("template")))
 	}()
 
 	clientMessages := make(chan []byte, 1)
@@ -777,7 +777,7 @@ func waitForPeerCount(t *testing.T, hub *stream.Hub, expected int) {
 	t.Fatalf("PeerCount() = %d, want %d", hub.PeerCount(), expected)
 }
 
-func TestWriteFull_Good(t *testing.T) {
+func TestWriteAll_Good(t *testing.T) {
 	left, right := net.Pipe()
 	defer left.Close()
 	defer right.Close()
@@ -795,8 +795,8 @@ func TestWriteFull_Good(t *testing.T) {
 		received <- buffer
 	}()
 
-	if err := writeFull(wrapped, payload); err != nil {
-		t.Fatalf("writeFull() error = %v", err)
+	if err := writeAll(wrapped, payload); err != nil {
+		t.Fatalf("writeAll() error = %v", err)
 	}
 
 	select {

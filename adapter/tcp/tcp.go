@@ -213,7 +213,7 @@ func (adapter *Adapter) handleConn(ctx context.Context, conn net.Conn, hub *stre
 	if adapter.config.ConnAuthenticator != nil {
 		handshakeMaxSize = maxHandshakeFrameSize
 	}
-	channel, frame, err := readFrame(conn, adapter.config.HandshakeTimeout, handshakeMaxSize)
+	channel, frame, err := readTCPFrame(conn, adapter.config.HandshakeTimeout, handshakeMaxSize)
 	if err != nil {
 		return
 	}
@@ -249,11 +249,11 @@ func (adapter *Adapter) handleConn(ctx context.Context, conn net.Conn, hub *stre
 	go adapter.writePump(ctx, conn, peer, hub.Config().WriteTimeout)
 
 	if auth := adapter.config.ConnAuthenticator; auth == nil {
-		dispatchFrame(hub, peer, channel, frame)
+		dispatchTCPFrame(hub, peer, channel, frame)
 	}
 
 	for {
-		channel, frame, err := readFrame(conn, 0, MaxFrameSize)
+		channel, frame, err := readTCPFrame(conn, 0, MaxFrameSize)
 		if err != nil {
 			return
 		}
@@ -265,7 +265,7 @@ func (adapter *Adapter) handleConn(ctx context.Context, conn net.Conn, hub *stre
 	}
 }
 
-func dispatchFrame(hub *stream.Hub, peer *stream.Peer, channel string, frame []byte) {
+func dispatchTCPFrame(hub *stream.Hub, peer *stream.Peer, channel string, frame []byte) {
 	if channel == "" {
 		_ = hub.BroadcastFromPeer(peer, frame)
 		return
@@ -281,12 +281,12 @@ func (adapter *Adapter) pipePeer(ctx context.Context, conn net.Conn, peer *strea
 	defer stopClose()
 	go adapter.writePump(ctx, conn, peer, hub.Config().WriteTimeout)
 	for {
-		channel, frame, err := readFrame(conn, 0, MaxFrameSize)
+		channel, frame, err := readTCPFrame(conn, 0, MaxFrameSize)
 		if err != nil {
 			hub.RemovePeer(peer)
 			return
 		}
-		dispatchFrame(hub, peer, channel, frame)
+		dispatchTCPFrame(hub, peer, channel, frame)
 	}
 }
 
@@ -302,14 +302,14 @@ func (adapter *Adapter) writePump(ctx context.Context, conn net.Conn, peer *stre
 			if writeTimeout > 0 {
 				_ = conn.SetWriteDeadline(time.Now().Add(writeTimeout))
 			}
-			if err := writeFull(conn, frame); err != nil {
+			if err := writeAll(conn, frame); err != nil {
 				return
 			}
 		}
 	}
 }
 
-func readFrame(conn net.Conn, timeout time.Duration, maxFrameSize int) (string, []byte, error) {
+func readTCPFrame(conn net.Conn, timeout time.Duration, maxFrameSize int) (string, []byte, error) {
 	if timeout > 0 {
 		_ = conn.SetReadDeadline(time.Now().Add(timeout))
 	} else {
@@ -341,7 +341,7 @@ func readFrame(conn net.Conn, timeout time.Duration, maxFrameSize int) (string, 
 	return channel, frame, nil
 }
 
-func encodeFrame(channel string, frame []byte) []byte {
+func encodeTCPFrame(channel string, frame []byte) []byte {
 	channelBytes := []byte(channel)
 	payloadLength := uint32(4 + len(channelBytes) + len(frame))
 	buffer := make([]byte, 4+payloadLength)
@@ -352,7 +352,7 @@ func encodeFrame(channel string, frame []byte) []byte {
 	return buffer
 }
 
-func writeFull(conn net.Conn, payload []byte) error {
+func writeAll(conn net.Conn, payload []byte) error {
 	for len(payload) > 0 {
 		written, err := conn.Write(payload)
 		if err != nil {
@@ -373,7 +373,7 @@ func (adapter *Adapter) writeHandshake(conn net.Conn) error {
 	if len(adapter.config.HandshakeFrame) == 0 && adapter.config.HandshakeChannel == "" {
 		return nil
 	}
-	return writeFull(conn, encodeFrame(adapter.config.HandshakeChannel, adapter.config.HandshakeFrame))
+	return writeAll(conn, encodeTCPFrame(adapter.config.HandshakeChannel, adapter.config.HandshakeFrame))
 }
 
 func isClosedNetworkError(err error) bool {

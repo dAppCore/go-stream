@@ -173,7 +173,7 @@ func (client *ReconnectingTCP) Send(channel string, frame []byte) error {
 	if connection == nil {
 		return core.E("stream.tcp", "not connected", nil)
 	}
-	return writeFull(connection, encodeFrame(channel, frame))
+	return writeAll(connection, encodeTCPFrame(channel, frame))
 }
 
 //	if client.State() == stream.StateConnected {
@@ -229,7 +229,7 @@ func (client *ReconnectingTCP) readLoop(ctx context.Context, conn net.Conn) erro
 			return ctx.Err()
 		default:
 		}
-		channel, frame, err := readFrame(conn, 0, MaxFrameSize)
+		channel, frame, err := readTCPFrame(conn, 0, MaxFrameSize)
 		if err != nil {
 			return err
 		}
@@ -299,5 +299,5 @@ func (client *ReconnectingTCP) writeHandshake(conn net.Conn) error {
 	if len(client.config.HandshakeFrame) == 0 && client.config.HandshakeChannel == "" {
 		return nil
 	}
-	return writeFull(conn, encodeFrame(client.config.HandshakeChannel, client.config.HandshakeFrame))
+	return writeAll(conn, encodeTCPFrame(client.config.HandshakeChannel, client.config.HandshakeFrame))
 }
