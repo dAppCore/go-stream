@@ -35,7 +35,7 @@ type Hub struct {
 	mu                sync.RWMutex
 }
 
-// NewHub creates a hub with default configuration.
+// Create a hub with defaults.
 //
 //	hub := stream.NewHub()
 //	go hub.Run(ctx)
@@ -43,11 +43,11 @@ func NewHub() *Hub {
 	return NewHubWithConfig(DefaultHubConfig())
 }
 
-// NewHubWithConfig creates a hub with the given configuration.
+// Create a hub with explicit configuration.
 //
 //	hub := stream.NewHubWithConfig(stream.HubConfig{
 //	    HeartbeatInterval: 30 * time.Second,
-//	    OnConnect: func(p *stream.Peer) { log.Println("connected", p.ID) },
+//	    OnConnect: func(peer *stream.Peer) { log.Println("connected", peer.ID) },
 //	})
 func NewHubWithConfig(config HubConfig) *Hub {
 	config = normalizeHubConfig(config)
@@ -66,10 +66,10 @@ func NewHubWithConfig(config HubConfig) *Hub {
 	}
 }
 
-// Config returns a normalised copy of the hub configuration.
+// Read the current hub configuration.
 //
-//	cfg := hub.Config()
-//	writeTimeout := cfg.WriteTimeout
+//	config := hub.Config()
+//	writeTimeout := config.WriteTimeout
 func (hub *Hub) Config() HubConfig {
 	if hub == nil {
 		return DefaultHubConfig()
@@ -132,8 +132,7 @@ func (hub *Hub) Run(ctx context.Context) {
 	}
 }
 
-// SendToChannel delivers frame to all peers subscribed to channel.
-// Returns nil if channel has no subscribers (not an error).
+// Send a frame to one channel.
 //
 //	hub.SendToChannel("process:abc123", frame)
 func (hub *Hub) SendToChannel(channel string, frame []byte) error {
@@ -234,19 +233,16 @@ func (hub *Hub) SubscribeE(channel string, handler func([]byte)) (func(), error)
 	return hub.SubscribeWithError(channel, handler)
 }
 
-// Subscribe registers a handler function invoked for every frame arriving on channel.
-// Returns an unsubscribe function. Multiple handlers per channel are allowed.
-// Handlers run in the hub's goroutine — keep them non-blocking.
+// Register a handler for one channel.
 //
-//	unsub := hub.Subscribe("block", func(f []byte) { ... })
-//	defer unsub()
+//	unsubscribe := hub.Subscribe("block", func(frame []byte) { handleBlock(frame) })
+//	defer unsubscribe()
 func (hub *Hub) Subscribe(channel string, handler func([]byte)) func() {
 	unsub, _ := hub.SubscribeWithError(channel, handler)
 	return unsub
 }
 
-// SubscribePeer adds peer to a named channel. Used by transport adapters when
-// a peer requests channel subscription (WebSocket TypeSubscribe message, etc.).
+// Add one peer to one channel.
 //
 //	hub.SubscribePeer(peer, "hashrate")
 func (hub *Hub) SubscribePeer(peer *Peer, channel string) error {
@@ -300,7 +296,7 @@ func (hub *Hub) CanSubscribePeer(peer *Peer, channel string) error {
 	return nil
 }
 
-// UnsubscribePeer removes peer from a named channel.
+// Remove one peer from one channel.
 //
 //	hub.UnsubscribePeer(peer, "hashrate")
 func (hub *Hub) UnsubscribePeer(peer *Peer, channel string) {
@@ -318,15 +314,14 @@ func (hub *Hub) UnsubscribePeer(peer *Peer, channel string) {
 	}
 }
 
-// Publish sends frame to all subscribers of channel. Satisfies Stream interface.
+// Publish one frame to one channel.
 //
 //	hub.Publish("hashrate", frame)
 func (hub *Hub) Publish(channel string, frame []byte) error {
 	return hub.sendToChannel(channel, frame, true)
 }
 
-// Broadcast sends frame to every connected peer regardless of subscriptions.
-// Satisfies Stream interface.
+// Broadcast one frame to every connected peer.
 //
 //	hub.Broadcast([]byte(`{"type":"shutdown"}`))
 func (hub *Hub) Broadcast(frame []byte) error {
@@ -378,8 +373,7 @@ func (hub *Hub) broadcastFrameFromPeer(source *Peer, frame []byte, notifyBroadca
 	return nil
 }
 
-// Pipe connects this hub to destination: every frame published here is forwarded to destination.
-// Returns a stop function. Satisfies Stream interface.
+// Forward published frames to another stream.
 //
 //	stop := hub.Pipe(remoteHub)
 //	defer stop()

@@ -92,7 +92,7 @@ type Peer struct {
 	closeOnce     sync.Once
 }
 
-// NewPeer creates a peer with a generated UUID and a buffered send queue.
+// Create a peer with a generated ID and buffered send queue.
 //
 //	peer := stream.NewPeer("ws")
 func NewPeer(transport string) *Peer {

@@ -9,7 +9,7 @@ import "time"
 //	})
 type ChannelAuthoriser func(peer *Peer, channel string) bool
 
-//	cfg := stream.HubConfig{
+//	config := stream.HubConfig{
 //	    HeartbeatInterval: 30 * time.Second,
 //	    PongTimeout:       60 * time.Second,
 //	    WriteTimeout:      10 * time.Second,
@@ -18,22 +18,22 @@ type ChannelAuthoriser func(peer *Peer, channel string) bool
 //	    },
 //	}
 type HubConfig struct {
-	// cfg := stream.HubConfig{HeartbeatInterval: 30 * time.Second}
+	// config := stream.HubConfig{HeartbeatInterval: 30 * time.Second}
 	HeartbeatInterval time.Duration
 
-	// cfg := stream.HubConfig{PongTimeout: 60 * time.Second}
+	// config := stream.HubConfig{PongTimeout: 60 * time.Second}
 	PongTimeout time.Duration
 
-	// cfg := stream.HubConfig{WriteTimeout: 10 * time.Second}
+	// config := stream.HubConfig{WriteTimeout: 10 * time.Second}
 	WriteTimeout time.Duration
 
-	// cfg := stream.HubConfig{OnConnect: func(peer *stream.Peer) { metrics.Inc("peers") }}
+	// config := stream.HubConfig{OnConnect: func(peer *stream.Peer) { metrics.Inc("peers") }}
 	OnConnect func(peer *Peer)
 
-	// cfg := stream.HubConfig{OnDisconnect: func(peer *stream.Peer) { metrics.Dec("peers") }}
+	// config := stream.HubConfig{OnDisconnect: func(peer *stream.Peer) { metrics.Dec("peers") }}
 	OnDisconnect func(peer *Peer)
 
-	// cfg := stream.HubConfig{ChannelAuthoriser: func(peer *stream.Peer, channel string) bool {
+	// config := stream.HubConfig{ChannelAuthoriser: func(peer *stream.Peer, channel string) bool {
 	//     return peer.Claims["role"] == "admin" || channel == "public"
 	// }}
 	ChannelAuthoriser ChannelAuthoriser
@@ -41,7 +41,7 @@ type HubConfig struct {
 
 // DefaultHubConfig returns sensible defaults.
 //
-//	cfg := stream.DefaultHubConfig()
+//	config := stream.DefaultHubConfig()
 func DefaultHubConfig() HubConfig {
 	return HubConfig{
 		HeartbeatInterval: 30 * time.Second,
