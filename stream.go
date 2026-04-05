@@ -20,6 +20,8 @@ import (
 	"time"
 )
 
+const defaultPeerSendBufferSize = 256
+
 // Stream is the transport-agnostic event and data pipe.
 //
 //	hub := stream.NewHub()
@@ -102,7 +104,7 @@ func NewPeer(transport string) *Peer {
 	return &Peer{
 		ID:            randomUUID(),
 		Transport:     transport,
-		send:          make(chan []byte, 256),
+		send:          make(chan []byte, defaultPeerSendBufferSize),
 		subscriptions: map[string]bool{},
 	}
 }

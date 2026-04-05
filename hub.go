@@ -11,6 +11,8 @@ import (
 	"dappco.re/go/core"
 )
 
+const defaultHubQueueSize = 256
+
 // hub := stream.NewHub()
 // go hub.Run(ctx)
 //
@@ -49,10 +51,10 @@ func NewHubWithConfig(config HubConfig) *Hub {
 	config = normalizeHubConfig(config)
 	return &Hub{
 		peers:             map[*Peer]bool{},
-		broadcastQueue:    make(chan broadcastDelivery, 256),
-		publishQueue:      make(chan publishDelivery, 256),
-		register:          make(chan *Peer, 256),
-		unregister:        make(chan *Peer, 256),
+		broadcastQueue:    make(chan broadcastDelivery, defaultHubQueueSize),
+		publishQueue:      make(chan publishDelivery, defaultHubQueueSize),
+		register:          make(chan *Peer, defaultHubQueueSize),
+		unregister:        make(chan *Peer, defaultHubQueueSize),
 		channels:          map[string]map[*Peer]bool{},
 		channelHandlers:   map[string]map[uint64]func([]byte){},
 		broadcastHandlers: map[uint64]func([]byte){},
@@ -255,7 +257,7 @@ func (hub *Hub) SubscribePeer(peer *Peer, channel string) error {
 		return ErrAuthRejected
 	}
 	if peer.send == nil {
-		peer.send = make(chan []byte, 256)
+		peer.send = make(chan []byte, defaultPeerSendBufferSize)
 	}
 	if peer.subscriptions == nil {
 		peer.subscriptions = map[string]bool{}
@@ -538,7 +540,7 @@ func (hub *Hub) AddPeer(peer *Peer) error {
 		return core.E("stream.hub", "nil peer", nil)
 	}
 	if peer.send == nil {
-		peer.send = make(chan []byte, 256)
+		peer.send = make(chan []byte, defaultPeerSendBufferSize)
 	}
 	if peer.subscriptions == nil {
 		peer.subscriptions = map[string]bool{}
