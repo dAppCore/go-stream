@@ -9,14 +9,14 @@ import "time"
 //	})
 type ChannelAuthoriser func(peer *Peer, channel string) bool
 
-// config := stream.HubConfig{
-//     HeartbeatInterval: 30 * time.Second,
-//     PongTimeout:       60 * time.Second,
-//     WriteTimeout:      10 * time.Second,
-//     OnConnect: func(peer *stream.Peer) {
-//         metrics.Inc("peers")
-//     },
-// }
+//	cfg := stream.HubConfig{
+//	    HeartbeatInterval: 30 * time.Second,
+//	    PongTimeout:       60 * time.Second,
+//	    WriteTimeout:      10 * time.Second,
+//	    OnConnect: func(peer *stream.Peer) {
+//	        metrics.Inc("peers")
+//	    },
+//	}
 type HubConfig struct {
 	// config := stream.HubConfig{HeartbeatInterval: 30 * time.Second}
 	HeartbeatInterval time.Duration

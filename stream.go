@@ -66,7 +66,7 @@ type Peer struct {
 	Claims map[string]any
 
 	// Transport identifies the adapter type for logging and metrics.
-	// Values: "ws", "sse", "tcp", "zmq"
+	// Values: "ws", "sse", "tcp", "zmq", "redis"
 	Transport string
 
 	sendQueue     chan []byte

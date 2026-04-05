@@ -8,18 +8,18 @@ import (
 	"dappco.re/go/core"
 )
 
-// authenticator := stream.AuthenticatorFunc(func(request *http.Request) stream.AuthResult {
-//     return stream.AuthResult{Valid: true, UserID: "user-42"}
-// })
+//	auth := stream.AuthenticatorFunc(func(request *http.Request) stream.AuthResult {
+//	    return stream.AuthResult{Valid: true, UserID: "user-42"}
+//	})
 type Authenticator interface {
 	Authenticate(request *http.Request) AuthResult
 }
 
-// result := stream.AuthResult{
-//     Valid:  true,
-//     UserID: "user-42",
-//     Claims: map[string]any{"role": "admin"},
-// }
+//	result := stream.AuthResult{
+//	    Valid:  true,
+//	    UserID: "user-42",
+//	    Claims: map[string]any{"role": "admin"},
+//	}
 type AuthResult struct {
 	Valid bool
 
@@ -30,9 +30,9 @@ type AuthResult struct {
 	Error error
 }
 
-// authenticator := stream.AuthenticatorFunc(func(request *http.Request) stream.AuthResult {
-//     return stream.AuthResult{Valid: true, UserID: "user-42"}
-// })
+//	authenticator := stream.AuthenticatorFunc(func(request *http.Request) stream.AuthResult {
+//	    return stream.AuthResult{Valid: true, UserID: "user-42"}
+//	})
 type AuthenticatorFunc func(request *http.Request) AuthResult
 
 // result := authenticatorFunc.Authenticate(request)
@@ -81,14 +81,14 @@ func (authenticator *APIKeyAuthenticator) Authenticate(request *http.Request) Au
 	return AuthResult{Valid: true, UserID: userID}
 }
 
-//	authenticator := &stream.BearerTokenAuth{
-//		Validate: func(token string) stream.AuthResult {
-//			if token == "sk-live" {
-//				return stream.AuthResult{Valid: true, UserID: "user-42"}
-//			}
-//			return stream.AuthResult{Valid: false}
-//     },
-// }
+//		authenticator := &stream.BearerTokenAuth{
+//			Validate: func(token string) stream.AuthResult {
+//				if token == "sk-live" {
+//					return stream.AuthResult{Valid: true, UserID: "user-42"}
+//				}
+//				return stream.AuthResult{Valid: false}
+//	    },
+//	}
 type BearerTokenAuth struct {
 	Validate func(token string) AuthResult
 }
@@ -105,14 +105,14 @@ func (authenticator *BearerTokenAuth) Authenticate(request *http.Request) AuthRe
 	return authenticator.Validate(token)
 }
 
-// authenticator := &stream.QueryTokenAuth{
-//     Validate: func(token string) stream.AuthResult {
-//         if token == "sk-live" {
-//             return stream.AuthResult{Valid: true, UserID: "user-42"}
-//         }
-//         return stream.AuthResult{Valid: false}
-//     },
-// }
+//	authenticator := &stream.QueryTokenAuth{
+//	    Validate: func(token string) stream.AuthResult {
+//	        if token == "sk-live" {
+//	            return stream.AuthResult{Valid: true, UserID: "user-42"}
+//	        }
+//	        return stream.AuthResult{Valid: false}
+//	    },
+//	}
 type QueryTokenAuth struct {
 	Validate func(token string) AuthResult
 }
@@ -129,22 +129,22 @@ func (authenticator *QueryTokenAuth) Authenticate(request *http.Request) AuthRes
 	return authenticator.Validate(token)
 }
 
-// auth := stream.ConnAuthenticatorFunc(func(handshake []byte) stream.AuthResult {
-//     if string(handshake) == "hello" {
-//         return stream.AuthResult{Valid: true, UserID: "peer-1"}
-//     }
-//     return stream.AuthResult{Valid: false}
-// })
+//	auth := stream.ConnAuthenticatorFunc(func(handshake []byte) stream.AuthResult {
+//	    if string(handshake) == "hello" {
+//	        return stream.AuthResult{Valid: true, UserID: "peer-1"}
+//	    }
+//	    return stream.AuthResult{Valid: false}
+//	})
 type ConnAuthenticator interface {
 	AuthenticateConn(handshake []byte) AuthResult
 }
 
-// auth := stream.ConnAuthenticatorFunc(func(handshake []byte) stream.AuthResult {
-//     if string(handshake) == "hello" {
-//         return stream.AuthResult{Valid: true, UserID: "peer-1"}
-//     }
-//     return stream.AuthResult{Valid: false}
-// })
+//	auth := stream.ConnAuthenticatorFunc(func(handshake []byte) stream.AuthResult {
+//	    if string(handshake) == "hello" {
+//	        return stream.AuthResult{Valid: true, UserID: "peer-1"}
+//	    }
+//	    return stream.AuthResult{Valid: false}
+//	})
 type ConnAuthenticatorFunc func(handshake []byte) AuthResult
 
 // result := auth.AuthenticateConn([]byte("hello"))

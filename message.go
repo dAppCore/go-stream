@@ -7,7 +7,8 @@ import "time"
 // messageType := stream.TypeEvent
 type MessageType string
 
-// String returns the canonical wire value for the message type.
+// typ := stream.TypeEvent.String()
+// // typ == "event"
 func (messageType MessageType) String() string {
 	return string(messageType)
 }
