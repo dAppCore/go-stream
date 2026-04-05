@@ -76,7 +76,7 @@ func (hub *Hub) Config() HubConfig {
 	return normalizeHubConfig(config)
 }
 
-// running := hub.Running()
+// if hub.Running() { _ = hub.Publish("hashrate", frame) }
 func (hub *Hub) Running() bool {
 	if hub == nil {
 		return false
