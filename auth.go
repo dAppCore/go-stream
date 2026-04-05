@@ -32,8 +32,8 @@ type AuthResult struct {
 
 	UserID string
 
-	// Claims is always initialised on success so callers can add metadata without
-	// checking for nil first.
+	// claims := result.Claims
+	// claims["role"] = "admin"
 	Claims map[string]any
 
 	Error error
