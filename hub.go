@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: EUPL-1.2
 
-//	hub := stream.NewHub()
-//	go hub.Run(ctx)
-//	stop := hub.Pipe(remoteHub)
-//	defer stop()
+// hub := stream.NewHub()
+// go hub.Run(ctx)
+// stop := hub.Pipe(remoteHub)
+// defer stop()
 package stream
 
 import (
@@ -260,8 +260,8 @@ func (hub *Hub) SubscribePeer(peer *Peer, channel string) error {
 		return ErrAuthRejected
 	}
 	peer.mutex.Lock()
-	if peer.sendQueue == nil {
-		peer.sendQueue = make(chan []byte, defaultPeerSendBufferSize)
+	if peer.send == nil {
+		peer.send = make(chan []byte, defaultPeerSendBufferSize)
 	}
 	if peer.subscriptions == nil {
 		peer.subscriptions = map[string]bool{}
@@ -557,8 +557,8 @@ func (hub *Hub) AddPeer(peer *Peer) error {
 		return core.E("stream.hub", "nil peer", nil)
 	}
 	peer.mutex.Lock()
-	if peer.sendQueue == nil {
-		peer.sendQueue = make(chan []byte, defaultPeerSendBufferSize)
+	if peer.send == nil {
+		peer.send = make(chan []byte, defaultPeerSendBufferSize)
 	}
 	if peer.subscriptions == nil {
 		peer.subscriptions = map[string]bool{}
