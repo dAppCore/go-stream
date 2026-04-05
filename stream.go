@@ -187,7 +187,11 @@ func (peer *Peer) SetCloseHook(closeHook func()) {
 
 // SendQueue exposes the adapter-facing outbound queue.
 //
-//	for frame := range peer.SendQueue() { handle(frame) }
+//	go func() {
+//		for frame := range peer.SendQueue() {
+//			_ = frame
+//		}
+//	}()
 func (peer *Peer) SendQueue() <-chan []byte {
 	if peer == nil {
 		return nil

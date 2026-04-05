@@ -372,12 +372,17 @@ func (hub *Hub) Stats() HubStats {
 	}
 }
 
-// stop := hub.SubscribePublished(func(channel string, frame []byte) { _ = channel })
+//	stop := hub.SubscribePublished(func(channel string, frame []byte) {
+//		_ = channel
+//		_ = frame
+//	})
 func (hub *Hub) SubscribePublished(handler func(string, []byte)) func() {
 	return hub.subscribePublished(handler)
 }
 
-// stop := hub.SubscribeBroadcast(func(frame []byte) { _ = frame })
+//	stop := hub.SubscribeBroadcast(func(frame []byte) {
+//		_ = frame
+//	})
 func (hub *Hub) SubscribeBroadcast(handler func([]byte)) func() {
 	if hub == nil || handler == nil {
 		return func() {}
