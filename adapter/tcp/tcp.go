@@ -25,7 +25,7 @@ const MaxFrameSize = 65535
 
 const maxHandshakeFrameSize = 4 << 10
 
-//	cfg := tcp.Config{
+//	config := tcp.Config{
 //	    Addr:              ":9000",
 //	    ConnAuthenticator: auth,
 //	}

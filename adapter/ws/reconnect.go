@@ -16,13 +16,13 @@ import (
 
 // ReconnectConfig wires one reconnecting WebSocket client.
 //
-//	reconnectConfig := ws.ReconnectConfig{
+//	config := ws.ReconnectConfig{
 //	    URL: "ws://127.0.0.1:8080/stream/ws",
 //	    OnMessage: func(message stream.Message) {
 //	        _ = message.Channel
 //	    },
 //	}
-//	client := ws.NewReconnectingClient(reconnectConfig)
+//	client := ws.NewReconnectingClient(config)
 type ReconnectConfig struct {
 	URL               string
 	InitialBackoff    time.Duration

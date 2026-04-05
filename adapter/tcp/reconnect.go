@@ -15,7 +15,7 @@ import (
 
 // ReconnectConfig wires one reconnecting TCP client.
 //
-//	client := tcp.NewReconnectingTCP(tcp.ReconnectConfig{
+//	config := tcp.ReconnectConfig{
 //	    Addr: "127.0.0.1:9000",
 //	    OnReconnect: func(attempt int) {
 //	        core.Print(nil, "tcp reconnect attempt=%d", attempt)
@@ -24,7 +24,8 @@ import (
 //	        _ = channel
 //	        _ = frame
 //	    },
-//	})
+//	}
+//	client := tcp.NewReconnectingTCP(config)
 type ReconnectConfig struct {
 	Addr              string
 	InitialBackoff    time.Duration

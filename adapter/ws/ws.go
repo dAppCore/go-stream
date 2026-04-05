@@ -17,7 +17,7 @@ import (
 	"dappco.re/go/stream"
 )
 
-//	cfg := ws.Config{
+//	config := ws.Config{
 //	    Authenticator: stream.NewAPIKeyAuth(keys),
 //	    OnAuthFailure: func(r *http.Request, res stream.AuthResult) {
 //	        log.Printf("ws auth fail from %s", r.RemoteAddr)

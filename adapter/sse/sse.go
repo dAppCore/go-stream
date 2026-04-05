@@ -17,7 +17,7 @@ import (
 	"dappco.re/go/stream"
 )
 
-//	cfg := sse.Config{
+//	config := sse.Config{
 //	    Authenticator:     stream.NewAPIKeyAuth(map[string]string{"sk-live": "user-42"}),
 //	    HeartbeatInterval: 15 * time.Second,
 //	    RetryMs:           3000,
