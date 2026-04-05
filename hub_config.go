@@ -19,33 +19,23 @@ type ChannelAuthoriser func(peer *Peer, channel string) bool
 //	}
 type HubConfig struct {
 	// stream.NewHubWithConfig(stream.HubConfig{HeartbeatInterval: 30 * time.Second})
-	// Keeps WebSocket peers alive. SSE and TCP adapters ignore it.
 	HeartbeatInterval time.Duration
 
 	// stream.NewHubWithConfig(stream.HubConfig{PongTimeout: 60 * time.Second})
-	// Closes stale WebSocket peers after a ping. Keep it above HeartbeatInterval.
 	PongTimeout time.Duration
 
 	// stream.NewHubWithConfig(stream.HubConfig{WriteTimeout: 10 * time.Second})
-	// Bounds each WebSocket or TCP write.
 	WriteTimeout time.Duration
 
-	// stream.NewHubWithConfig(stream.HubConfig{
-	//     OnConnect: func(peer *stream.Peer) { metrics.Inc("peers") },
-	// })
+	// stream.NewHubWithConfig(stream.HubConfig{OnConnect: func(peer *stream.Peer) { metrics.Inc("peers") }})
 	OnConnect func(peer *Peer)
 
-	// stream.NewHubWithConfig(stream.HubConfig{
-	//     OnDisconnect: func(peer *stream.Peer) { metrics.Dec("peers") },
-	// })
+	// stream.NewHubWithConfig(stream.HubConfig{OnDisconnect: func(peer *stream.Peer) { metrics.Dec("peers") }})
 	OnDisconnect func(peer *Peer)
 
-	// stream.NewHubWithConfig(stream.HubConfig{
-	//     ChannelAuthoriser: func(peer *stream.Peer, channel string) bool {
-	//         return peer.Claims["role"] == "admin" || channel == "public"
-	//     },
-	// })
-	// When nil, all subscriptions are allowed.
+	// stream.NewHubWithConfig(stream.HubConfig{ChannelAuthoriser: func(peer *stream.Peer, channel string) bool {
+	//     return peer.Claims["role"] == "admin" || channel == "public"
+	// }})
 	ChannelAuthoriser ChannelAuthoriser
 }
 

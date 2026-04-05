@@ -21,10 +21,17 @@ import (
 //	    RetryMs:           3000,
 //	}
 type Config struct {
-	Authenticator     stream.Authenticator
-	OnAuthFailure     func(r *http.Request, result stream.AuthResult)
+	// sse.New(sse.Config{Authenticator: stream.NewAPIKeyAuth(keys)})
+	Authenticator stream.Authenticator
+
+	// sse.New(sse.Config{OnAuthFailure: func(r *http.Request, result stream.AuthResult) { ... }})
+	OnAuthFailure func(r *http.Request, result stream.AuthResult)
+
+	// sse.New(sse.Config{HeartbeatInterval: 15 * time.Second})
 	HeartbeatInterval time.Duration
-	RetryMs           int
+
+	// sse.New(sse.Config{RetryMs: 3000})
+	RetryMs int
 }
 
 // adapter := sse.New(sse.Config{})

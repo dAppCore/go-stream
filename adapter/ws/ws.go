@@ -26,18 +26,17 @@ import (
 //	    },
 //	}
 type Config struct {
-	// Authenticator is called during HTTP upgrade. When nil, all connections accepted.
+	// ws.New(ws.Config{Authenticator: stream.NewAPIKeyAuth(keys)})
 	Authenticator stream.Authenticator
 
-	// OnAuthFailure is called when Authenticator rejects a connection.
+	// ws.New(ws.Config{OnAuthFailure: func(r *http.Request, result stream.AuthResult) { ... }})
 	OnAuthFailure func(r *http.Request, result stream.AuthResult)
 
-	// ReadBufferSize and WriteBufferSize are passed to the gorilla upgrader.
-	// Default: 1024 each.
+	// ws.New(ws.Config{ReadBufferSize: 1024, WriteBufferSize: 1024})
 	ReadBufferSize  int
 	WriteBufferSize int
 
-	// CheckOrigin overrides the upgrader's origin check. When nil, all origins accepted.
+	// ws.New(ws.Config{CheckOrigin: func(r *http.Request) bool { return true }})
 	CheckOrigin func(r *http.Request) bool
 }
 

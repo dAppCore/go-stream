@@ -28,10 +28,17 @@ const maxHandshakeFrameSize = 4 << 10
 //	    ConnAuthenticator: auth,
 //	}
 type Config struct {
-	Addr              string
+	// tcp.New(tcp.Config{Addr: ":9000"})
+	Addr string
+
+	// tcp.New(tcp.Config{ConnAuthenticator: auth})
 	ConnAuthenticator stream.ConnAuthenticator
-	HandshakeTimeout  time.Duration
-	TLS               *tls.Config
+
+	// tcp.New(tcp.Config{HandshakeTimeout: 5 * time.Second})
+	HandshakeTimeout time.Duration
+
+	// tcp.New(tcp.Config{TLS: &tls.Config{}})
+	TLS *tls.Config
 }
 
 // adapter := tcp.New(tcp.Config{Addr: ":9000", ConnAuthenticator: auth})
