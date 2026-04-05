@@ -599,6 +599,43 @@ func TestHub_SubscribeWithError_Good(t *testing.T) {
 	}
 }
 
+func TestHub_Stats_IncludeHandlerOnlyChannels_Good(t *testing.T) {
+	hub := NewHub()
+	hubContext, hubCancel := context.WithCancel(context.Background())
+	defer hubCancel()
+
+	go hub.Run(hubContext)
+	waitForRunningHub(t, hub)
+
+	unsubscribe := hub.Subscribe("events", func(frame []byte) {})
+	defer unsubscribe()
+
+	stats := hub.Stats()
+	if stats.Peers != 0 {
+		t.Fatalf("Stats().Peers = %d, want %d", stats.Peers, 0)
+	}
+	if stats.Channels != 1 {
+		t.Fatalf("Stats().Channels = %d, want %d", stats.Channels, 1)
+	}
+	if stats.SubscriberCount["events"] != 1 {
+		t.Fatalf("Stats().SubscriberCount[events] = %d, want %d", stats.SubscriberCount["events"], 1)
+	}
+	if hub.ChannelCount() != 1 {
+		t.Fatalf("ChannelCount() = %d, want %d", hub.ChannelCount(), 1)
+	}
+	if hub.ChannelSubscriberCount("events") != 1 {
+		t.Fatalf("ChannelSubscriberCount(events) = %d, want %d", hub.ChannelSubscriberCount("events"), 1)
+	}
+
+	channels := make([]string, 0, 1)
+	for channel := range hub.AllChannels() {
+		channels = append(channels, channel)
+	}
+	if len(channels) != 1 || channels[0] != "events" {
+		t.Fatalf("AllChannels() = %v, want [events]", channels)
+	}
+}
+
 func TestHub_SubscribeE_Bad(t *testing.T) {
 	hub := NewHub()
 

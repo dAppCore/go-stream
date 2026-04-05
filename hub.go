@@ -382,7 +382,16 @@ func (hub *Hub) Stats() HubStats {
 		if channel == "*" {
 			continue
 		}
-		subscriberCount[channel] = len(peers)
+		subscriberCount[channel] = len(peers) + len(hub.channelHandlers[channel])
+	}
+	for channel, handlers := range hub.channelHandlers {
+		if channel == "*" {
+			continue
+		}
+		if _, exists := subscriberCount[channel]; exists {
+			continue
+		}
+		subscriberCount[channel] = len(handlers)
 	}
 	return HubStats{
 		Peers:           len(hub.peers),
@@ -440,7 +449,22 @@ func (hub *Hub) ChannelCount() int {
 	defer hub.mutex.RUnlock()
 	count := 0
 	for channel, peers := range hub.channels {
-		if channel == "*" || len(peers) == 0 {
+		if channel == "*" {
+			continue
+		}
+		if len(peers)+len(hub.channelHandlers[channel]) == 0 {
+			continue
+		}
+		count++
+	}
+	for channel, handlers := range hub.channelHandlers {
+		if channel == "*" {
+			continue
+		}
+		if len(handlers) == 0 {
+			continue
+		}
+		if len(hub.channels[channel]) > 0 {
 			continue
 		}
 		count++
@@ -455,7 +479,7 @@ func (hub *Hub) ChannelSubscriberCount(channel string) int {
 	}
 	hub.mutex.RLock()
 	defer hub.mutex.RUnlock()
-	return len(hub.channels[channel])
+	return len(hub.channels[channel]) + len(hub.channelHandlers[channel])
 }
 
 //	for peer := range hub.AllPeers() {
@@ -497,17 +521,27 @@ func (hub *Hub) AllChannels() iter.Seq[string] {
 		return func(yield func(string) bool) {}
 	}
 	hub.mutex.RLock()
-	channels := make([]string, 0, len(hub.channels))
+	channels := make(map[string]struct{}, len(hub.channels)+len(hub.channelHandlers))
 	for channel, peers := range hub.channels {
-		if channel == "*" || len(peers) == 0 {
+		if channel == "*" || len(peers)+len(hub.channelHandlers[channel]) == 0 {
 			continue
 		}
-		channels = append(channels, channel)
+		channels[channel] = struct{}{}
+	}
+	for channel, handlers := range hub.channelHandlers {
+		if channel == "*" || len(handlers) == 0 {
+			continue
+		}
+		channels[channel] = struct{}{}
 	}
 	hub.mutex.RUnlock()
-	sort.Strings(channels)
+	sortedChannels := make([]string, 0, len(channels))
+	for channel := range channels {
+		sortedChannels = append(sortedChannels, channel)
+	}
+	sort.Strings(sortedChannels)
 	return func(yield func(string) bool) {
-		for _, channel := range channels {
+		for _, channel := range sortedChannels {
 			if !yield(channel) {
 				return
 			}
