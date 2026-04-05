@@ -69,10 +69,10 @@ type Peer struct {
 	// Values: "ws", "sse", "tcp", "zmq"
 	Transport string
 
-	sendBuffer    chan []byte
+	sendQueue     chan []byte
 	subscriptions map[string]bool
-	closeFunc     func()
-	mu            sync.RWMutex
+	closeHook     func()
+	mutex         sync.RWMutex
 	closeOnce     sync.Once
 }
 
@@ -82,7 +82,7 @@ func NewPeer(transport string) *Peer {
 	return &Peer{
 		ID:            randomUUID(),
 		Transport:     transport,
-		sendBuffer:    make(chan []byte, defaultPeerSendBufferSize),
+		sendQueue:     make(chan []byte, defaultPeerSendBufferSize),
 		subscriptions: map[string]bool{},
 	}
 }
@@ -92,8 +92,8 @@ func (peer *Peer) Subscriptions() []string {
 	if peer == nil {
 		return nil
 	}
-	peer.mu.RLock()
-	defer peer.mu.RUnlock()
+	peer.mutex.RLock()
+	defer peer.mutex.RUnlock()
 	channels := make([]string, 0, len(peer.subscriptions))
 	for channel := range peer.subscriptions {
 		channels = append(channels, channel)
@@ -110,14 +110,14 @@ func (peer *Peer) Send(frame []byte) bool {
 	defer func() {
 		_ = recover()
 	}()
-	peer.mu.RLock()
-	defer peer.mu.RUnlock()
-	if peer.sendBuffer == nil {
+	peer.mutex.RLock()
+	defer peer.mutex.RUnlock()
+	if peer.sendQueue == nil {
 		return false
 	}
 	payload := append([]byte(nil), frame...)
 	select {
-	case peer.sendBuffer <- payload:
+	case peer.sendQueue <- payload:
 		return true
 	default:
 		return false
@@ -131,16 +131,16 @@ func (peer *Peer) Close() {
 		return
 	}
 	peer.closeOnce.Do(func() {
-		peer.mu.Lock()
-		sendBuffer := peer.sendBuffer
-		closeFunc := peer.closeFunc
-		peer.closeFunc = nil
-		peer.mu.Unlock()
-		if sendBuffer != nil {
-			close(sendBuffer)
+		peer.mutex.Lock()
+		sendQueue := peer.sendQueue
+		closeHook := peer.closeHook
+		peer.closeHook = nil
+		peer.mutex.Unlock()
+		if sendQueue != nil {
+			close(sendQueue)
 		}
-		if closeFunc != nil {
-			closeFunc()
+		if closeHook != nil {
+			closeHook()
 		}
 	})
 }
@@ -150,9 +150,9 @@ func (peer *Peer) SetCloseHook(closeFunc func()) {
 	if peer == nil {
 		return
 	}
-	peer.mu.Lock()
-	defer peer.mu.Unlock()
-	peer.closeFunc = closeFunc
+	peer.mutex.Lock()
+	defer peer.mutex.Unlock()
+	peer.closeHook = closeFunc
 }
 
 // SendQueue exposes the adapter-facing outbound queue.
@@ -166,9 +166,9 @@ func (peer *Peer) SendQueue() <-chan []byte {
 	if peer == nil {
 		return nil
 	}
-	peer.mu.RLock()
-	defer peer.mu.RUnlock()
-	return peer.sendBuffer
+	peer.mutex.RLock()
+	defer peer.mutex.RUnlock()
+	return peer.sendQueue
 }
 
 // switch client.State() {

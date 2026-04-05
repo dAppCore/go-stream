@@ -255,8 +255,8 @@ func (hub *Hub) SubscribePeer(peer *Peer, channel string) error {
 	if hub.config.ChannelAuthoriser != nil && channel != "*" && !hub.config.ChannelAuthoriser(peer, channel) {
 		return ErrAuthRejected
 	}
-	if peer.sendBuffer == nil {
-		peer.sendBuffer = make(chan []byte, defaultPeerSendBufferSize)
+	if peer.sendQueue == nil {
+		peer.sendQueue = make(chan []byte, defaultPeerSendBufferSize)
 	}
 	if peer.subscriptions == nil {
 		peer.subscriptions = map[string]bool{}
@@ -514,8 +514,8 @@ func (hub *Hub) AddPeer(peer *Peer) error {
 	if peer == nil {
 		return core.E("stream.hub", "nil peer", nil)
 	}
-	if peer.sendBuffer == nil {
-		peer.sendBuffer = make(chan []byte, defaultPeerSendBufferSize)
+	if peer.sendQueue == nil {
+		peer.sendQueue = make(chan []byte, defaultPeerSendBufferSize)
 	}
 	if peer.subscriptions == nil {
 		peer.subscriptions = map[string]bool{}
@@ -621,9 +621,9 @@ func (hub *Hub) removePeer(peer *Peer) {
 			delete(hub.channels, channel)
 		}
 	}
-	peer.mu.Lock()
+	peer.mutex.Lock()
 	peer.subscriptions = map[string]bool{}
-	peer.mu.Unlock()
+	peer.mutex.Unlock()
 	onDisconnect := hub.config.OnDisconnect
 	hub.mu.Unlock()
 	peer.Close()
