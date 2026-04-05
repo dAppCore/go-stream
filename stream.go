@@ -210,6 +210,21 @@ const (
 	StateConnected
 )
 
+// String returns the stable label for this connection state.
+//
+//	state := stream.StateConnected
+//	core.Print(nil, "connection state=%s", state.String())
+func (state ConnectionState) String() string {
+	switch state {
+	case StateConnecting:
+		return "connecting"
+	case StateConnected:
+		return "connected"
+	default:
+		return "disconnected"
+	}
+}
+
 // Envelope wraps a frame with metadata for cross-instance transport.
 type Envelope struct {
 	SourceID string
