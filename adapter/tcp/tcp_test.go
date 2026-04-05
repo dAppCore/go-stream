@@ -3,6 +3,7 @@
 package tcp
 
 import (
+	"bytes"
 	"context"
 	"io"
 	"net"
@@ -282,7 +283,7 @@ func TestTCP_Listen_Ugly(t *testing.T) {
 	waitForPeerCount(t, hub, 0)
 }
 
-func TestTCP_Listen_HandshakeTooLarge_Good(t *testing.T) {
+func TestTCP_Listen_NoAuthenticator_LargeInitialFrame_Good(t *testing.T) {
 	hub := stream.NewHub()
 	hubContext, hubCancel := context.WithCancel(context.Background())
 	defer hubCancel()
@@ -290,6 +291,54 @@ func TestTCP_Listen_HandshakeTooLarge_Good(t *testing.T) {
 
 	adapter := New(Config{
 		Addr: "127.0.0.1:0",
+	})
+	adapter.Mount(hub)
+
+	listenContext, listenCancel := context.WithCancel(context.Background())
+	defer listenCancel()
+	go func() {
+		_ = adapter.Listen(listenContext)
+	}()
+
+	address := waitForListenerAddress(t, adapter)
+	connection, err := net.Dial("tcp", address)
+	if err != nil {
+		t.Fatalf("Dial() error = %v", err)
+	}
+	defer connection.Close()
+
+	received := make(chan []byte, 1)
+	unsubscribe := hub.Subscribe("block", func(frame []byte) {
+		received <- append([]byte(nil), frame...)
+	})
+	defer unsubscribe()
+
+	largeFrame := bytes.Repeat([]byte("a"), maxHandshakeFrameSize+1)
+	if _, err := connection.Write(encodeFrame("block", largeFrame)); err != nil {
+		t.Fatalf("Write() error = %v", err)
+	}
+
+	select {
+	case frame := <-received:
+		if string(frame) != string(largeFrame) {
+			t.Fatalf("received frame size = %d, want %d", len(frame), len(largeFrame))
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for large initial frame")
+	}
+}
+
+func TestTCP_Listen_AuthHandshakeTooLarge_Good(t *testing.T) {
+	hub := stream.NewHub()
+	hubContext, hubCancel := context.WithCancel(context.Background())
+	defer hubCancel()
+	go hub.Run(hubContext)
+
+	adapter := New(Config{
+		Addr: "127.0.0.1:0",
+		ConnAuthenticator: stream.ConnAuthenticatorFunc(func(handshake []byte) stream.AuthResult {
+			return stream.AuthResult{Valid: true}
+		}),
 	})
 	adapter.Mount(hub)
 

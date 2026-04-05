@@ -211,7 +211,11 @@ func (adapter *Adapter) handleConn(ctx context.Context, conn net.Conn, hub *stre
 	})
 	defer stopClose()
 
-	channel, frame, err := readFrame(conn, adapter.config.HandshakeTimeout, maxHandshakeFrameSize)
+	handshakeMaxSize := MaxFrameSize
+	if adapter.config.ConnAuthenticator != nil {
+		handshakeMaxSize = maxHandshakeFrameSize
+	}
+	channel, frame, err := readFrame(conn, adapter.config.HandshakeTimeout, handshakeMaxSize)
 	if err != nil {
 		return
 	}
