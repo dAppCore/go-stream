@@ -179,14 +179,15 @@ func (hub *Hub) sendToChannelFromPeer(source *Peer, channel string, frame []byte
 	return nil
 }
 
-// SubscribeWithError registers a handler function invoked for every frame arriving
-// on channel. Returns an unsubscribe function and an error for invalid input.
-// Multiple handlers per channel are allowed. Handlers run in the hub's goroutine —
-// keep them non-blocking.
+//	unsub, err := hub.SubscribeWithError("block", func(frame []byte) {
+//	    handleBlock(frame)
+//	})
 //
-//	unsub, err := hub.SubscribeWithError("block", func(frame []byte) { ... })
-//	if err != nil { return err }
-//	defer unsub()
+//	if err != nil {
+//	    return err
+//	}
+//
+// defer unsub()
 func (hub *Hub) SubscribeWithError(channel string, handler func([]byte)) (func(), error) {
 	if hub == nil {
 		return func() {}, core.E("stream.hub", "nil hub", nil)
@@ -224,17 +225,15 @@ func (hub *Hub) SubscribeWithError(channel string, handler func([]byte)) (func()
 	}), nil
 }
 
-// SubscribeE is a compatibility alias for SubscribeWithError.
-//
-//	unsub, err := hub.SubscribeE("block", func(frame []byte) { ... })
+//	unsub, err := hub.SubscribeE("block", func(frame []byte) {
+//	    handleBlock(frame)
+//	})
 func (hub *Hub) SubscribeE(channel string, handler func([]byte)) (func(), error) {
 	return hub.SubscribeWithError(channel, handler)
 }
 
-// Subscribe a handler for one channel.
-//
-//	unsubscribe := hub.Subscribe("block", func(frame []byte) { handleBlock(frame) })
-//	defer unsubscribe()
+// unsubscribe := hub.Subscribe("block", func(frame []byte) { handleBlock(frame) })
+// defer unsubscribe()
 func (hub *Hub) Subscribe(channel string, handler func([]byte)) func() {
 	unsub, _ := hub.SubscribeWithError(channel, handler)
 	return unsub
@@ -383,15 +382,14 @@ func (hub *Hub) Stats() HubStats {
 }
 
 //	stop := hub.SubscribePublished(func(channel string, frame []byte) {
-//		_ = channel
-//		_ = frame
+//	    core.Print("stream", "channel=%s frame=%d", channel, len(frame))
 //	})
 func (hub *Hub) SubscribePublished(handler func(string, []byte)) func() {
 	return hub.subscribePublished(handler)
 }
 
 //	stop := hub.SubscribeBroadcast(func(frame []byte) {
-//		_ = frame
+//	    core.Print("stream", "broadcast frame=%d", len(frame))
 //	})
 func (hub *Hub) SubscribeBroadcast(handler func([]byte)) func() {
 	if hub == nil || handler == nil {
@@ -450,7 +448,9 @@ func (hub *Hub) ChannelSubscriberCount(channel string) int {
 	return len(hub.channels[channel])
 }
 
-// for peer := range hub.AllPeers() { _ = peer.UserID }
+//	for peer := range hub.AllPeers() {
+//	    _ = peer.UserID
+//	}
 func (hub *Hub) AllPeers() iter.Seq[*Peer] {
 	if hub == nil {
 		return func(yield func(*Peer) bool) {}
@@ -479,7 +479,9 @@ func (hub *Hub) AllPeers() iter.Seq[*Peer] {
 	}
 }
 
-// for channel := range hub.AllChannels() { _ = channel }
+//	for channel := range hub.AllChannels() {
+//	    _ = channel
+//	}
 func (hub *Hub) AllChannels() iter.Seq[string] {
 	if hub == nil {
 		return func(yield func(string) bool) {}
@@ -815,17 +817,6 @@ func cloneBroadcastHandlers(handlers map[uint64]func([]byte)) []func([]byte) {
 	cloned := make([]func([]byte), 0, len(handlers))
 	for _, handler := range handlers {
 		cloned = append(cloned, handler)
-	}
-	return cloned
-}
-
-func clonePeers(peers map[*Peer]bool) []*Peer {
-	if len(peers) == 0 {
-		return nil
-	}
-	cloned := make([]*Peer, 0, len(peers))
-	for peer := range peers {
-		cloned = append(cloned, peer)
 	}
 	return cloned
 }
