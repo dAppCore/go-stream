@@ -28,6 +28,8 @@ import (
 //	client := tcp.NewReconnectingTCP(config)
 type ReconnectConfig struct {
 	Addr              string
+	HandshakeFrame    []byte
+	HandshakeChannel  string
 	InitialBackoff    time.Duration
 	MaxBackoff        time.Duration
 	BackoffMultiplier float64
@@ -87,6 +89,22 @@ func (client *ReconnectingTCP) Connect(ctx context.Context) error {
 		client.setState(stream.StateConnecting)
 		conn, err := client.dial(ctx)
 		if err != nil {
+			attempt++
+			client.setState(stream.StateDisconnected)
+			if client.config.MaxRetries > 0 && attempt > client.config.MaxRetries {
+				return err
+			}
+			if client.config.OnReconnect != nil {
+				client.config.OnReconnect(attempt)
+			}
+			if err := sleepContext(ctx, backoff); err != nil {
+				return err
+			}
+			backoff = nextTCPBackoff(backoff, client.config.BackoffMultiplier, client.config.MaxBackoff)
+			continue
+		}
+		if err := client.writeHandshake(conn); err != nil {
+			_ = conn.Close()
 			attempt++
 			client.setState(stream.StateDisconnected)
 			if client.config.MaxRetries > 0 && attempt > client.config.MaxRetries {
@@ -275,4 +293,14 @@ func sleepContext(ctx context.Context, duration time.Duration) error {
 	case <-timer.C:
 		return nil
 	}
+}
+
+func (client *ReconnectingTCP) writeHandshake(conn net.Conn) error {
+	if conn == nil {
+		return core.E("stream.tcp", "nil connection", nil)
+	}
+	if len(client.config.HandshakeFrame) == 0 && client.config.HandshakeChannel == "" {
+		return nil
+	}
+	return writeFull(conn, encodeFrame(client.config.HandshakeChannel, client.config.HandshakeFrame))
 }

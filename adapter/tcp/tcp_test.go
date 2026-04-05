@@ -352,6 +352,67 @@ func TestTCP_Dial_NilContext_Good(t *testing.T) {
 	<-serverDone
 }
 
+func TestTCP_Dial_Handshake_Good(t *testing.T) {
+	serverHub := stream.NewHub()
+	serverHubContext, serverHubCancel := context.WithCancel(context.Background())
+	defer serverHubCancel()
+	go serverHub.Run(serverHubContext)
+
+	serverAdapter := New(Config{
+		Addr: "127.0.0.1:0",
+		ConnAuthenticator: stream.ConnAuthenticatorFunc(func(handshake []byte) stream.AuthResult {
+			if string(handshake) != "trusted" {
+				return stream.AuthResult{Valid: false}
+			}
+			return stream.AuthResult{Valid: true, UserID: "peer-1"}
+		}),
+	})
+	serverAdapter.Mount(serverHub)
+
+	listenContext, listenCancel := context.WithCancel(context.Background())
+	defer listenCancel()
+	go func() {
+		_ = serverAdapter.Listen(listenContext)
+	}()
+
+	clientHub := stream.NewHub()
+	clientHubContext, clientHubCancel := context.WithCancel(context.Background())
+	defer clientHubCancel()
+	go clientHub.Run(clientHubContext)
+
+	clientAdapter := New(Config{
+		Addr:           waitForListenerAddress(t, serverAdapter),
+		HandshakeFrame: []byte("trusted"),
+	})
+
+	received := make(chan []byte, 1)
+	unsubscribe := clientHub.Subscribe("block", func(frame []byte) {
+		received <- append([]byte(nil), frame...)
+	})
+	defer unsubscribe()
+
+	peer, err := clientAdapter.Dial(context.Background(), clientHub)
+	if err != nil {
+		t.Fatalf("Dial() error = %v", err)
+	}
+	defer peer.Close()
+
+	waitForPeerCount(t, serverHub, 1)
+
+	if err := serverHub.Publish("block", []byte("template")); err != nil {
+		t.Fatalf("Publish() error = %v", err)
+	}
+
+	select {
+	case frame := <-received:
+		if string(frame) != "template" {
+			t.Fatalf("received frame = %q, want %q", string(frame), "template")
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for dialed handshake frame")
+	}
+}
+
 func TestReconnectingTCP_State_Good(t *testing.T) {
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -439,6 +500,85 @@ func TestReconnectingTCP_OnReconnect_Good(t *testing.T) {
 	if client.State() != stream.StateDisconnected {
 		t.Fatalf("State() = %v, want %v", client.State(), stream.StateDisconnected)
 	}
+}
+
+func TestReconnectingTCP_Connect_Handshake_Good(t *testing.T) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("Listen() error = %v", err)
+	}
+	defer listener.Close()
+
+	received := make(chan []byte, 1)
+	serverDone := make(chan struct{})
+	go func() {
+		defer close(serverDone)
+		connection, acceptErr := listener.Accept()
+		if acceptErr != nil {
+			return
+		}
+		defer connection.Close()
+
+		channel, frame, readErr := readFrame(connection, time.Second, MaxFrameSize)
+		if readErr != nil {
+			return
+		}
+		if channel != "auth" {
+			return
+		}
+		received <- append([]byte(nil), frame...)
+		_ = writeFull(connection, encodeFrame("block", []byte("template")))
+	}()
+
+	clientMessages := make(chan []byte, 1)
+	client := NewReconnectingTCP(ReconnectConfig{
+		Addr:             listener.Addr().String(),
+		HandshakeChannel: "auth",
+		HandshakeFrame:   []byte("trusted"),
+		InitialBackoff:   10 * time.Millisecond,
+		MaxBackoff:       10 * time.Millisecond,
+		OnMessage: func(channel string, frame []byte) {
+			if channel == "block" {
+				clientMessages <- append([]byte(nil), frame...)
+			}
+		},
+	})
+
+	connectContext, connectCancel := context.WithCancel(context.Background())
+	connectDone := make(chan error, 1)
+	go func() {
+		connectDone <- client.Connect(connectContext)
+	}()
+
+	select {
+	case frame := <-received:
+		if string(frame) != "trusted" {
+			t.Fatalf("handshake frame = %q, want %q", string(frame), "trusted")
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for handshake frame")
+	}
+
+	select {
+	case frame := <-clientMessages:
+		if string(frame) != "template" {
+			t.Fatalf("received frame = %q, want %q", string(frame), "template")
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for reconnecting client frame")
+	}
+
+	connectCancel()
+	select {
+	case err := <-connectDone:
+		if err != nil && err != context.Canceled {
+			t.Fatalf("Connect() error = %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for Connect() to return")
+	}
+
+	<-serverDone
 }
 
 func waitForListenerAddress(t *testing.T, adapter *Adapter) string {

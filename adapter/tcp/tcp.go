@@ -36,6 +36,12 @@ type Config struct {
 	// tcp.New(tcp.Config{ConnAuthenticator: auth})
 	ConnAuthenticator stream.ConnAuthenticator
 
+	// tcp.New(tcp.Config{HandshakeFrame: []byte("trusted")})
+	HandshakeFrame []byte
+
+	// tcp.New(tcp.Config{HandshakeChannel: "auth"})
+	HandshakeChannel string
+
 	// tcp.New(tcp.Config{HandshakeTimeout: 5 * time.Second})
 	HandshakeTimeout time.Duration
 
@@ -129,6 +135,10 @@ func (adapter *Adapter) Dial(ctx context.Context, hub *stream.Hub) (*stream.Peer
 	}
 	conn, err := adapter.dial(ctx)
 	if err != nil {
+		return nil, err
+	}
+	if err := adapter.writeHandshake(conn); err != nil {
+		_ = conn.Close()
 		return nil, err
 	}
 	peer := stream.NewPeer("tcp")
@@ -332,6 +342,17 @@ func writeFull(conn net.Conn, payload []byte) error {
 	}
 	return nil
 }
+
+func (adapter *Adapter) writeHandshake(conn net.Conn) error {
+	if conn == nil {
+		return core.E("stream.tcp", "nil connection", nil)
+	}
+	if len(adapter.config.HandshakeFrame) == 0 && adapter.config.HandshakeChannel == "" {
+		return nil
+	}
+	return writeFull(conn, encodeFrame(adapter.config.HandshakeChannel, adapter.config.HandshakeFrame))
+}
+
 func isClosedNetworkError(err error) bool {
 	if err == nil {
 		return false
