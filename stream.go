@@ -60,11 +60,14 @@ type Stream interface {
 	Stats() HubStats
 }
 
-// Frame is a raw byte payload delivered through the hub.
-// Adapters and consumers define their own serialisation over Frame.
+// Frame keeps transport payloads as raw bytes.
+//
+//	frame := stream.Frame([]byte(`{"type":"event"}`))
 type Frame = []byte
 
-// Channel is a named topic string used for pub/sub routing.
+// Channel keeps pub/sub routing keys explicit.
+//
+//	channel := stream.Channel("hashrate")
 type Channel = string
 
 // peer := stream.NewPeer("ws")
@@ -104,7 +107,7 @@ func NewPeer(transport string) *Peer {
 	}
 }
 
-// Subscriptions returns a copy of this peer's current channel subscriptions.
+// Subscriptions snapshots the peer's active channels.
 //
 //	channels := peer.Subscriptions() // ["hashrate", "block"]
 func (peer *Peer) Subscriptions() []string {
@@ -121,7 +124,7 @@ func (peer *Peer) Subscriptions() []string {
 	return channels
 }
 
-// Send enqueues frame for delivery. Non-blocking: drops and returns false if buffer full.
+// Send queues one outbound frame without blocking the caller.
 //
 //	ok := peer.Send(frame)
 func (peer *Peer) Send(frame []byte) bool {
@@ -180,7 +183,7 @@ func (peer *Peer) SetCloseHook(closeHook func()) {
 	peer.closeHook = closeHook
 }
 
-// SendQueue returns the peer's outgoing frame queue.
+// SendQueue exposes the adapter-facing outbound queue.
 //
 //	for frame := range peer.SendQueue() { handle(frame) }
 func (peer *Peer) SendQueue() <-chan []byte {
@@ -210,7 +213,7 @@ const (
 	StateConnected
 )
 
-// String returns the stable label for this connection state.
+// String keeps connection-state logs stable and grep-friendly.
 //
 //	state := stream.StateConnected
 //	core.Print(nil, "connection state=%s", state.String())
@@ -225,7 +228,9 @@ func (state ConnectionState) String() string {
 	}
 }
 
-// Envelope wraps a frame with metadata for cross-instance transport.
+// Envelope keeps bridge metadata beside the raw frame.
+//
+//	envelope := stream.Envelope{SourceID: "node-a", Channel: "block", Frame: []byte("template")}
 type Envelope struct {
 	SourceID string
 	Channel  string

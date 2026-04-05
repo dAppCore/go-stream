@@ -175,8 +175,8 @@ func NewPeer(transport string) *Peer {
 }
 
 // Pipe preserves the legacy stream pipe composition helper.
-func Pipe(src Stream, dst Stream) func() {
-	return stream.Pipe(src, dst)
+func Pipe(source Stream, destination Stream) func() {
+	return stream.Pipe(source, destination)
 }
 
 // New creates a legacy-compatible WebSocket adapter.

@@ -14,7 +14,7 @@ import (
 	"dappco.re/go/stream"
 )
 
-// ReconnectConfig configures the client-side reconnecting WebSocket.
+// ReconnectConfig wires one reconnecting WebSocket client.
 //
 //	reconnectConfig := ws.ReconnectConfig{
 //	    URL: "ws://127.0.0.1:8080/stream/ws",
@@ -37,7 +37,7 @@ type ReconnectConfig struct {
 	Headers           http.Header
 }
 
-// ReconnectingClient is a WebSocket client with automatic reconnection.
+// ReconnectingClient keeps one WebSocket session connected with backoff.
 //
 //	client := ws.NewReconnectingClient(ws.ReconnectConfig{URL: "ws://127.0.0.1:8080/stream/ws"})
 //	_ = client.Connect(context.Background())
@@ -182,7 +182,7 @@ func (client *ReconnectingClient) Send(msg stream.Message) error {
 	return client.conn.WriteMessage(websocket.TextMessage, payload.Value.([]byte))
 }
 
-// State returns the current connection state.
+// State exposes the reconnecting client's lifecycle state.
 //
 //	state := client.State()
 func (client *ReconnectingClient) State() stream.ConnectionState {

@@ -39,7 +39,7 @@ type HubConfig struct {
 	ChannelAuthoriser ChannelAuthoriser
 }
 
-// DefaultHubConfig returns sensible defaults.
+// DefaultHubConfig starts from the library defaults used by adapters.
 //
 //	config := stream.DefaultHubConfig()
 func DefaultHubConfig() HubConfig {

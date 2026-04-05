@@ -74,7 +74,7 @@ func (hub *Hub) Config() HubConfig {
 	return normalizeHubConfig(config)
 }
 
-// Run starts the hub's select loop. Call in a goroutine. Exits when ctx is cancelled.
+// Run owns the hub event loop until ctx is cancelled.
 //
 //	go hub.Run(ctx)
 func (hub *Hub) Run(ctx context.Context) {
@@ -375,7 +375,7 @@ func (hub *Hub) Pipe(destination Stream) func() {
 	return Pipe(hub, destination)
 }
 
-// Stats returns a snapshot of current hub state.
+// Stats snapshots peers and per-channel subscriber counts.
 //
 //	stats := hub.Stats()
 //	core.Print("stream", "peers=%d channels=%d", stats.Peers, stats.Channels)
@@ -434,7 +434,7 @@ func (hub *Hub) SubscribeBroadcast(handler func([]byte)) func() {
 	})
 }
 
-// PeerCount returns the number of connected peers.
+// PeerCount reads the current connected-peer total.
 //
 //	n := hub.PeerCount()
 func (hub *Hub) PeerCount() int {
@@ -446,7 +446,7 @@ func (hub *Hub) PeerCount() int {
 	return len(hub.peers)
 }
 
-// ChannelCount returns the number of active channels.
+// ChannelCount reads how many named channels currently have subscribers.
 //
 //	n := hub.ChannelCount()
 func (hub *Hub) ChannelCount() int {
@@ -465,8 +465,7 @@ func (hub *Hub) ChannelCount() int {
 	return count
 }
 
-// ChannelSubscriberCount returns the subscriber count for a channel.
-// Returns 0 if the channel has no subscribers.
+// ChannelSubscriberCount reads one channel's current subscriber total.
 //
 //	n := hub.ChannelSubscriberCount("hashrate")
 func (hub *Hub) ChannelSubscriberCount(channel string) int {
@@ -478,7 +477,7 @@ func (hub *Hub) ChannelSubscriberCount(channel string) int {
 	return len(hub.channels[channel])
 }
 
-// AllPeers returns an iterator for all connected peers.
+// AllPeers iterates the current connected peers.
 //
 //	for peer := range hub.AllPeers() { log.Println(peer.UserID) }
 func (hub *Hub) AllPeers() iter.Seq[*Peer] {
@@ -500,7 +499,7 @@ func (hub *Hub) AllPeers() iter.Seq[*Peer] {
 	}
 }
 
-// AllChannels returns an iterator for all active channels.
+// AllChannels iterates active channel names in sorted order.
 //
 //	for ch := range hub.AllChannels() { log.Println(ch) }
 func (hub *Hub) AllChannels() iter.Seq[string] {

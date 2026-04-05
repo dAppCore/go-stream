@@ -13,7 +13,7 @@ import (
 	"dappco.re/go/stream"
 )
 
-// ReconnectConfig configures the client-side reconnecting TCP connection.
+// ReconnectConfig wires one reconnecting TCP client.
 //
 //	client := tcp.NewReconnectingTCP(tcp.ReconnectConfig{
 //	    Addr: "127.0.0.1:9000",
@@ -38,7 +38,7 @@ type ReconnectConfig struct {
 	OnMessage         func(channel string, frame []byte)
 }
 
-// ReconnectingTCP connects to a TCP stream endpoint with automatic reconnection.
+// ReconnectingTCP keeps one TCP session connected with backoff.
 //
 //	client := tcp.NewReconnectingTCP(tcp.ReconnectConfig{Addr: "10.69.69.165:9000"})
 type ReconnectingTCP struct {
@@ -154,7 +154,7 @@ func (client *ReconnectingTCP) Send(channel string, frame []byte) error {
 	return writeFull(conn, encodeFrame(channel, frame))
 }
 
-// State reports whether the reconnecting client is disconnected, connecting, or connected.
+// State exposes the reconnecting client's lifecycle state.
 //
 //	if client.State() == stream.StateConnected {
 //	    _ = client.Send("vpn:peer-abc123", encryptedPacket)

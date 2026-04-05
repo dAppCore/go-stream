@@ -21,7 +21,7 @@ import (
 	"dappco.re/go/stream"
 )
 
-// cfg := redis.Config{Addr: "127.0.0.1:6379", Prefix: "pool"}
+// config := redis.Config{Addr: "127.0.0.1:6379", Prefix: "pool"}
 type Config struct {
 	Addr      string
 	Password  string
@@ -51,7 +51,7 @@ type envelope struct {
 	Frame    []byte `json:"f"`
 }
 
-// bridge, err := redis.NewBridge(hub, cfg)
+// bridge, err := redis.NewBridge(hub, config)
 func NewBridge(hub *stream.Hub, config Config) (*Bridge, error) {
 	if hub == nil {
 		return nil, core.E("stream.redis", "nil hub", nil)
@@ -222,7 +222,9 @@ func (bridge *Bridge) PublishBroadcast(frame []byte) error {
 	return bridge.publish(bridge.broadcastChannel(), frame)
 }
 
-// SourceID returns the random instance identifier.
+// SourceID exposes the bridge instance identifier used for echo prevention.
+//
+//	id := bridge.SourceID()
 func (bridge *Bridge) SourceID() string {
 	if bridge == nil {
 		return ""
@@ -287,11 +289,11 @@ func (bridge *Bridge) channelFromRedis(channel string) string {
 	return core.TrimPrefix(channel, bridge.config.Prefix+":channel:")
 }
 
-func newRedisClient(cfg Config) *redis.Client {
+func newRedisClient(config Config) *redis.Client {
 	return redis.NewClient(&redis.Options{
-		Addr:      cfg.Addr,
-		Password:  cfg.Password,
-		DB:        cfg.DB,
-		TLSConfig: cfg.TLSConfig,
+		Addr:      config.Addr,
+		Password:  config.Password,
+		DB:        config.DB,
+		TLSConfig: config.TLSConfig,
 	})
 }
