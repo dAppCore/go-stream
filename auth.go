@@ -1,5 +1,9 @@
 // SPDX-License-Identifier: EUPL-1.2
 
+// Package stream provides HTTP and connection authenticators.
+//
+//	auth := stream.NewAPIKeyAuth(map[string]string{"sk-live": "user-42"})
+//	result := auth.Authenticate(request)
 package stream
 
 import (

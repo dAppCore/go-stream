@@ -1,5 +1,10 @@
 // SPDX-License-Identifier: EUPL-1.2
 
+// Package stream provides hub composition primitives.
+//
+//	hub := stream.NewHub()
+//	go hub.Run(ctx)
+//	_ = hub.Publish("hashrate", []byte(`{"h":123456}`))
 package stream
 
 import (
