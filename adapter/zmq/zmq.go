@@ -5,9 +5,10 @@
 //		Endpoint: "tcp://127.0.0.1:5555",
 //		Role:     zmq.RoleSubscriber,
 //	})
-//	adapter.Mount(hub)
-//	go adapter.Start(ctx)
-//	defer adapter.Stop()
+//
+// adapter.Mount(hub)
+// go adapter.Start(ctx)
+// defer adapter.Stop()
 package zmq
 
 import (
@@ -225,7 +226,9 @@ func (adapter *Adapter) registerPeer(socket zmq4.Socket, authResult stream.AuthR
 	}
 	peer := stream.NewPeer("zmq")
 	peer.UserID = authResult.UserID
-	peer.Claims = authResult.Claims
+	if authResult.Claims != nil {
+		peer.Claims = authResult.Claims
+	}
 	if socket != nil {
 		peer.SetCloseHook(func() {
 			_ = socket.Close()

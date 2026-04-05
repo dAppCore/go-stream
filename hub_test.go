@@ -28,6 +28,23 @@ func newTestStream() *testStream {
 	}
 }
 
+func TestHub_NewPeer_DefaultClaims_Good(t *testing.T) {
+	peer := NewPeer("ws")
+	if peer == nil {
+		t.Fatal("NewPeer() = nil")
+	}
+	if peer.Claims == nil {
+		t.Fatal("NewPeer().Claims = nil, want empty map")
+	}
+	if len(peer.Claims) != 0 {
+		t.Fatalf("len(NewPeer().Claims) = %d, want 0", len(peer.Claims))
+	}
+	peer.Claims["role"] = "worker"
+	if role := peer.Claims["role"]; role != "worker" {
+		t.Fatalf("Claims[role] = %v, want %q", role, "worker")
+	}
+}
+
 func (streamValue *testStream) Publish(channel string, frame []byte) error {
 	streamValue.mutex.Lock()
 	streamValue.published = append(streamValue.published, publishedFrame{

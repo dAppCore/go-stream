@@ -82,6 +82,7 @@ type Peer struct {
 func NewPeer(transport string) *Peer {
 	return &Peer{
 		ID:            randomUUID(),
+		Claims:        map[string]any{},
 		Transport:     transport,
 		sendQueue:     make(chan []byte, defaultPeerSendBufferSize),
 		subscriptions: map[string]bool{},

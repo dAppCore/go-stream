@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: EUPL-1.2
 
-//	adapter := tcp.New(tcp.Config{Addr: ":9000"})
-//	adapter.Mount(hub)
-//	go adapter.Listen(ctx)
+// adapter := tcp.New(tcp.Config{Addr: ":9000"})
+// adapter.Mount(hub)
+// go adapter.Listen(ctx)
 package tcp
 
 import (
@@ -228,7 +228,9 @@ func (adapter *Adapter) handleConn(ctx context.Context, conn net.Conn, hub *stre
 
 	peer := stream.NewPeer("tcp")
 	peer.UserID = authResult.UserID
-	peer.Claims = authResult.Claims
+	if authResult.Claims != nil {
+		peer.Claims = authResult.Claims
+	}
 	peer.SetCloseHook(func() {
 		_ = conn.Close()
 	})

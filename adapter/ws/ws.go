@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: EUPL-1.2
 
-//	adapter := ws.New(ws.Config{Authenticator: auth})
-//	adapter.Mount(hub)
-//	http.Handle("/stream/ws", adapter.Handler())
+// adapter := ws.New(ws.Config{Authenticator: auth})
+// adapter.Mount(hub)
+// http.Handle("/stream/ws", adapter.Handler())
 package ws
 
 import (
@@ -98,7 +98,9 @@ func (adapter *Adapter) serveHTTP(w http.ResponseWriter, r *http.Request, channe
 
 	peer := stream.NewPeer("ws")
 	peer.UserID = authResult.UserID
-	peer.Claims = authResult.Claims
+	if authResult.Claims != nil {
+		peer.Claims = authResult.Claims
+	}
 	for _, channel := range channels {
 		if channel == "" {
 			continue

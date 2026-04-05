@@ -117,7 +117,9 @@ func (adapter *Adapter) serve(w http.ResponseWriter, r *http.Request, channels [
 
 	peer := stream.NewPeer("sse")
 	peer.UserID = authResult.UserID
-	peer.Claims = authResult.Claims
+	if authResult.Claims != nil {
+		peer.Claims = authResult.Claims
+	}
 	done := make(chan struct{})
 	var doneOnce sync.Once
 	peer.SetCloseHook(func() {
