@@ -8,14 +8,14 @@ import "time"
 type MessageType string
 
 const (
-	TypeProcessOutput MessageType = "process_output" // msg := stream.Message{Type: stream.TypeProcessOutput, ProcessID: "build-123"}
-	TypeProcessStatus MessageType = "process_status" // msg := stream.Message{Type: stream.TypeProcessStatus, ProcessID: "build-123"}
-	TypeEvent         MessageType = "event"          // msg := stream.Message{Type: stream.TypeEvent, Channel: "hashrate"}
-	TypeError         MessageType = "error"          // msg := stream.Message{Type: stream.TypeError, Data: "unauthorised"}
-	TypePing          MessageType = "ping"           // msg := stream.Message{Type: stream.TypePing, ProcessID: "client-1"}
+	TypeProcessOutput MessageType = "process_output" // message := stream.Message{Type: stream.TypeProcessOutput, ProcessID: "build-123"}
+	TypeProcessStatus MessageType = "process_status" // message := stream.Message{Type: stream.TypeProcessStatus, ProcessID: "build-123"}
+	TypeEvent         MessageType = "event"          // message := stream.Message{Type: stream.TypeEvent, Channel: "hashrate"}
+	TypeError         MessageType = "error"          // message := stream.Message{Type: stream.TypeError, Data: "unauthorised"}
+	TypePing          MessageType = "ping"           // message := stream.Message{Type: stream.TypePing, ProcessID: "client-1"}
 	TypePong          MessageType = "pong"           // reply := stream.Message{Type: stream.TypePong, ProcessID: "client-1"}
-	TypeSubscribe     MessageType = "subscribe"      // msg := stream.Message{Type: stream.TypeSubscribe, Channel: "block"}
-	TypeUnsubscribe   MessageType = "unsubscribe"    // msg := stream.Message{Type: stream.TypeUnsubscribe, Channel: "block"}
+	TypeSubscribe     MessageType = "subscribe"      // message := stream.Message{Type: stream.TypeSubscribe, Channel: "block"}
+	TypeUnsubscribe   MessageType = "unsubscribe"    // message := stream.Message{Type: stream.TypeUnsubscribe, Channel: "block"}
 )
 
 //	msg := stream.Message{

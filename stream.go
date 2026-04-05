@@ -219,30 +219,30 @@ type Envelope struct {
 	Frame    []byte
 }
 
-// Pipe connects src to dst.
+// Pipe connects source to destination.
 //
 //	stop := stream.Pipe(zmqHub, wsHub)
 //	defer stop()
 //
 // Published frames keep their channel. Broadcast frames stay broadcasts when the
 // source exposes that hook.
-func Pipe(src Stream, destination Stream) func() {
-	if src == nil || destination == nil || src == destination {
+func Pipe(source Stream, destination Stream) func() {
+	if source == nil || destination == nil || source == destination {
 		return func() {}
 	}
-	type publishSubscriber interface {
+	type publishedFrameSource interface {
 		SubscribePublished(handler func(string, []byte)) func()
 	}
-	type broadcastSubscriber interface {
+	type broadcastFrameSource interface {
 		SubscribeBroadcast(handler func([]byte)) func()
 	}
 	stops := make([]func(), 0, 2)
-	if publisher, ok := src.(publishSubscriber); ok {
+	if publisher, ok := source.(publishedFrameSource); ok {
 		stops = append(stops, onceFunc(publisher.SubscribePublished(func(channel string, frame []byte) {
 			_ = destination.Publish(channel, cloneFrame(frame))
 		})))
 	}
-	if broadcaster, ok := src.(broadcastSubscriber); ok {
+	if broadcaster, ok := source.(broadcastFrameSource); ok {
 		stops = append(stops, onceFunc(broadcaster.SubscribeBroadcast(func(frame []byte) {
 			_ = destination.Broadcast(cloneFrame(frame))
 		})))
@@ -250,7 +250,7 @@ func Pipe(src Stream, destination Stream) func() {
 	if len(stops) == 0 {
 		// Generic Stream implementations do not expose channel names, so fall back
 		// to publishing on the wildcard channel.
-		stop := src.Subscribe("*", func(frame []byte) {
+		stop := source.Subscribe("*", func(frame []byte) {
 			_ = destination.Publish("*", cloneFrame(frame))
 		})
 		return onceFunc(stop)
