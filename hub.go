@@ -364,8 +364,8 @@ func (hub *Hub) broadcastFrameFromPeer(source *Peer, frame []byte, notifyBroadca
 }
 
 // stop := hub.Pipe(remoteHub)
-func (hub *Hub) Pipe(destination Stream) func() {
-	return Pipe(hub, destination)
+func (hub *Hub) Pipe(dst Stream) func() {
+	return Pipe(hub, dst)
 }
 
 // stats := hub.Stats()
