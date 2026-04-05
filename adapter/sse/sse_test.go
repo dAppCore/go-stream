@@ -85,6 +85,47 @@ func TestAdapter_Handler_ZeroValueConfig_Good(t *testing.T) {
 	}
 }
 
+func TestAdapter_Handler_MultilineFrame_Good(t *testing.T) {
+	hub := stream.NewHub()
+	hubContext, hubCancel := context.WithCancel(context.Background())
+	defer hubCancel()
+	go hub.Run(hubContext)
+
+	adapter := New(Config{HeartbeatInterval: 20 * time.Millisecond})
+	adapter.Mount(hub)
+
+	server := httptest.NewServer(http.HandlerFunc(adapter.Handler()))
+	defer server.Close()
+
+	response, err := http.Get(server.URL + "?channel=hashrate")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	defer response.Body.Close()
+
+	waitForPeerCount(t, hub, 1)
+	if err := hub.Publish("hashrate", []byte("123\n456")); err != nil {
+		t.Fatalf("Publish() error = %v", err)
+	}
+
+	reader := bufio.NewReader(response.Body)
+	lines := make([]string, 0, 4)
+	for len(lines) < 4 {
+		line, err := reader.ReadString('\n')
+		if err != nil {
+			t.Fatalf("ReadString() error = %v", err)
+		}
+		lines = append(lines, line)
+	}
+
+	expected := []string{"retry: 3000\n", "\n", "data: 123\n", "data: 456\n"}
+	for index, line := range expected {
+		if lines[index] != line {
+			t.Fatalf("lines[%d] = %q, want %q", index, lines[index], line)
+		}
+	}
+}
+
 func TestAdapter_Handler_Bad(t *testing.T) {
 	hub := stream.NewHub()
 	hubContext, hubCancel := context.WithCancel(context.Background())

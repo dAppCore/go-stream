@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: EUPL-1.2
 
-//	adapter := sse.New(sse.Config{HeartbeatInterval: 15 * time.Second})
-//	adapter.Mount(hub)
-//	http.Handle("/stream/events", adapter.Handler())
+// adapter := sse.New(sse.Config{HeartbeatInterval: 15 * time.Second})
+// adapter.Mount(hub)
+// http.Handle("/stream/events", adapter.Handler())
 package sse
 
 import (
+	"bytes"
 	"io"
 	"net/http"
 	"strconv"
@@ -156,6 +157,8 @@ func (adapter *Adapter) serve(w http.ResponseWriter, r *http.Request, channels [
 		}
 	}
 
+	header.Set("Connection", "keep-alive")
+
 	_, _ = io.WriteString(w, "retry: "+strconv.Itoa(config.RetryMs)+"\n\n")
 	flusher.Flush()
 
@@ -173,13 +176,24 @@ func (adapter *Adapter) serve(w http.ResponseWriter, r *http.Request, channels [
 			if !ok {
 				return
 			}
-			_, _ = io.WriteString(w, "data: ")
-			_, _ = w.Write(frame)
-			_, _ = io.WriteString(w, "\n\n")
+			writeEventFrame(w, frame)
 			flusher.Flush()
 		case <-ticker.C:
-			_, _ = io.WriteString(w, ": ping\n\n")
+			writeHeartbeatFrame(w)
 			flusher.Flush()
 		}
 	}
+}
+
+func writeEventFrame(writer io.Writer, frame []byte) {
+	for _, line := range bytes.Split(frame, []byte{'\n'}) {
+		_, _ = io.WriteString(writer, "data: ")
+		_, _ = writer.Write(line)
+		_, _ = io.WriteString(writer, "\n")
+	}
+	_, _ = io.WriteString(writer, "\n")
+}
+
+func writeHeartbeatFrame(writer io.Writer) {
+	_, _ = io.WriteString(writer, ": ping\n\n")
 }

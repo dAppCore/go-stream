@@ -7,6 +7,7 @@ import (
 	"context"
 	"io"
 	"net"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -325,6 +326,77 @@ func TestTCP_Listen_NoAuthenticator_LargeInitialFrame_Good(t *testing.T) {
 		}
 	case <-time.After(2 * time.Second):
 		t.Fatal("timed out waiting for large initial frame")
+	}
+}
+
+func TestReconnectingTCP_Send_Concurrent_Good(t *testing.T) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("Listen() error = %v", err)
+	}
+	defer listener.Close()
+
+	serverAccepted := make(chan net.Conn, 1)
+	go func() {
+		connection, acceptErr := listener.Accept()
+		if acceptErr != nil {
+			return
+		}
+		serverAccepted <- connection
+	}()
+
+	client := NewReconnectingTCP(ReconnectConfig{Addr: listener.Addr().String()})
+
+	connectContext, connectCancel := context.WithCancel(context.Background())
+	connectDone := make(chan error, 1)
+	go func() {
+		connectDone <- client.Connect(connectContext)
+	}()
+	defer func() {
+		connectCancel()
+		_ = client.Close()
+		<-connectDone
+	}()
+
+	serverConnection := <-serverAccepted
+	defer serverConnection.Close()
+
+	for deadline := time.Now().Add(2 * time.Second); time.Now().Before(deadline); {
+		if client.State() == stream.StateConnected {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if client.State() != stream.StateConnected {
+		t.Fatal("client did not reach connected state")
+	}
+
+	senderCount := 32
+	var sendGroup sync.WaitGroup
+	for index := range senderCount {
+		sendGroup.Add(1)
+		go func(index int) {
+			defer sendGroup.Done()
+			if sendErr := client.Send("hashrate", []byte{byte(index)}); sendErr != nil {
+				t.Errorf("Send() error = %v", sendErr)
+			}
+		}(index)
+	}
+	sendGroup.Wait()
+
+	receivedValues := map[byte]bool{}
+	for len(receivedValues) < senderCount {
+		channel, frame, readErr := readFrame(serverConnection, 2*time.Second, MaxFrameSize)
+		if readErr != nil {
+			t.Fatalf("readFrame() error = %v", readErr)
+		}
+		if channel != "hashrate" {
+			t.Fatalf("readFrame() channel = %q, want %q", channel, "hashrate")
+		}
+		if len(frame) != 1 {
+			t.Fatalf("len(frame) = %d, want %d", len(frame), 1)
+		}
+		receivedValues[frame[0]] = true
 	}
 }
 

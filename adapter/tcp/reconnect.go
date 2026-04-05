@@ -44,10 +44,11 @@ type ReconnectConfig struct {
 type ReconnectingTCP struct {
 	config ReconnectConfig
 
-	mutex  sync.RWMutex
-	conn   net.Conn
-	state  stream.ConnectionState
-	closed bool
+	mutex      sync.RWMutex
+	writeMutex sync.Mutex
+	conn       net.Conn
+	state      stream.ConnectionState
+	closed     bool
 }
 
 // client := tcp.NewReconnectingTCP(tcp.ReconnectConfig{Addr: "10.69.69.165:9000"})
@@ -163,12 +164,16 @@ func (client *ReconnectingTCP) Send(channel string, frame []byte) error {
 	if client == nil {
 		return core.E("stream.tcp", "nil reconnecting tcp", nil)
 	}
+	client.writeMutex.Lock()
+	defer client.writeMutex.Unlock()
+
 	client.mutex.RLock()
-	defer client.mutex.RUnlock()
-	if client.conn == nil {
+	connection := client.conn
+	client.mutex.RUnlock()
+	if connection == nil {
 		return core.E("stream.tcp", "not connected", nil)
 	}
-	return writeFull(client.conn, encodeFrame(channel, frame))
+	return writeFull(connection, encodeFrame(channel, frame))
 }
 
 //	if client.State() == stream.StateConnected {
