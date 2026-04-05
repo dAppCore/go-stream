@@ -18,24 +18,24 @@ type ChannelAuthoriser func(peer *Peer, channel string) bool
 //	    },
 //	}
 type HubConfig struct {
-	// stream.NewHubWithConfig(stream.HubConfig{HeartbeatInterval: 30 * time.Second})
+	// cfg := stream.HubConfig{HeartbeatInterval: 30 * time.Second}
 	HeartbeatInterval time.Duration
 
-	// stream.NewHubWithConfig(stream.HubConfig{PongTimeout: 60 * time.Second})
+	// cfg := stream.HubConfig{PongTimeout: 60 * time.Second}
 	PongTimeout time.Duration
 
-	// stream.NewHubWithConfig(stream.HubConfig{WriteTimeout: 10 * time.Second})
+	// cfg := stream.HubConfig{WriteTimeout: 10 * time.Second}
 	WriteTimeout time.Duration
 
-	// stream.NewHubWithConfig(stream.HubConfig{OnConnect: func(peer *stream.Peer) { metrics.Inc("peers") }})
+	// cfg := stream.HubConfig{OnConnect: func(peer *stream.Peer) { metrics.Inc("peers") }}
 	OnConnect func(peer *Peer)
 
-	// stream.NewHubWithConfig(stream.HubConfig{OnDisconnect: func(peer *stream.Peer) { metrics.Dec("peers") }})
+	// cfg := stream.HubConfig{OnDisconnect: func(peer *stream.Peer) { metrics.Dec("peers") }}
 	OnDisconnect func(peer *Peer)
 
-	// stream.NewHubWithConfig(stream.HubConfig{ChannelAuthoriser: func(peer *stream.Peer, channel string) bool {
+	// cfg := stream.HubConfig{ChannelAuthoriser: func(peer *stream.Peer, channel string) bool {
 	//     return peer.Claims["role"] == "admin" || channel == "public"
-	// }})
+	// }}
 	ChannelAuthoriser ChannelAuthoriser
 }
 
