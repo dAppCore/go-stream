@@ -21,16 +21,12 @@ type Authenticator interface {
 //	    Claims: map[string]any{"role": "admin"},
 //	}
 type AuthResult struct {
-	// result := stream.AuthResult{Valid: true}
 	Valid bool
 
-	// result := stream.AuthResult{UserID: "user-42"}
 	UserID string
 
-	// result := stream.AuthResult{Claims: map[string]any{"role": "admin"}}
 	Claims map[string]any
 
-	// result := stream.AuthResult{Error: ErrInvalidAPIKey}
 	Error error
 }
 

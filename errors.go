@@ -4,8 +4,6 @@ package stream
 
 import "dappco.re/go/core"
 
-// Sentinel errors for the stream package.
-//
 //	if err := hub.Publish("hashrate", frame); err == ErrHubNotRunning {
 //	    return
 //	}
