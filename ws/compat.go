@@ -138,7 +138,7 @@ type Hub struct {
 	adapter     *adapterws.Adapter
 }
 
-// NewRedisBridge creates the legacy Redis bridge wrapper.
+// bridge, err := ws.NewRedisBridge(hub, redis.Config{Addr: "redis:6379", Prefix: "pool"})
 func NewRedisBridge(hub any, config adapterredis.Config) (*RedisBridge, error) {
 	switch typedHub := hub.(type) {
 	case *Hub:
@@ -153,42 +153,42 @@ func NewRedisBridge(hub any, config adapterredis.Config) (*RedisBridge, error) {
 	}
 }
 
-// NewAPIKeyAuth creates the legacy-compatible API key authenticator wrapper.
+// auth := ws.NewAPIKeyAuth(map[string]string{"sk-live": "user-42"})
 func NewAPIKeyAuth(keys map[string]string) *APIKeyAuthenticator {
 	return stream.NewAPIKeyAuth(keys)
 }
 
-// NewHub creates a legacy-compatible hub.
+// hub := ws.NewHub()
 func NewHub() *Hub {
 	return &Hub{Hub: stream.NewHub()}
 }
 
-// NewHubWithConfig creates a legacy-compatible hub with explicit configuration.
+// hub := ws.NewHubWithConfig(stream.HubConfig{HeartbeatInterval: 30 * time.Second})
 func NewHubWithConfig(config HubConfig) *Hub {
 	return &Hub{Hub: stream.NewHubWithConfig(config)}
 }
 
-// DefaultHubConfig returns the default hub configuration for legacy callers.
+// config := ws.DefaultHubConfig()
 func DefaultHubConfig() HubConfig {
 	return stream.DefaultHubConfig()
 }
 
-// NewPeer creates a legacy-compatible peer with a buffered send queue.
+// peer := ws.NewPeer("ws")
 func NewPeer(transport string) *Peer {
 	return stream.NewPeer(transport)
 }
 
-// Pipe preserves the legacy stream pipe composition helper.
+// stop := ws.Pipe(sourceHub, destinationHub)
 func Pipe(source Stream, destination Stream) func() {
 	return stream.Pipe(source, destination)
 }
 
-// New creates a legacy-compatible WebSocket adapter.
+// adapter := ws.New(ws.Config{Authenticator: auth})
 func New(config Config) *Adapter {
 	return adapterws.New(config)
 }
 
-// NewReconnectingClient creates the legacy reconnecting WebSocket client.
+// client := ws.NewReconnectingClient(ws.ReconnectConfig{URL: "ws://127.0.0.1:8080/stream/ws"})
 func NewReconnectingClient(config ReconnectConfig) *adapterws.ReconnectingClient {
 	return adapterws.NewReconnectingClient(config)
 }

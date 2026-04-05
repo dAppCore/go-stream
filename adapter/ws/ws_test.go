@@ -4,7 +4,6 @@ package ws
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -14,6 +13,7 @@ import (
 
 	"github.com/gorilla/websocket"
 
+	"dappco.re/go/core"
 	"dappco.re/go/stream"
 )
 
@@ -339,7 +339,7 @@ func TestAdapter_Handler_InboundPublish_Good(t *testing.T) {
 	select {
 	case frame := <-received:
 		var decoded stream.Message
-		if err := json.Unmarshal(frame, &decoded); err != nil {
+		if !core.JSONUnmarshal(frame, &decoded).OK {
 			t.Fatalf("received invalid JSON frame: %q", string(frame))
 		}
 		if decoded.Type != stream.TypeEvent {
@@ -395,7 +395,7 @@ func TestAdapter_Handler_InboundPublish_SelfDelivery_Good(t *testing.T) {
 	}
 
 	var decoded stream.Message
-	if err := json.Unmarshal(payload, &decoded); err != nil {
+	if !core.JSONUnmarshal(payload, &decoded).OK {
 		t.Fatalf("received invalid JSON frame: %q", string(payload))
 	}
 	if decoded.Type != stream.TypeEvent {
@@ -442,8 +442,8 @@ func TestAdapter_Handler_SubscribeDenied_Bad(t *testing.T) {
 	}
 
 	var message stream.Message
-	if err := json.Unmarshal(payload, &message); err != nil {
-		t.Fatalf("Unmarshal() error = %v", err)
+	if !core.JSONUnmarshal(payload, &message).OK {
+		t.Fatalf("JSONUnmarshal() failed for payload: %q", string(payload))
 	}
 	if message.Type != stream.TypeError {
 		t.Fatalf("message.Type = %q, want %q", message.Type, stream.TypeError)

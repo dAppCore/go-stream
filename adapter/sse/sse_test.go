@@ -7,11 +7,11 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	"dappco.re/go/core"
 	"dappco.re/go/stream"
 )
 
@@ -44,7 +44,7 @@ func TestAdapter_Handler_Good(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ReadString() error = %v", err)
 		}
-		if strings.TrimSpace(line) == "data: 123456" {
+		if core.Trim(line) == "data: 123456" {
 			return
 		}
 	}
@@ -79,7 +79,7 @@ func TestAdapter_Handler_ZeroValueConfig_Good(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ReadString() error = %v", err)
 		}
-		if strings.TrimSpace(line) == "data: 123456" {
+		if core.Trim(line) == "data: 123456" {
 			return
 		}
 	}
@@ -262,7 +262,7 @@ func TestAdapter_ServeHTTP_Good(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ReadString() error = %v", err)
 		}
-		if strings.TrimSpace(line) == "data: ok" {
+		if core.Trim(line) == "data: ok" {
 			return
 		}
 	}
@@ -297,7 +297,7 @@ func TestAdapter_HandlerForChannel_Good(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ReadString() error = %v", err)
 		}
-		if strings.TrimSpace(line) == "data: 654321" {
+		if core.Trim(line) == "data: 654321" {
 			return
 		}
 	}
@@ -326,8 +326,8 @@ func TestAdapter_Handler_RetryMs_Good(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ReadString() error = %v", err)
 	}
-	if strings.TrimSpace(line) != "retry: 1234" {
-		t.Fatalf("first line = %q, want %q", strings.TrimSpace(line), "retry: 1234")
+	if core.Trim(line) != "retry: 1234" {
+		t.Fatalf("first line = %q, want %q", core.Trim(line), "retry: 1234")
 	}
 }
 
