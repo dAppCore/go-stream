@@ -32,6 +32,8 @@ type AuthResult struct {
 
 	UserID string
 
+	// Claims is always initialised on success so callers can add metadata without
+	// checking for nil first.
 	Claims map[string]any
 
 	Error error
@@ -48,7 +50,7 @@ func (authenticatorFunc AuthenticatorFunc) Authenticate(request *http.Request) A
 	if authenticatorFunc == nil || request == nil {
 		return AuthResult{Valid: false}
 	}
-	return authenticatorFunc(request)
+	return normalizeAuthResult(authenticatorFunc(request))
 }
 
 // auth := stream.NewAPIKeyAuth(map[string]string{"sk-live": "user-42"})
@@ -86,7 +88,7 @@ func (authenticator *APIKeyAuthenticator) Authenticate(request *http.Request) Au
 	if !ok {
 		return AuthResult{Valid: false, Error: ErrInvalidAPIKey}
 	}
-	return AuthResult{Valid: true, UserID: userID}
+	return normalizeAuthResult(AuthResult{Valid: true, UserID: userID})
 }
 
 //	authenticator := &stream.BearerTokenAuth{
@@ -112,7 +114,7 @@ func (authenticator *BearerTokenAuth) Authenticate(request *http.Request) AuthRe
 	if !result.Valid {
 		return result
 	}
-	return authenticator.Validate(token)
+	return normalizeAuthResult(authenticator.Validate(token))
 }
 
 //	authenticator := &stream.QueryTokenAuth{
@@ -137,7 +139,7 @@ func (authenticator *QueryTokenAuth) Authenticate(request *http.Request) AuthRes
 	if token == "" {
 		return AuthResult{Valid: false}
 	}
-	return authenticator.Validate(token)
+	return normalizeAuthResult(authenticator.Validate(token))
 }
 
 //	auth := stream.ConnAuthenticatorFunc(func(handshake []byte) stream.AuthResult {
@@ -163,7 +165,7 @@ func (connAuthenticatorFunc ConnAuthenticatorFunc) AuthenticateConn(handshake []
 	if connAuthenticatorFunc == nil {
 		return AuthResult{Valid: false}
 	}
-	return connAuthenticatorFunc(handshake)
+	return normalizeAuthResult(connAuthenticatorFunc(handshake))
 }
 
 func bearerTokenFromRequest(request *http.Request) (string, AuthResult) {
@@ -179,4 +181,14 @@ func bearerTokenFromRequest(request *http.Request) (string, AuthResult) {
 		return "", AuthResult{Valid: false, Error: ErrMalformedAuthHeader}
 	}
 	return token, AuthResult{Valid: true}
+}
+
+func normalizeAuthResult(result AuthResult) AuthResult {
+	if !result.Valid {
+		return result
+	}
+	if result.Claims == nil {
+		result.Claims = map[string]any{}
+	}
+	return result
 }
