@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: EUPL-1.2
 
 // auth := stream.NewAPIKeyAuth(map[string]string{"sk-live": "user-42"})
+// request := httptest.NewRequest(http.MethodGet, "/stream/ws", nil)
+// request.Header.Set("Authorization", "Bearer sk-live")
 // result := auth.Authenticate(request)
 package stream
 
@@ -11,7 +13,10 @@ import (
 )
 
 //	auth := stream.AuthenticatorFunc(func(request *http.Request) stream.AuthResult {
-//	    return stream.AuthResult{Valid: true, UserID: "user-42"}
+//	    if request.Header.Get("X-Api-Key") == "sk-live" {
+//	        return stream.AuthResult{Valid: true, UserID: "user-42"}
+//	    }
+//	    return stream.AuthResult{Valid: false}
 //	})
 type Authenticator interface {
 	Authenticate(request *http.Request) AuthResult
@@ -37,6 +42,7 @@ type AuthResult struct {
 //	})
 type AuthenticatorFunc func(request *http.Request) AuthResult
 
+// request := httptest.NewRequest(http.MethodGet, "/stream/ws", nil)
 // result := authenticatorFunc.Authenticate(request)
 func (authenticatorFunc AuthenticatorFunc) Authenticate(request *http.Request) AuthResult {
 	if authenticatorFunc == nil || request == nil {
@@ -46,14 +52,14 @@ func (authenticatorFunc AuthenticatorFunc) Authenticate(request *http.Request) A
 }
 
 // auth := stream.NewAPIKeyAuth(map[string]string{"sk-live": "user-42"})
-// request := httptest.NewRequest("GET", "/stream/ws", nil)
+// request := httptest.NewRequest(http.MethodGet, "/stream/ws", nil)
 // request.Header.Set("Authorization", "Bearer sk-live")
 // result := auth.Authenticate(request)
 type APIKeyAuthenticator struct {
 	Keys map[string]string
 }
 
-// authenticator := stream.NewAPIKeyAuth(map[string]string{"sk-live": "user-42"})
+// auth := stream.NewAPIKeyAuth(map[string]string{"sk-live": "user-42"})
 func NewAPIKeyAuth(keys map[string]string) *APIKeyAuthenticator {
 	if keys == nil {
 		keys = map[string]string{}
@@ -65,9 +71,9 @@ func NewAPIKeyAuth(keys map[string]string) *APIKeyAuthenticator {
 	return &APIKeyAuthenticator{Keys: copied}
 }
 
-// authenticator := stream.NewAPIKeyAuth(map[string]string{"sk-live": "user-42"})
+// auth := stream.NewAPIKeyAuth(map[string]string{"sk-live": "user-42"})
 // request.Header.Set("Authorization", "Bearer sk-live")
-// result := authenticator.Authenticate(request)
+// result := auth.Authenticate(request)
 func (authenticator *APIKeyAuthenticator) Authenticate(request *http.Request) AuthResult {
 	if authenticator == nil || request == nil {
 		return AuthResult{Valid: false}
@@ -83,18 +89,20 @@ func (authenticator *APIKeyAuthenticator) Authenticate(request *http.Request) Au
 	return AuthResult{Valid: true, UserID: userID}
 }
 
-//		authenticator := &stream.BearerTokenAuth{
-//			Validate: func(token string) stream.AuthResult {
-//				if token == "sk-live" {
-//					return stream.AuthResult{Valid: true, UserID: "user-42"}
-//				}
-//				return stream.AuthResult{Valid: false}
+//	authenticator := &stream.BearerTokenAuth{
+//	    Validate: func(token string) stream.AuthResult {
+//	        if token == "sk-live" {
+//	            return stream.AuthResult{Valid: true, UserID: "user-42"}
+//	        }
+//	        return stream.AuthResult{Valid: false}
 //	    },
 //	}
 type BearerTokenAuth struct {
 	Validate func(token string) AuthResult
 }
 
+// request := httptest.NewRequest(http.MethodGet, "/stream/ws", nil)
+// request.Header.Set("Authorization", "Bearer sk-live")
 // result := authenticator.Authenticate(request)
 func (authenticator *BearerTokenAuth) Authenticate(request *http.Request) AuthResult {
 	if authenticator == nil || authenticator.Validate == nil || request == nil {
@@ -119,6 +127,7 @@ type QueryTokenAuth struct {
 	Validate func(token string) AuthResult
 }
 
+// request := httptest.NewRequest(http.MethodGet, "/stream/ws?token=sk-live", nil)
 // result := authenticator.Authenticate(request)
 func (authenticator *QueryTokenAuth) Authenticate(request *http.Request) AuthResult {
 	if authenticator == nil || authenticator.Validate == nil || request == nil {

@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: EUPL-1.2
 
 //	msg := stream.Message{
-//	    Type:    stream.TypeEvent,
-//	    Channel: "hashrate",
-//	    Data:    map[string]any{"h": 1234567},
+//	    Type:      stream.TypeEvent,
+//	    Channel:   "hashrate",
+//	    Data:      map[string]any{"h": 1234567},
+//	    Timestamp: time.Now().UTC(),
 //	}
 //
 // frame, _ := core.JSONMarshal(msg)
