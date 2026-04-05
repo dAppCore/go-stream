@@ -9,7 +9,7 @@ import "time"
 //	})
 type ChannelAuthoriser func(peer *Peer, channel string) bool
 
-//	cfg := stream.HubConfig{
+//	config := stream.HubConfig{
 //	    HeartbeatInterval: 30 * time.Second,
 //	    PongTimeout:       60 * time.Second,
 //	    WriteTimeout:      10 * time.Second,

@@ -260,6 +260,7 @@ func (hub *Hub) SubscribePeer(peer *Peer, channel string) error {
 	if hub.config.ChannelAuthoriser != nil && channel != "*" && !hub.config.ChannelAuthoriser(peer, channel) {
 		return ErrAuthRejected
 	}
+	peer.mutex.Lock()
 	if peer.sendQueue == nil {
 		peer.sendQueue = make(chan []byte, defaultPeerSendBufferSize)
 	}
@@ -267,6 +268,7 @@ func (hub *Hub) SubscribePeer(peer *Peer, channel string) error {
 		peer.subscriptions = map[string]bool{}
 	}
 	peer.subscriptions[channel] = true
+	peer.mutex.Unlock()
 	if hub.channels[channel] == nil {
 		hub.channels[channel] = map[*Peer]bool{}
 	}
@@ -300,7 +302,9 @@ func (hub *Hub) UnsubscribePeer(peer *Peer, channel string) {
 	}
 	hub.mutex.Lock()
 	defer hub.mutex.Unlock()
+	peer.mutex.Lock()
 	delete(peer.subscriptions, channel)
+	peer.mutex.Unlock()
 	if peers := hub.channels[channel]; peers != nil {
 		delete(peers, peer)
 		if len(peers) == 0 {
@@ -519,12 +523,14 @@ func (hub *Hub) AddPeer(peer *Peer) error {
 	if peer == nil {
 		return core.E("stream.hub", "nil peer", nil)
 	}
+	peer.mutex.Lock()
 	if peer.sendQueue == nil {
 		peer.sendQueue = make(chan []byte, defaultPeerSendBufferSize)
 	}
 	if peer.subscriptions == nil {
 		peer.subscriptions = map[string]bool{}
 	}
+	peer.mutex.Unlock()
 	hub.mutex.RLock()
 	running := hub.running
 	hub.mutex.RUnlock()

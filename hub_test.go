@@ -676,6 +676,77 @@ func TestHub_CanSubscribePeer_Bad(t *testing.T) {
 	}
 }
 
+func TestPeer_Subscriptions_Good(t *testing.T) {
+	hub := NewHub()
+	hubContext, hubCancel := context.WithCancel(context.Background())
+	defer hubCancel()
+
+	go hub.Run(hubContext)
+	waitForRunningHub(t, hub)
+
+	peer := NewPeer("ws")
+	if err := hub.AddPeer(peer); err != nil {
+		t.Fatalf("AddPeer() error = %v", err)
+	}
+	defer hub.RemovePeer(peer)
+
+	if err := hub.SubscribePeer(peer, "hashrate"); err != nil {
+		t.Fatalf("SubscribePeer(hashrate) error = %v", err)
+	}
+	if err := hub.SubscribePeer(peer, "block"); err != nil {
+		t.Fatalf("SubscribePeer(block) error = %v", err)
+	}
+
+	subscriptions := peer.Subscriptions()
+	if len(subscriptions) != 2 {
+		t.Fatalf("len(Subscriptions()) = %d, want %d", len(subscriptions), 2)
+	}
+	if subscriptions[0] != "block" || subscriptions[1] != "hashrate" {
+		t.Fatalf("Subscriptions() = %v, want [block hashrate]", subscriptions)
+	}
+
+	hub.UnsubscribePeer(peer, "block")
+	subscriptions = peer.Subscriptions()
+	if len(subscriptions) != 1 || subscriptions[0] != "hashrate" {
+		t.Fatalf("Subscriptions() after unsubscribe = %v, want [hashrate]", subscriptions)
+	}
+}
+
+func TestPeer_Subscriptions_Bad(t *testing.T) {
+	var peer *Peer
+
+	if subscriptions := peer.Subscriptions(); subscriptions != nil {
+		t.Fatalf("Subscriptions() = %v, want nil", subscriptions)
+	}
+}
+
+func TestPeer_Subscriptions_Ugly(t *testing.T) {
+	hub := NewHub()
+	hubContext, hubCancel := context.WithCancel(context.Background())
+	defer hubCancel()
+
+	go hub.Run(hubContext)
+	waitForRunningHub(t, hub)
+
+	peer := NewPeer("ws")
+	if err := hub.AddPeer(peer); err != nil {
+		t.Fatalf("AddPeer() error = %v", err)
+	}
+	defer hub.RemovePeer(peer)
+
+	if err := hub.SubscribePeer(peer, "hashrate"); err != nil {
+		t.Fatalf("SubscribePeer() error = %v", err)
+	}
+
+	subscriptions := peer.Subscriptions()
+	subscriptions[0] = "tampered"
+
+	current := peer.Subscriptions()
+	if len(current) != 1 || current[0] != "hashrate" {
+		t.Fatalf("Subscriptions() after caller mutation = %v, want [hashrate]", current)
+	}
+}
+
 func TestHub_SendToChannel_Wildcard_Good(t *testing.T) {
 	hub := NewHub()
 	hubContext, hubCancel := context.WithCancel(context.Background())

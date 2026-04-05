@@ -35,7 +35,7 @@ const (
 	ModePushPull
 )
 
-// String returns the human-readable socket pattern name.
+// core.Print(nil, "mode=%s", zmq.ModePubSub.String())
 func (mode Mode) String() string {
 	switch mode {
 	case ModePubSub:
@@ -57,7 +57,7 @@ const (
 	RolePuller
 )
 
-// String returns the human-readable socket role name.
+// core.Print(nil, "role=%s", zmq.RoleSubscriber.String())
 func (role Role) String() string {
 	switch role {
 	case RolePublisher:
