@@ -4,7 +4,7 @@
 //
 //	bridge, err := redis.NewBridge(hub, redis.Config{Addr: "redis:6379", Prefix: "pool"})
 //	if err != nil {
-//	    return err
+//		return err
 //	}
 //	go bridge.Start(ctx)
 package redis

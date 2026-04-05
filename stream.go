@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: EUPL-1.2
 
+// Package stream provides the shared hub primitives.
+//
 //	hub := stream.NewHub()
 //	go hub.Run(ctx)
-//	hub.Publish("hashrate", []byte(`{"h":123456}`))
-//
-// Package stream wires one hub to many transports.
+//	_ = hub.Publish("hashrate", []byte(`{"h":123456}`))
 package stream
 
 import (

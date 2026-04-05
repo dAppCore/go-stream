@@ -3,9 +3,9 @@
 // Package zmq wires a hub to ZeroMQ sockets.
 //
 //	adapter := zmq.New(zmq.Config{
-//	    Mode:     zmq.ModePubSub,
-//	    Endpoint: "tcp://127.0.0.1:5555",
-//	    Role:     zmq.RoleSubscriber,
+//		Mode:     zmq.ModePubSub,
+//		Endpoint: "tcp://127.0.0.1:5555",
+//		Role:     zmq.RoleSubscriber,
 //	})
 //	adapter.Mount(hub)
 //	go adapter.Start(ctx)
