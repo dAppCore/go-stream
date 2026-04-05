@@ -191,12 +191,17 @@ func (peer *Peer) SendQueue() <-chan []byte {
 
 // switch client.State() {
 // case stream.StateConnected:
-// 	_ = client.Send(stream.Message{Type: stream.TypePing})
+//
+//	_ = client.Send(stream.Message{Type: stream.TypePing})
+//
 // case stream.StateConnecting:
-// 	time.Sleep(100 * time.Millisecond)
+//
+//	time.Sleep(100 * time.Millisecond)
+//
 // default:
-// 	// disconnected
-// }
+//
+//		// disconnected
+//	}
 type ConnectionState int
 
 const (
@@ -218,11 +223,11 @@ func (state ConnectionState) String() string {
 	}
 }
 
-// envelope := stream.Envelope{
-//     SourceID: "node-a",
-//     Channel:  "block",
-//     Frame:    []byte("template"),
-// }
+//	envelope := stream.Envelope{
+//	    SourceID: "node-a",
+//	    Channel:  "block",
+//	    Frame:    []byte("template"),
+//	}
 type Envelope struct {
 	SourceID string
 	Channel  string
@@ -248,12 +253,12 @@ func Pipe(source Stream, destination Stream) func() {
 	}
 	stops := make([]func(), 0, 2)
 	if publisher, ok := source.(publishedFrameSource); ok {
-		stops = append(stops, onceFunc(publisher.SubscribePublished(func(channel string, frame []byte) {
+		stops = append(stops, onceFunction(publisher.SubscribePublished(func(channel string, frame []byte) {
 			_ = destination.Publish(channel, cloneFrame(frame))
 		})))
 	}
 	if broadcaster, ok := source.(broadcastFrameSource); ok {
-		stops = append(stops, onceFunc(broadcaster.SubscribeBroadcast(func(frame []byte) {
+		stops = append(stops, onceFunction(broadcaster.SubscribeBroadcast(func(frame []byte) {
 			_ = destination.Broadcast(cloneFrame(frame))
 		})))
 	}
@@ -263,9 +268,9 @@ func Pipe(source Stream, destination Stream) func() {
 		stop := source.Subscribe("*", func(frame []byte) {
 			_ = destination.Publish("*", cloneFrame(frame))
 		})
-		return onceFunc(stop)
+		return onceFunction(stop)
 	}
-	return onceFunc(func() {
+	return onceFunction(func() {
 		for index := len(stops) - 1; index >= 0; index-- {
 			stops[index]()
 		}
@@ -313,12 +318,12 @@ func cloneFrame(frame []byte) []byte {
 	return append([]byte(nil), frame...)
 }
 
-func onceFunc(fn func()) func() {
-	if fn == nil {
+func onceFunction(handler func()) func() {
+	if handler == nil {
 		return func() {}
 	}
 	var once sync.Once
 	return func() {
-		once.Do(fn)
+		once.Do(handler)
 	}
 }

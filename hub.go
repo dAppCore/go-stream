@@ -212,7 +212,7 @@ func (hub *Hub) SubscribeWithError(channel string, handler func([]byte)) (func()
 	hub.channelHandlers[channel][id] = handler
 	hub.mu.Unlock()
 
-	return onceFunc(func() {
+	return onceFunction(func() {
 		hub.mu.Lock()
 		defer hub.mu.Unlock()
 		if handlers := hub.channelHandlers[channel]; handlers != nil {
@@ -406,7 +406,7 @@ func (hub *Hub) SubscribeBroadcast(handler func([]byte)) func() {
 	hub.broadcastHandlers[id] = handler
 	hub.mu.Unlock()
 
-	return onceFunc(func() {
+	return onceFunction(func() {
 		hub.mu.Lock()
 		defer hub.mu.Unlock()
 		delete(hub.broadcastHandlers, id)
@@ -574,11 +574,11 @@ func (hub *Hub) sendBroadcastToPeer(peer *Peer, frame []byte) {
 
 func (hub *Hub) invokeHandlers(handlers []func([]byte), frame []byte) {
 	for _, handler := range handlers {
-		func(fn func([]byte)) {
+		func(handlerFunction func([]byte)) {
 			defer func() {
 				_ = recover()
 			}()
-			fn(frame)
+			handlerFunction(frame)
 		}(handler)
 	}
 }
@@ -734,7 +734,7 @@ func (hub *Hub) subscribePublished(handler func(string, []byte)) func() {
 	hub.publishHandlers[id] = handler
 	hub.mu.Unlock()
 
-	return onceFunc(func() {
+	return onceFunction(func() {
 		hub.mu.Lock()
 		defer hub.mu.Unlock()
 		delete(hub.publishHandlers, id)
@@ -743,22 +743,22 @@ func (hub *Hub) subscribePublished(handler func(string, []byte)) func() {
 
 func (hub *Hub) invokeBroadcastHandlers(handlers []func([]byte), frame []byte) {
 	for _, handler := range handlers {
-		func(fn func([]byte)) {
+		func(handlerFunction func([]byte)) {
 			defer func() {
 				_ = recover()
 			}()
-			fn(frame)
+			handlerFunction(frame)
 		}(handler)
 	}
 }
 
 func (hub *Hub) invokePublishHandlers(handlers []func(string, []byte), channel string, frame []byte) {
 	for _, handler := range handlers {
-		func(fn func(string, []byte)) {
+		func(handlerFunction func(string, []byte)) {
 			defer func() {
 				_ = recover()
 			}()
-			fn(channel, frame)
+			handlerFunction(channel, frame)
 		}(handler)
 	}
 }
