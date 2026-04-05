@@ -2,7 +2,8 @@
 
 package stream
 
-// HubStats matches the snapshot returned by hub.Stats().
+// stats := hub.Stats()
+// core.Print("stream", "peers=%d channels=%d", stats.Peers, stats.Channels)
 type HubStats struct {
 	// stats := hub.Stats()
 	// core.Print("stream", "peers=%d", stats.Peers)
