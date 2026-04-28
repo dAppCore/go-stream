@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"dappco.re/go/core"
+	"dappco.re/go"
 	"dappco.re/go/stream"
 )
 
@@ -102,7 +102,9 @@ func (client *ReconnectingTCP) Connect(ctx context.Context) error {
 			continue
 		}
 		if err := client.writeHandshake(conn); err != nil {
-			_ = conn.Close()
+			if closeErr := conn.Close(); closeErr != nil {
+				err = core.ErrorJoin(err, closeErr)
+			}
 			attempt++
 			client.setState(stream.StateDisconnected)
 			if client.config.MaxRetries > 0 && attempt > client.config.MaxRetries {
@@ -120,7 +122,9 @@ func (client *ReconnectingTCP) Connect(ctx context.Context) error {
 
 		client.setConn(conn)
 		stopClose := context.AfterFunc(ctx, func() {
-			_ = conn.Close()
+			if err := conn.Close(); err != nil {
+				return
+			}
 		})
 		backoff = client.config.InitialBackoff
 		attempt = 0
@@ -133,7 +137,9 @@ func (client *ReconnectingTCP) Connect(ctx context.Context) error {
 
 		client.clearConn(conn)
 		client.setState(stream.StateDisconnected)
-		_ = conn.Close()
+		if err := conn.Close(); err != nil && readErr == nil {
+			readErr = err
+		}
 		if client.config.OnDisconnect != nil {
 			client.config.OnDisconnect()
 		}
@@ -214,7 +220,9 @@ func (client *ReconnectingTCP) dial(ctx context.Context) (net.Conn, error) {
 		}
 		tlsConn := tls.Client(conn, client.config.TLS)
 		if err := tlsConn.HandshakeContext(ctx); err != nil {
-			_ = conn.Close()
+			if closeErr := conn.Close(); closeErr != nil {
+				return nil, core.ErrorJoin(err, closeErr)
+			}
 			return nil, err
 		}
 		return tlsConn, nil

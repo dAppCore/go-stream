@@ -14,7 +14,7 @@ import (
 	"sync"
 	"time"
 
-	"dappco.re/go/core"
+	"dappco.re/go"
 	"dappco.re/go/stream"
 )
 
@@ -89,7 +89,9 @@ func (adapter *Adapter) Listen(ctx context.Context) error {
 		return err
 	}
 	defer func() {
-		_ = listener.Close()
+		if err := listener.Close(); err != nil {
+			return
+		}
 		adapter.mutex.Lock()
 		if adapter.listener == listener {
 			adapter.listener = nil
@@ -99,7 +101,9 @@ func (adapter *Adapter) Listen(ctx context.Context) error {
 
 	go func() {
 		<-ctx.Done()
-		_ = listener.Close()
+		if err := listener.Close(); err != nil {
+			return
+		}
 	}()
 
 	for {
@@ -136,24 +140,34 @@ func (adapter *Adapter) Dial(ctx context.Context, hub *stream.Hub) (*stream.Peer
 		return nil, err
 	}
 	if err := adapter.writeHandshake(conn); err != nil {
-		_ = conn.Close()
+		if closeErr := conn.Close(); closeErr != nil {
+			return nil, core.ErrorJoin(err, closeErr)
+		}
 		return nil, err
 	}
 	peer := stream.NewPeer("tcp")
 	peer.SetCloseHook(func() {
-		_ = conn.Close()
+		if err := conn.Close(); err != nil {
+			return
+		}
 	})
 	if !hub.Running() {
-		_ = conn.Close()
+		if err := conn.Close(); err != nil {
+			return nil, err
+		}
 		return nil, stream.ErrHubNotRunning
 	}
 	if err := hub.AddPeer(peer); err != nil {
-		_ = conn.Close()
+		if closeErr := conn.Close(); closeErr != nil {
+			return nil, core.ErrorJoin(err, closeErr)
+		}
 		return nil, err
 	}
 	if err := hub.SubscribePeer(peer, "*"); err != nil {
 		hub.RemovePeer(peer)
-		_ = conn.Close()
+		if closeErr := conn.Close(); closeErr != nil {
+			return nil, core.ErrorJoin(err, closeErr)
+		}
 		return nil, err
 	}
 	go adapter.pipePeer(ctx, conn, peer, hub)
@@ -194,7 +208,9 @@ func (adapter *Adapter) dial(ctx context.Context) (net.Conn, error) {
 		}
 		tlsConn := tls.Client(conn, adapter.config.TLS)
 		if err := tlsConn.HandshakeContext(ctx); err != nil {
-			_ = conn.Close()
+			if closeErr := conn.Close(); closeErr != nil {
+				return nil, core.ErrorJoin(err, closeErr)
+			}
 			return nil, err
 		}
 		return tlsConn, nil
@@ -205,7 +221,9 @@ func (adapter *Adapter) dial(ctx context.Context) (net.Conn, error) {
 func (adapter *Adapter) handleConn(ctx context.Context, conn net.Conn, hub *stream.Hub) {
 	defer conn.Close()
 	stopClose := context.AfterFunc(ctx, func() {
-		_ = conn.Close()
+		if err := conn.Close(); err != nil {
+			return
+		}
 	})
 	defer stopClose()
 
@@ -232,7 +250,9 @@ func (adapter *Adapter) handleConn(ctx context.Context, conn net.Conn, hub *stre
 		peer.Claims = authResult.Claims
 	}
 	peer.SetCloseHook(func() {
-		_ = conn.Close()
+		if err := conn.Close(); err != nil {
+			return
+		}
 	})
 	if !hub.Running() {
 		return
@@ -249,7 +269,9 @@ func (adapter *Adapter) handleConn(ctx context.Context, conn net.Conn, hub *stre
 	go adapter.writePump(ctx, conn, peer, hub.Config().WriteTimeout)
 
 	if auth := adapter.config.ConnAuthenticator; auth == nil {
-		dispatchTCPFrame(hub, peer, channel, frame)
+		if err := dispatchTCPFrame(hub, peer, channel, frame); err != nil {
+			return
+		}
 	}
 
 	for {
@@ -258,25 +280,30 @@ func (adapter *Adapter) handleConn(ctx context.Context, conn net.Conn, hub *stre
 			return
 		}
 		if channel == "" {
-			_ = hub.BroadcastFromPeer(peer, frame)
+			if err := hub.BroadcastFromPeer(peer, frame); err != nil {
+				return
+			}
 			continue
 		}
-		_ = hub.PublishFromPeer(peer, channel, frame)
+		if err := hub.PublishFromPeer(peer, channel, frame); err != nil {
+			return
+		}
 	}
 }
 
-func dispatchTCPFrame(hub *stream.Hub, peer *stream.Peer, channel string, frame []byte) {
+func dispatchTCPFrame(hub *stream.Hub, peer *stream.Peer, channel string, frame []byte) error {
 	if channel == "" {
-		_ = hub.BroadcastFromPeer(peer, frame)
-		return
+		return hub.BroadcastFromPeer(peer, frame)
 	}
-	_ = hub.PublishFromPeer(peer, channel, frame)
+	return hub.PublishFromPeer(peer, channel, frame)
 }
 
 func (adapter *Adapter) pipePeer(ctx context.Context, conn net.Conn, peer *stream.Peer, hub *stream.Hub) {
 	defer conn.Close()
 	stopClose := context.AfterFunc(ctx, func() {
-		_ = conn.Close()
+		if err := conn.Close(); err != nil {
+			return
+		}
 	})
 	defer stopClose()
 	go adapter.writePump(ctx, conn, peer, hub.Config().WriteTimeout)
@@ -286,7 +313,10 @@ func (adapter *Adapter) pipePeer(ctx context.Context, conn net.Conn, peer *strea
 			hub.RemovePeer(peer)
 			return
 		}
-		dispatchTCPFrame(hub, peer, channel, frame)
+		if err := dispatchTCPFrame(hub, peer, channel, frame); err != nil {
+			hub.RemovePeer(peer)
+			return
+		}
 	}
 }
 
@@ -300,7 +330,9 @@ func (adapter *Adapter) writePump(ctx context.Context, conn net.Conn, peer *stre
 				return
 			}
 			if writeTimeout > 0 {
-				_ = conn.SetWriteDeadline(time.Now().Add(writeTimeout))
+				if err := conn.SetWriteDeadline(time.Now().Add(writeTimeout)); err != nil {
+					return
+				}
 			}
 			if err := writeAll(conn, frame); err != nil {
 				return
@@ -311,9 +343,13 @@ func (adapter *Adapter) writePump(ctx context.Context, conn net.Conn, peer *stre
 
 func readTCPFrame(conn net.Conn, timeout time.Duration, maxFrameSize int) (string, []byte, error) {
 	if timeout > 0 {
-		_ = conn.SetReadDeadline(time.Now().Add(timeout))
+		if err := conn.SetReadDeadline(time.Now().Add(timeout)); err != nil {
+			return "", nil, err
+		}
 	} else {
-		_ = conn.SetReadDeadline(time.Time{})
+		if err := conn.SetReadDeadline(time.Time{}); err != nil {
+			return "", nil, err
+		}
 	}
 	var length uint32
 	if err := binary.Read(conn, binary.BigEndian, &length); err != nil {

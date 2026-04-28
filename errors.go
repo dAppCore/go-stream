@@ -2,7 +2,7 @@
 
 package stream
 
-import "dappco.re/go/core"
+import "dappco.re/go"
 
 //	if err := hub.Publish("hashrate", frame); err == ErrHubNotRunning {
 //	    return

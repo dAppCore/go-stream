@@ -10,7 +10,7 @@ import (
 
 	"github.com/gorilla/websocket"
 
-	"dappco.re/go/core"
+	"dappco.re/go"
 	"dappco.re/go/stream"
 )
 
@@ -108,7 +108,9 @@ func (client *ReconnectingClient) Connect(ctx context.Context) error {
 		client.state = stream.StateConnected
 		client.mutex.Unlock()
 		stopClose := context.AfterFunc(ctx, func() {
-			_ = conn.Close()
+			if err := conn.Close(); err != nil {
+				return
+			}
 		})
 		backoff = client.config.InitialBackoff
 		attempt = 0
@@ -125,7 +127,9 @@ func (client *ReconnectingClient) Connect(ctx context.Context) error {
 		}
 		client.state = stream.StateDisconnected
 		client.mutex.Unlock()
-		_ = conn.Close()
+		if err := conn.Close(); err != nil && readErr == nil {
+			readErr = err
+		}
 		if client.config.OnDisconnect != nil {
 			client.config.OnDisconnect()
 		}

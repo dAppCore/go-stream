@@ -12,7 +12,7 @@ import (
 	"sort"
 	"sync"
 
-	"dappco.re/go/core"
+	"dappco.re/go"
 )
 
 const defaultHubQueueSize = 256
@@ -606,10 +606,14 @@ func (hub *Hub) sendToPeer(peer *Peer, channel string, frame []byte) {
 		return
 	}
 	if peer.Transport == "tcp" {
-		_ = peer.Send(encodeTCPFrame(channel, frame))
+		if ok := peer.Send(encodeTCPFrame(channel, frame)); !ok {
+			return
+		}
 		return
 	}
-	_ = peer.Send(frame)
+	if ok := peer.Send(frame); !ok {
+		return
+	}
 }
 
 // hub.sendBroadcastToPeer(peer, []byte("shutdown"))
@@ -618,10 +622,14 @@ func (hub *Hub) sendBroadcastToPeer(peer *Peer, frame []byte) {
 		return
 	}
 	if peer.Transport == "tcp" {
-		_ = peer.Send(encodeTCPFrame("", frame))
+		if ok := peer.Send(encodeTCPFrame("", frame)); !ok {
+			return
+		}
 		return
 	}
-	_ = peer.Send(frame)
+	if ok := peer.Send(frame); !ok {
+		return
+	}
 }
 
 // hub.invokeHandlers(handlers, frame)
@@ -629,7 +637,9 @@ func (hub *Hub) invokeHandlers(handlers []func([]byte), frame []byte) {
 	for _, handler := range handlers {
 		func(handlerFunction func([]byte)) {
 			defer func() {
-				_ = recover()
+				if recovered := recover(); recovered != nil {
+					return
+				}
 			}()
 			handlerFunction(frame)
 		}(handler)
@@ -806,7 +816,9 @@ func (hub *Hub) invokeBroadcastHandlers(handlers []func([]byte), frame []byte) {
 	for _, handler := range handlers {
 		func(handlerFunction func([]byte)) {
 			defer func() {
-				_ = recover()
+				if recovered := recover(); recovered != nil {
+					return
+				}
 			}()
 			handlerFunction(frame)
 		}(handler)
@@ -818,7 +830,9 @@ func (hub *Hub) invokePublishHandlers(handlers []func(string, []byte), channel s
 	for _, handler := range handlers {
 		func(handlerFunction func(string, []byte)) {
 			defer func() {
-				_ = recover()
+				if recovered := recover(); recovered != nil {
+					return
+				}
 			}()
 			handlerFunction(channel, frame)
 		}(handler)

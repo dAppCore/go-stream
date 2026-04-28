@@ -581,7 +581,7 @@ func TestTCP_Dial_Handshake_Good(t *testing.T) {
 	}
 }
 
-func TestReconnectingTCP_State_Good(t *testing.T) {
+func TestAX7_ReconnectingTCP_State_Good(t *testing.T) {
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("Listen() error = %v", err)

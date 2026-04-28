@@ -110,7 +110,9 @@ func (peer *Peer) Send(frame []byte) bool {
 		return false
 	}
 	defer func() {
-		_ = recover()
+		if recovered := recover(); recovered != nil {
+			return
+		}
 	}()
 	peer.mutex.RLock()
 	defer peer.mutex.RUnlock()
@@ -239,19 +241,25 @@ func Pipe(src Stream, dst Stream) func() {
 	stops := make([]func(), 0, 2)
 	if publisher, ok := src.(publishedFrameSource); ok {
 		stops = append(stops, onceFunction(publisher.SubscribePublished(func(channel string, frame []byte) {
-			_ = dst.Publish(channel, cloneFrame(frame))
+			if err := dst.Publish(channel, cloneFrame(frame)); err != nil {
+				return
+			}
 		})))
 	}
 	if broadcaster, ok := src.(broadcastFrameSource); ok {
 		stops = append(stops, onceFunction(broadcaster.SubscribeBroadcast(func(frame []byte) {
-			_ = dst.Broadcast(cloneFrame(frame))
+			if err := dst.Broadcast(cloneFrame(frame)); err != nil {
+				return
+			}
 		})))
 	}
 	if len(stops) == 0 {
 		// Generic Stream implementations do not expose channel names, so fall back
 		// to publishing on the wildcard channel.
 		stop := src.Subscribe("*", func(frame []byte) {
-			_ = dst.Publish("*", cloneFrame(frame))
+			if err := dst.Publish("*", cloneFrame(frame)); err != nil {
+				return
+			}
 		})
 		return onceFunction(stop)
 	}

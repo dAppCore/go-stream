@@ -9,7 +9,7 @@ package stream
 import (
 	"net/http"
 
-	"dappco.re/go/core"
+	"dappco.re/go"
 )
 
 //	auth := stream.AuthenticatorFunc(func(request *http.Request) stream.AuthResult {

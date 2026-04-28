@@ -12,7 +12,7 @@ import (
 	"dappco.re/go/stream"
 )
 
-func TestAdapter_Publish_Good(t *testing.T) {
+func TestAX7_Adapter_Publish_Good(t *testing.T) {
 	publisherHub := stream.NewHub()
 	subscriberHub := stream.NewHub()
 
@@ -70,7 +70,7 @@ func TestAdapter_Publish_Good(t *testing.T) {
 	t.Fatal("timed out waiting for zmq frame")
 }
 
-func TestAdapter_Publish_Bad(t *testing.T) {
+func TestAX7_Adapter_Publish_Bad(t *testing.T) {
 	hub := stream.NewHub()
 	adapter := New(Config{
 		Mode:     ModePubSub,
@@ -84,7 +84,7 @@ func TestAdapter_Publish_Bad(t *testing.T) {
 	}
 }
 
-func TestAdapter_Start_Ugly(t *testing.T) {
+func TestAX7_Adapter_Start_Ugly(t *testing.T) {
 	pusherHub := stream.NewHub()
 	pullerHub := stream.NewHub()
 

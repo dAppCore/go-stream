@@ -12,7 +12,7 @@ import (
 
 	"github.com/gorilla/websocket"
 
-	"dappco.re/go/core"
+	"dappco.re/go"
 	"dappco.re/go/stream"
 )
 
@@ -134,14 +134,18 @@ func (adapter *Adapter) serveHTTP(w http.ResponseWriter, r *http.Request, channe
 	}
 
 	if err := adapter.hub.AddPeer(peer); err != nil {
-		_ = conn.Close()
+		if closeErr := conn.Close(); closeErr != nil {
+			return
+		}
 		http.Error(w, "stream hub not running", http.StatusInternalServerError)
 		return
 	}
 	defer adapter.hub.RemovePeer(peer)
 
 	peer.SetCloseHook(func() {
-		_ = conn.Close()
+		if err := conn.Close(); err != nil {
+			return
+		}
 	})
 	for _, channel := range channels {
 		if channel == "" {
@@ -154,13 +158,18 @@ func (adapter *Adapter) serveHTTP(w http.ResponseWriter, r *http.Request, channe
 	}
 	defer conn.Close()
 	stopClose := context.AfterFunc(r.Context(), func() {
-		_ = conn.Close()
+		if err := conn.Close(); err != nil {
+			return
+		}
 	})
 	defer stopClose()
 
 	hubConfig := adapter.hub.Config()
 	if hubConfig.PongTimeout > 0 {
-		_ = conn.SetReadDeadline(time.Now().Add(hubConfig.PongTimeout))
+		if err := conn.SetReadDeadline(time.Now().Add(hubConfig.PongTimeout)); err != nil {
+			peer.Close()
+			return
+		}
 		conn.SetPongHandler(func(string) error {
 			return conn.SetReadDeadline(time.Now().Add(hubConfig.PongTimeout))
 		})
@@ -184,28 +193,36 @@ func (adapter *Adapter) serveHTTP(w http.ResponseWriter, r *http.Request, channe
 		switch message.Type {
 		case stream.TypeSubscribe:
 			if err := adapter.hub.SubscribePeer(peer, message.Channel); err != nil {
-				_ = peer.Send(marshalMessage(stream.Message{
+				if ok := peer.Send(marshalMessage(stream.Message{
 					Type:      stream.TypeError,
 					Channel:   message.Channel,
 					Data:      errorPayload(err),
 					Timestamp: time.Now().UTC(),
-				}))
+				})); !ok {
+					return
+				}
 			}
 		case stream.TypeUnsubscribe:
 			adapter.hub.UnsubscribePeer(peer, message.Channel)
 		case stream.TypePing:
-			_ = peer.Send([]byte(core.JSONMarshalString(stream.Message{
+			if ok := peer.Send([]byte(core.JSONMarshalString(stream.Message{
 				Type:      stream.TypePong,
 				Channel:   message.Channel,
 				ProcessID: message.ProcessID,
 				Timestamp: time.Now().UTC(),
-			})))
+			}))); !ok {
+				return
+			}
 		default:
 			if message.Channel == "" {
-				_ = adapter.hub.BroadcastFromPeer(peer, payload)
+				if err := adapter.hub.BroadcastFromPeer(peer, payload); err != nil {
+					return
+				}
 				continue
 			}
-			_ = adapter.hub.PublishFromPeer(peer, message.Channel, payload)
+			if err := adapter.hub.PublishFromPeer(peer, message.Channel, payload); err != nil {
+				return
+			}
 		}
 	}
 
@@ -230,7 +247,9 @@ func (adapter *Adapter) writePump(conn *websocket.Conn, peer *stream.Peer, write
 		select {
 		case <-heartbeat:
 			if writeTimeout > 0 {
-				_ = conn.SetWriteDeadline(time.Now().Add(writeTimeout))
+				if err := conn.SetWriteDeadline(time.Now().Add(writeTimeout)); err != nil {
+					return
+				}
 			}
 			if err := conn.WriteMessage(websocket.PingMessage, nil); err != nil {
 				return
@@ -240,7 +259,9 @@ func (adapter *Adapter) writePump(conn *websocket.Conn, peer *stream.Peer, write
 				return
 			}
 			if writeTimeout > 0 {
-				_ = conn.SetWriteDeadline(time.Now().Add(writeTimeout))
+				if err := conn.SetWriteDeadline(time.Now().Add(writeTimeout)); err != nil {
+					return
+				}
 			}
 			if err := conn.WriteMessage(websocket.TextMessage, frame); err != nil {
 				return

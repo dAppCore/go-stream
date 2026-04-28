@@ -11,11 +11,11 @@ import (
 	"testing"
 	"time"
 
-	"dappco.re/go/core"
+	"dappco.re/go"
 	"dappco.re/go/stream"
 )
 
-func TestAdapter_Handler_Good(t *testing.T) {
+func TestAX7_Adapter_Handler_Good(t *testing.T) {
 	hub := stream.NewHub()
 	hubContext, hubCancel := context.WithCancel(context.Background())
 	defer hubCancel()
@@ -126,7 +126,7 @@ func TestAdapter_Handler_MultilineFrame_Good(t *testing.T) {
 	}
 }
 
-func TestAdapter_Handler_Bad(t *testing.T) {
+func TestAX7_Adapter_Handler_Bad(t *testing.T) {
 	hub := stream.NewHub()
 	hubContext, hubCancel := context.WithCancel(context.Background())
 	defer hubCancel()
@@ -204,7 +204,7 @@ func TestAdapter_Handler_ChannelAuthoriser_Bad(t *testing.T) {
 	waitForPeerCount(t, hub, 0)
 }
 
-func TestAdapter_Handler_Ugly(t *testing.T) {
+func TestAX7_Adapter_Handler_Ugly(t *testing.T) {
 	hub := stream.NewHub()
 	hubContext, hubCancel := context.WithCancel(context.Background())
 	defer hubCancel()
@@ -233,7 +233,7 @@ func TestAdapter_Handler_Ugly(t *testing.T) {
 	waitForPeerCount(t, hub, 0)
 }
 
-func TestAdapter_ServeHTTP_Good(t *testing.T) {
+func TestAX7_Adapter_ServeHTTP_Good(t *testing.T) {
 	hub := stream.NewHub()
 	hubContext, hubCancel := context.WithCancel(context.Background())
 	defer hubCancel()
@@ -268,7 +268,7 @@ func TestAdapter_ServeHTTP_Good(t *testing.T) {
 	}
 }
 
-func TestAdapter_HandlerForChannel_Good(t *testing.T) {
+func TestAX7_Adapter_HandlerForChannel_Good(t *testing.T) {
 	hub := stream.NewHub()
 	hubContext, hubCancel := context.WithCancel(context.Background())
 	defer hubCancel()

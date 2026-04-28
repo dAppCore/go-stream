@@ -140,7 +140,7 @@ func TestBridge_Publish_Ugly(t *testing.T) {
 	}
 }
 
-func TestBridge_PublishBroadcast_Good(t *testing.T) {
+func TestAX7_Bridge_PublishBroadcast_Good(t *testing.T) {
 	redisServer := miniredis.RunT(t)
 
 	hub1 := stream.NewHub()

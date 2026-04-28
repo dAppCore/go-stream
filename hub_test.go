@@ -112,7 +112,7 @@ func (streamValue *testStream) cloneHandlersLocked(channel string) []func([]byte
 	return cloned
 }
 
-func TestHub_Pipe_Good(t *testing.T) {
+func TestAX7_Hub_Pipe_Good(t *testing.T) {
 	sourceHub := NewHub()
 	destinationHub := NewHub()
 
@@ -186,7 +186,7 @@ func TestHub_Pipe_Broadcast_Good(t *testing.T) {
 	}
 }
 
-func TestHub_Pipe_Bad(t *testing.T) {
+func TestAX7_Hub_Pipe_Bad(t *testing.T) {
 	sourceHub := NewHub()
 	destinationHub := NewHub()
 
@@ -228,7 +228,7 @@ func TestHub_Pipe_Bad(t *testing.T) {
 	}
 }
 
-func TestHub_Pipe_Ugly(t *testing.T) {
+func TestAX7_Hub_Pipe_Ugly(t *testing.T) {
 	hub := NewHub()
 	hubContext, hubCancel := context.WithCancel(context.Background())
 	defer hubCancel()
@@ -286,7 +286,7 @@ func TestHub_Pipe_GenericPublishFallback_Good(t *testing.T) {
 	}
 }
 
-func TestHub_Publish_Good(t *testing.T) {
+func TestAX7_Hub_Publish_Good(t *testing.T) {
 	hub := NewHub()
 	hubContext, hubCancel := context.WithCancel(context.Background())
 	defer hubCancel()
@@ -328,7 +328,7 @@ func TestHub_Publish_Good(t *testing.T) {
 	}
 }
 
-func TestHub_Publish_Bad(t *testing.T) {
+func TestAX7_Hub_Publish_Bad(t *testing.T) {
 	hub := NewHub()
 	hubContext, hubCancel := context.WithCancel(context.Background())
 	defer hubCancel()
@@ -341,7 +341,7 @@ func TestHub_Publish_Bad(t *testing.T) {
 	}
 }
 
-func TestHub_PublishFromPeer_Good(t *testing.T) {
+func TestAX7_Hub_PublishFromPeer_Good(t *testing.T) {
 	hub := NewHub()
 	hubContext, hubCancel := context.WithCancel(context.Background())
 	defer hubCancel()
@@ -373,7 +373,7 @@ func TestHub_PublishFromPeer_Good(t *testing.T) {
 	}
 }
 
-func TestHub_BroadcastFromPeer_Good(t *testing.T) {
+func TestAX7_Hub_BroadcastFromPeer_Good(t *testing.T) {
 	hub := NewHub()
 	hubContext, hubCancel := context.WithCancel(context.Background())
 	defer hubCancel()
@@ -401,7 +401,7 @@ func TestHub_BroadcastFromPeer_Good(t *testing.T) {
 	}
 }
 
-func TestHub_Publish_Ugly(t *testing.T) {
+func TestAX7_Hub_Publish_Ugly(t *testing.T) {
 	hub := NewHub()
 
 	if err := hub.Publish("hashrate", []byte("123456")); err != ErrHubNotRunning {
@@ -409,7 +409,7 @@ func TestHub_Publish_Ugly(t *testing.T) {
 	}
 }
 
-func TestHub_Running_Good(t *testing.T) {
+func TestAX7_Hub_Running_Good(t *testing.T) {
 	hub := NewHub()
 	if hub.Running() {
 		t.Fatal("Running() = true before Run()")
@@ -438,14 +438,14 @@ func TestHub_Running_Good(t *testing.T) {
 	t.Fatal("Running() stayed true after context cancellation")
 }
 
-func TestHub_Running_Bad(t *testing.T) {
+func TestAX7_Hub_Running_Bad(t *testing.T) {
 	var hub *Hub
 	if hub.Running() {
 		t.Fatal("nil hub Running() = true, want false")
 	}
 }
 
-func TestHub_Running_Ugly(t *testing.T) {
+func TestAX7_Hub_Running_Ugly(t *testing.T) {
 	hub := NewHub()
 	hubContext, hubCancel := context.WithCancel(context.Background())
 	defer hubCancel()
@@ -470,7 +470,7 @@ func TestHub_Running_Ugly(t *testing.T) {
 	hubCancel()
 }
 
-func TestHub_Broadcast_Good(t *testing.T) {
+func TestAX7_Hub_Broadcast_Good(t *testing.T) {
 	hub := NewHub()
 	hubContext, hubCancel := context.WithCancel(context.Background())
 	defer hubCancel()
@@ -499,7 +499,7 @@ func TestHub_Broadcast_Good(t *testing.T) {
 	}
 }
 
-func TestHub_Broadcast_Bad(t *testing.T) {
+func TestAX7_Hub_Broadcast_Bad(t *testing.T) {
 	hub := NewHub()
 
 	if err := hub.Broadcast([]byte("123456")); err != ErrHubNotRunning {
@@ -507,7 +507,7 @@ func TestHub_Broadcast_Bad(t *testing.T) {
 	}
 }
 
-func TestHub_Broadcast_Ugly(t *testing.T) {
+func TestAX7_Hub_Broadcast_Ugly(t *testing.T) {
 	hub := NewHub()
 	hubContext, hubCancel := context.WithCancel(context.Background())
 	defer hubCancel()
@@ -554,7 +554,7 @@ func TestHub_Broadcast_Ugly(t *testing.T) {
 	waitForPeerCount(t, hub, 0)
 }
 
-func TestHub_SubscribeE_Good(t *testing.T) {
+func TestAX7_Hub_SubscribeE_Good(t *testing.T) {
 	hub := NewHub()
 	hubContext, hubCancel := context.WithCancel(context.Background())
 	defer hubCancel()
@@ -585,7 +585,7 @@ func TestHub_SubscribeE_Good(t *testing.T) {
 	}
 }
 
-func TestHub_SubscribeWithError_Good(t *testing.T) {
+func TestAX7_Hub_SubscribeWithError_Good(t *testing.T) {
 	hub := NewHub()
 	hubContext, hubCancel := context.WithCancel(context.Background())
 	defer hubCancel()
@@ -653,7 +653,7 @@ func TestHub_Stats_IncludeHandlerOnlyChannels_Good(t *testing.T) {
 	}
 }
 
-func TestHub_SubscribeE_Bad(t *testing.T) {
+func TestAX7_Hub_SubscribeE_Bad(t *testing.T) {
 	hub := NewHub()
 
 	unsubscribe, err := hub.SubscribeE("", func(frame []byte) {})
@@ -666,7 +666,7 @@ func TestHub_SubscribeE_Bad(t *testing.T) {
 	unsubscribe()
 }
 
-func TestHub_SubscribeE_Ugly(t *testing.T) {
+func TestAX7_Hub_SubscribeE_Ugly(t *testing.T) {
 	hub := NewHub()
 	hubContext, hubCancel := context.WithCancel(context.Background())
 	defer hubCancel()
@@ -714,7 +714,7 @@ func TestHub_SubscribeE_Ugly(t *testing.T) {
 	t.Fatalf("SubscribeE panic handler count = %d, want 1", panicked)
 }
 
-func TestHub_CanSubscribePeer_Bad(t *testing.T) {
+func TestAX7_Hub_CanSubscribePeer_Bad(t *testing.T) {
 	hub := NewHubWithConfig(HubConfig{
 		ChannelAuthoriser: func(peer *Peer, channel string) bool {
 			return channel == "public"
@@ -730,7 +730,7 @@ func TestHub_CanSubscribePeer_Bad(t *testing.T) {
 	}
 }
 
-func TestPeer_Subscriptions_Good(t *testing.T) {
+func TestAX7_Peer_Subscriptions_Good(t *testing.T) {
 	hub := NewHub()
 	hubContext, hubCancel := context.WithCancel(context.Background())
 	defer hubCancel()
@@ -766,7 +766,7 @@ func TestPeer_Subscriptions_Good(t *testing.T) {
 	}
 }
 
-func TestPeer_Subscriptions_Bad(t *testing.T) {
+func TestAX7_Peer_Subscriptions_Bad(t *testing.T) {
 	var peer *Peer
 
 	if subscriptions := peer.Subscriptions(); subscriptions != nil {
@@ -774,7 +774,7 @@ func TestPeer_Subscriptions_Bad(t *testing.T) {
 	}
 }
 
-func TestPeer_Subscriptions_Ugly(t *testing.T) {
+func TestAX7_Peer_Subscriptions_Ugly(t *testing.T) {
 	hub := NewHub()
 	hubContext, hubCancel := context.WithCancel(context.Background())
 	defer hubCancel()
@@ -832,7 +832,7 @@ func TestHub_SendToChannel_Wildcard_Good(t *testing.T) {
 	t.Fatalf("wildcard handler count = %d, want 1", count)
 }
 
-func TestPeer_Close_Good(t *testing.T) {
+func TestAX7_Peer_Close_Good(t *testing.T) {
 	peer := NewPeer("ws")
 	closed := make(chan struct{}, 1)
 
@@ -864,7 +864,7 @@ func TestPeer_Close_Good(t *testing.T) {
 	}
 }
 
-func TestHub_Run_Good(t *testing.T) {
+func TestAX7_Hub_Run_Good(t *testing.T) {
 	hub := NewHub()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -895,7 +895,7 @@ func TestHub_Run_Good(t *testing.T) {
 	}
 }
 
-func TestHub_Run_Bad(t *testing.T) {
+func TestAX7_Hub_Run_Bad(t *testing.T) {
 	hub := NewHub()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -921,7 +921,7 @@ func TestHub_Run_Bad(t *testing.T) {
 	}
 }
 
-func TestHub_Run_Ugly(t *testing.T) {
+func TestAX7_Hub_Run_Ugly(t *testing.T) {
 	hub := NewHub()
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -957,7 +957,7 @@ func TestHub_Run_Ugly(t *testing.T) {
 	}
 }
 
-func TestHub_Subscribe_Good(t *testing.T) {
+func TestAX7_Hub_Subscribe_Good(t *testing.T) {
 	hub := NewHub()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -985,7 +985,7 @@ func TestHub_Subscribe_Good(t *testing.T) {
 	}
 }
 
-func TestHub_Subscribe_Bad(t *testing.T) {
+func TestAX7_Hub_Subscribe_Bad(t *testing.T) {
 	hub := NewHub()
 
 	unsubscribe := hub.Subscribe("", func(frame []byte) {})
@@ -995,7 +995,7 @@ func TestHub_Subscribe_Bad(t *testing.T) {
 	unsubscribe()
 }
 
-func TestHub_Subscribe_Ugly(t *testing.T) {
+func TestAX7_Hub_Subscribe_Ugly(t *testing.T) {
 	hub := NewHub()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

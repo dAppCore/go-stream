@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-func TestConnectionState_String_Good(t *testing.T) {
+func TestAX7_ConnectionState_String_Good(t *testing.T) {
 	cases := []struct {
 		state    ConnectionState
 		expected string
@@ -23,7 +23,7 @@ func TestConnectionState_String_Good(t *testing.T) {
 	}
 }
 
-func TestConnectionState_String_Bad(t *testing.T) {
+func TestAX7_ConnectionState_String_Bad(t *testing.T) {
 	// Unknown ConnectionState value falls through to default ("disconnected").
 	unknown := ConnectionState(99)
 	if unknown.String() != "disconnected" {
@@ -31,7 +31,7 @@ func TestConnectionState_String_Bad(t *testing.T) {
 	}
 }
 
-func TestConnectionState_String_Ugly(t *testing.T) {
+func TestAX7_ConnectionState_String_Ugly(t *testing.T) {
 	// Negative ConnectionState value still returns "disconnected".
 	negative := ConnectionState(-1)
 	if negative.String() != "disconnected" {
@@ -78,7 +78,7 @@ func TestEnvelope_Fields_Ugly(t *testing.T) {
 	}
 }
 
-func TestNewPeer_Good(t *testing.T) {
+func TestAX7_NewPeer_Good(t *testing.T) {
 	peer := NewPeer("ws")
 	if peer == nil {
 		t.Fatal("NewPeer() = nil")
@@ -97,7 +97,7 @@ func TestNewPeer_Good(t *testing.T) {
 	}
 }
 
-func TestNewPeer_Bad(t *testing.T) {
+func TestAX7_NewPeer_Bad(t *testing.T) {
 	// NewPeer with empty transport creates a valid peer.
 	peer := NewPeer("")
 	if peer == nil {
@@ -108,7 +108,7 @@ func TestNewPeer_Bad(t *testing.T) {
 	}
 }
 
-func TestNewPeer_Ugly(t *testing.T) {
+func TestAX7_NewPeer_Ugly(t *testing.T) {
 	// Two peers created simultaneously have different IDs.
 	peer1 := NewPeer("ws")
 	peer2 := NewPeer("ws")
@@ -117,7 +117,7 @@ func TestNewPeer_Ugly(t *testing.T) {
 	}
 }
 
-func TestPeer_Send_Good(t *testing.T) {
+func TestAX7_Peer_Send_Good(t *testing.T) {
 	peer := NewPeer("ws")
 	ok := peer.Send([]byte("hello"))
 	if !ok {
@@ -133,7 +133,7 @@ func TestPeer_Send_Good(t *testing.T) {
 	}
 }
 
-func TestPeer_Send_Bad(t *testing.T) {
+func TestAX7_Peer_Send_Bad(t *testing.T) {
 	// Send to nil peer returns false without panic.
 	var peer *Peer
 	ok := peer.Send([]byte("hello"))
@@ -142,7 +142,7 @@ func TestPeer_Send_Bad(t *testing.T) {
 	}
 }
 
-func TestPeer_Send_Ugly(t *testing.T) {
+func TestAX7_Peer_Send_Ugly(t *testing.T) {
 	// Send after Close returns false without panic.
 	peer := NewPeer("ws")
 	peer.Close()
@@ -152,14 +152,14 @@ func TestPeer_Send_Ugly(t *testing.T) {
 	}
 }
 
-func TestPeer_Close_Ugly(t *testing.T) {
+func TestAX7_Peer_Close_Ugly(t *testing.T) {
 	// Double Close does not panic.
 	peer := NewPeer("ws")
 	peer.Close()
 	peer.Close()
 }
 
-func TestPeer_SetCloseHook_Good(t *testing.T) {
+func TestAX7_Peer_SetCloseHook_Good(t *testing.T) {
 	peer := NewPeer("ws")
 	invoked := false
 	peer.SetCloseHook(func() { invoked = true })
@@ -169,13 +169,16 @@ func TestPeer_SetCloseHook_Good(t *testing.T) {
 	}
 }
 
-func TestPeer_SetCloseHook_Bad(t *testing.T) {
+func TestAX7_Peer_SetCloseHook_Bad(t *testing.T) {
 	// SetCloseHook on nil peer does not panic.
 	var peer *Peer
 	peer.SetCloseHook(func() {})
+	if peer != nil {
+		t.Fatal("nil peer changed after SetCloseHook")
+	}
 }
 
-func TestPeer_SendQueue_Bad(t *testing.T) {
+func TestAX7_Peer_SendQueue_Bad(t *testing.T) {
 	// SendQueue on nil peer returns nil.
 	var peer *Peer
 	if peer.SendQueue() != nil {
@@ -301,6 +304,9 @@ func TestOnceFunction_Good(t *testing.T) {
 func TestOnceFunction_Bad(t *testing.T) {
 	// onceFunction with nil handler returns a no-op function.
 	handler := onceFunction(nil)
+	if handler == nil {
+		t.Fatal("onceFunction(nil) returned nil")
+	}
 	handler() // should not panic
 }
 

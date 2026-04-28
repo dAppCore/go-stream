@@ -7,7 +7,7 @@ import (
 	"net/http/httptest"
 	"time"
 
-	"dappco.re/go/core"
+	"dappco.re/go"
 	"dappco.re/go/stream"
 )
 

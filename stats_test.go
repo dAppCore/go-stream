@@ -6,7 +6,7 @@ import (
 	"context"
 	"testing"
 
-	"dappco.re/go/core"
+	"dappco.re/go"
 )
 
 func TestStats_HubStats_Good(t *testing.T) {
@@ -261,4 +261,3 @@ func TestStats_AllChannels_Bad(t *testing.T) {
 		t.Fatalf("nil hub AllChannels() count = %d, want %d", count, 0)
 	}
 }
-

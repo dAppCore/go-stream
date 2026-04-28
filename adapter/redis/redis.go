@@ -19,7 +19,7 @@ import (
 
 	"github.com/redis/go-redis/v9"
 
-	"dappco.re/go/core"
+	"dappco.re/go"
 	"dappco.re/go/stream"
 )
 
@@ -110,10 +110,14 @@ func (bridge *Bridge) Start(ctx context.Context) error {
 		if channel == "" {
 			return
 		}
-		_ = bridge.publishWithClient(client, bridge.channelKey(channel), frame)
+		if err := bridge.publishWithClient(client, bridge.channelKey(channel), frame); err != nil {
+			return
+		}
 	})
 	broadcastStop := bridge.hub.SubscribeBroadcast(func(frame []byte) {
-		_ = bridge.publishWithClient(client, bridge.broadcastChannel(), frame)
+		if err := bridge.publishWithClient(client, bridge.broadcastChannel(), frame); err != nil {
+			return
+		}
 	})
 
 	bridge.mutex.Lock()
@@ -142,8 +146,12 @@ func (bridge *Bridge) Start(ctx context.Context) error {
 			broadcastStop()
 		}
 		runCancel()
-		_ = pubsub.Close()
-		_ = client.Close()
+		if err := pubsub.Close(); err != nil {
+			return
+		}
+		if err := client.Close(); err != nil {
+			return
+		}
 	}()
 
 	for {
@@ -165,10 +173,14 @@ func (bridge *Bridge) Start(ctx context.Context) error {
 
 		channel := bridge.channelFromRedis(message.Channel)
 		if channel == "" {
-			_ = bridge.hub.BroadcastFromBridge(decoded.Frame)
+			if err := bridge.hub.BroadcastFromBridge(decoded.Frame); err != nil {
+				return err
+			}
 			continue
 		}
-		_ = bridge.hub.PublishFromBridge(channel, decoded.Frame)
+		if err := bridge.hub.PublishFromBridge(channel, decoded.Frame); err != nil {
+			return err
+		}
 	}
 }
 
@@ -200,13 +212,16 @@ func (bridge *Bridge) Stop() error {
 	if broadcastStop != nil {
 		broadcastStop()
 	}
+	var err error
 	if pubsub != nil {
-		_ = pubsub.Close()
+		err = pubsub.Close()
 	}
 	if client != nil {
-		return client.Close()
+		if closeErr := client.Close(); closeErr != nil {
+			return core.ErrorJoin(err, closeErr)
+		}
 	}
-	return nil
+	return err
 }
 
 // _ = bridge.PublishToChannel("block", templateBytes)

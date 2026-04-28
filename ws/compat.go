@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: EUPL-1.2
 
-//	hub := ws.NewHub()
-//	go hub.Run(ctx)
-//	http.Handle("/stream/ws", hub.Handler())
+// hub := ws.NewHub()
+// go hub.Run(ctx)
+// http.Handle("/stream/ws", hub.Handler())
 package ws
 
 import (
 	"net/http"
 	"sync"
 
-	"dappco.re/go/core"
+	"dappco.re/go"
 	"dappco.re/go/stream"
 	adapterredis "dappco.re/go/stream/adapter/redis"
 	adapterws "dappco.re/go/stream/adapter/ws"

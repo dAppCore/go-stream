@@ -20,7 +20,7 @@ import (
 
 	"github.com/go-zeromq/zmq4"
 
-	"dappco.re/go/core"
+	"dappco.re/go"
 	"dappco.re/go/stream"
 )
 
@@ -141,7 +141,10 @@ func (adapter *Adapter) Start(ctx context.Context) error {
 		return err
 	}
 	if err := adapter.connectSocket(socket); err != nil {
-		_ = socket.Close()
+		if closeErr := socket.Close(); closeErr != nil {
+			runCancel()
+			return core.ErrorJoin(err, closeErr)
+		}
 		runCancel()
 		return err
 	}
@@ -149,7 +152,10 @@ func (adapter *Adapter) Start(ctx context.Context) error {
 	adapter.mutex.Lock()
 	if adapter.running {
 		adapter.mutex.Unlock()
-		_ = socket.Close()
+		if err := socket.Close(); err != nil {
+			runCancel()
+			return err
+		}
 		runCancel()
 		return nil
 	}
@@ -165,7 +171,9 @@ func (adapter *Adapter) Start(ctx context.Context) error {
 		adapter.cancel = nil
 		adapter.mutex.Unlock()
 		runCancel()
-		_ = socket.Close()
+		if err := socket.Close(); err != nil {
+			return
+		}
 	}()
 
 	if !adapter.isReceiver() {
@@ -213,10 +221,14 @@ func (adapter *Adapter) Start(ctx context.Context) error {
 			continue
 		}
 		if channel == "" {
-			_ = adapter.hub.Broadcast(frame)
+			if err := adapter.hub.Broadcast(frame); err != nil {
+				return err
+			}
 			continue
 		}
-		_ = adapter.hub.Publish(channel, frame)
+		if err := adapter.hub.Publish(channel, frame); err != nil {
+			return err
+		}
 	}
 }
 
@@ -231,7 +243,9 @@ func (adapter *Adapter) registerPeer(socket zmq4.Socket, authResult stream.AuthR
 	}
 	if socket != nil {
 		peer.SetCloseHook(func() {
-			_ = socket.Close()
+			if err := socket.Close(); err != nil {
+				return
+			}
 		})
 	}
 	if err := adapter.hub.AddPeer(peer); err != nil {
@@ -379,12 +393,16 @@ func (adapter *Adapter) recvWithTimeout(ctx context.Context, socket zmq4.Socket,
 
 	select {
 	case <-ctx.Done():
-		_ = socket.Close()
+		if err := socket.Close(); err != nil {
+			return zmq4.Msg{}, err
+		}
 		return zmq4.Msg{}, ctx.Err()
 	case outcome := <-receive:
 		return outcome.message, outcome.err
 	case <-timer.C:
-		_ = socket.Close()
+		if err := socket.Close(); err != nil {
+			return zmq4.Msg{}, err
+		}
 		return zmq4.Msg{}, stream.ErrHandshakeTimeout
 	}
 }

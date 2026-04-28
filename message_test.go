@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-func TestMessageType_String_Good(t *testing.T) {
+func TestAX7_MessageType_String_Good(t *testing.T) {
 	cases := []struct {
 		messageType MessageType
 		expected    string
@@ -28,7 +28,7 @@ func TestMessageType_String_Good(t *testing.T) {
 	}
 }
 
-func TestMessageType_String_Bad(t *testing.T) {
+func TestAX7_MessageType_String_Bad(t *testing.T) {
 	// Unknown MessageType returns its raw string value.
 	unknown := MessageType("nonexistent")
 	if unknown.String() != "nonexistent" {
@@ -36,7 +36,7 @@ func TestMessageType_String_Bad(t *testing.T) {
 	}
 }
 
-func TestMessageType_String_Ugly(t *testing.T) {
+func TestAX7_MessageType_String_Ugly(t *testing.T) {
 	// Empty MessageType returns empty string.
 	empty := MessageType("")
 	if empty.String() != "" {
