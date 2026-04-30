@@ -1,0 +1,344 @@
+// SPDX-License-Identifier: EUPL-1.2
+
+package sse
+
+import (
+	"bufio"
+	"context"
+	"net/http"
+	"net/http/httptest"
+	"sync/atomic"
+	"testing"
+	"time"
+
+	"dappco.re/go"
+	"dappco.re/go/stream"
+)
+
+func TestAX7_Adapter_Handler_Good(t *testing.T) {
+	hub := stream.NewHub()
+	hubContext, hubCancel := context.WithCancel(context.Background())
+	defer hubCancel()
+	go hub.Run(hubContext)
+
+	adapter := New(Config{HeartbeatInterval: 20 * time.Millisecond})
+	adapter.Mount(hub)
+
+	server := httptest.NewServer(http.HandlerFunc(adapter.Handler()))
+	defer server.Close()
+
+	response, err := http.Get(server.URL + "?channel=hashrate")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	defer response.Body.Close()
+
+	waitForPeerCount(t, hub, 1)
+	if err := hub.Publish("hashrate", []byte("123456")); err != nil {
+		t.Fatalf("Publish() error = %v", err)
+	}
+
+	reader := bufio.NewReader(response.Body)
+	for {
+		line, err := reader.ReadString('\n')
+		if err != nil {
+			t.Fatalf("ReadString() error = %v", err)
+		}
+		if core.Trim(line) == "data: 123456" {
+			return
+		}
+	}
+}
+
+func TestAdapter_Handler_ZeroValueConfig_Good(t *testing.T) {
+	hub := stream.NewHub()
+	hubContext, hubCancel := context.WithCancel(context.Background())
+	defer hubCancel()
+	go hub.Run(hubContext)
+
+	adapter := &Adapter{}
+	adapter.Mount(hub)
+
+	server := httptest.NewServer(http.HandlerFunc(adapter.Handler()))
+	defer server.Close()
+
+	response, err := http.Get(server.URL + "?channel=hashrate")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	defer response.Body.Close()
+
+	waitForPeerCount(t, hub, 1)
+	if err := hub.Publish("hashrate", []byte("123456")); err != nil {
+		t.Fatalf("Publish() error = %v", err)
+	}
+
+	reader := bufio.NewReader(response.Body)
+	for {
+		line, err := reader.ReadString('\n')
+		if err != nil {
+			t.Fatalf("ReadString() error = %v", err)
+		}
+		if core.Trim(line) == "data: 123456" {
+			return
+		}
+	}
+}
+
+func TestAdapter_Handler_MultilineFrame_Good(t *testing.T) {
+	hub := stream.NewHub()
+	hubContext, hubCancel := context.WithCancel(context.Background())
+	defer hubCancel()
+	go hub.Run(hubContext)
+
+	adapter := New(Config{HeartbeatInterval: 20 * time.Millisecond})
+	adapter.Mount(hub)
+
+	server := httptest.NewServer(http.HandlerFunc(adapter.Handler()))
+	defer server.Close()
+
+	response, err := http.Get(server.URL + "?channel=hashrate")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	defer response.Body.Close()
+
+	waitForPeerCount(t, hub, 1)
+	if err := hub.Publish("hashrate", []byte("123\n456")); err != nil {
+		t.Fatalf("Publish() error = %v", err)
+	}
+
+	reader := bufio.NewReader(response.Body)
+	lines := make([]string, 0, 4)
+	for len(lines) < 4 {
+		line, err := reader.ReadString('\n')
+		if err != nil {
+			t.Fatalf("ReadString() error = %v", err)
+		}
+		lines = append(lines, line)
+	}
+
+	expected := []string{"retry: 3000\n", "\n", "data: 123\n", "data: 456\n"}
+	for index, line := range expected {
+		if lines[index] != line {
+			t.Fatalf("lines[%d] = %q, want %q", index, lines[index], line)
+		}
+	}
+}
+
+func TestAX7_Adapter_Handler_Bad(t *testing.T) {
+	hub := stream.NewHub()
+	hubContext, hubCancel := context.WithCancel(context.Background())
+	defer hubCancel()
+	go hub.Run(hubContext)
+
+	var authFailureCount atomic.Int32
+	adapter := New(Config{
+		Authenticator: stream.NewAPIKeyAuth(map[string]string{"valid-key": "user-1"}),
+		OnAuthFailure: func(r *http.Request, result stream.AuthResult) {
+			authFailureCount.Add(1)
+		},
+	})
+	adapter.Mount(hub)
+
+	server := httptest.NewServer(http.HandlerFunc(adapter.Handler()))
+	defer server.Close()
+
+	response, err := http.Get(server.URL + "?channel=hashrate")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	defer response.Body.Close()
+
+	if response.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("StatusCode = %d, want %d", response.StatusCode, http.StatusUnauthorized)
+	}
+	if authFailureCount.Load() != 1 {
+		t.Fatalf("OnAuthFailure invoked %d times, want %d", authFailureCount.Load(), 1)
+	}
+}
+
+func TestAdapter_Handler_HubNotRunning_Bad(t *testing.T) {
+	adapter := New(Config{})
+	adapter.Mount(stream.NewHub())
+
+	server := httptest.NewServer(http.HandlerFunc(adapter.Handler()))
+	defer server.Close()
+
+	response, err := http.Get(server.URL + "?channel=hashrate")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	defer response.Body.Close()
+
+	if response.StatusCode != http.StatusInternalServerError {
+		t.Fatalf("StatusCode = %d, want %d", response.StatusCode, http.StatusInternalServerError)
+	}
+}
+
+func TestAdapter_Handler_ChannelAuthoriser_Bad(t *testing.T) {
+	hub := stream.NewHubWithConfig(stream.HubConfig{
+		ChannelAuthoriser: func(peer *stream.Peer, channel string) bool {
+			return channel == "public"
+		},
+	})
+	hubContext, hubCancel := context.WithCancel(context.Background())
+	defer hubCancel()
+	go hub.Run(hubContext)
+
+	adapter := New(Config{})
+	adapter.Mount(hub)
+
+	server := httptest.NewServer(http.HandlerFunc(adapter.Handler()))
+	defer server.Close()
+
+	response, err := http.Get(server.URL + "?channel=private")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	defer response.Body.Close()
+
+	if response.StatusCode != http.StatusForbidden {
+		t.Fatalf("StatusCode = %d, want %d", response.StatusCode, http.StatusForbidden)
+	}
+	waitForPeerCount(t, hub, 0)
+}
+
+func TestAX7_Adapter_Handler_Ugly(t *testing.T) {
+	hub := stream.NewHub()
+	hubContext, hubCancel := context.WithCancel(context.Background())
+	defer hubCancel()
+	go hub.Run(hubContext)
+
+	adapter := New(Config{HeartbeatInterval: 20 * time.Millisecond})
+	adapter.Mount(hub)
+
+	server := httptest.NewServer(http.HandlerFunc(adapter.Handler()))
+	defer server.Close()
+
+	requestContext, requestCancel := context.WithCancel(context.Background())
+	request, err := http.NewRequestWithContext(requestContext, http.MethodGet, server.URL+"?channel=hashrate", nil)
+	if err != nil {
+		t.Fatalf("NewRequestWithContext() error = %v", err)
+	}
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		t.Fatalf("Do() error = %v", err)
+	}
+
+	waitForPeerCount(t, hub, 1)
+	requestCancel()
+	_ = response.Body.Close()
+
+	waitForPeerCount(t, hub, 0)
+}
+
+func TestAX7_Adapter_ServeHTTP_Good(t *testing.T) {
+	hub := stream.NewHub()
+	hubContext, hubCancel := context.WithCancel(context.Background())
+	defer hubCancel()
+	go hub.Run(hubContext)
+
+	adapter := New(Config{HeartbeatInterval: 20 * time.Millisecond})
+	adapter.Mount(hub)
+
+	server := httptest.NewServer(adapter)
+	defer server.Close()
+
+	response, err := http.Get(server.URL + "?channel=serve-http")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	defer response.Body.Close()
+
+	waitForPeerCount(t, hub, 1)
+	if err := hub.Publish("serve-http", []byte("ok")); err != nil {
+		t.Fatalf("Publish() error = %v", err)
+	}
+
+	reader := bufio.NewReader(response.Body)
+	for {
+		line, err := reader.ReadString('\n')
+		if err != nil {
+			t.Fatalf("ReadString() error = %v", err)
+		}
+		if core.Trim(line) == "data: ok" {
+			return
+		}
+	}
+}
+
+func TestAX7_Adapter_HandlerForChannel_Good(t *testing.T) {
+	hub := stream.NewHub()
+	hubContext, hubCancel := context.WithCancel(context.Background())
+	defer hubCancel()
+	go hub.Run(hubContext)
+
+	adapter := New(Config{HeartbeatInterval: 20 * time.Millisecond})
+	adapter.Mount(hub)
+
+	server := httptest.NewServer(http.HandlerFunc(adapter.HandlerForChannel("hashrate")))
+	defer server.Close()
+
+	response, err := http.Get(server.URL)
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	defer response.Body.Close()
+
+	waitForPeerCount(t, hub, 1)
+	if err := hub.Publish("hashrate", []byte("654321")); err != nil {
+		t.Fatalf("Publish() error = %v", err)
+	}
+
+	reader := bufio.NewReader(response.Body)
+	for {
+		line, err := reader.ReadString('\n')
+		if err != nil {
+			t.Fatalf("ReadString() error = %v", err)
+		}
+		if core.Trim(line) == "data: 654321" {
+			return
+		}
+	}
+}
+
+func TestAdapter_Handler_RetryMs_Good(t *testing.T) {
+	hub := stream.NewHub()
+	hubContext, hubCancel := context.WithCancel(context.Background())
+	defer hubCancel()
+	go hub.Run(hubContext)
+
+	adapter := New(Config{RetryMs: 1234, HeartbeatInterval: time.Second})
+	adapter.Mount(hub)
+
+	server := httptest.NewServer(http.HandlerFunc(adapter.Handler()))
+	defer server.Close()
+
+	response, err := http.Get(server.URL + "?channel=hashrate")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	defer response.Body.Close()
+
+	reader := bufio.NewReader(response.Body)
+	line, err := reader.ReadString('\n')
+	if err != nil {
+		t.Fatalf("ReadString() error = %v", err)
+	}
+	if core.Trim(line) != "retry: 1234" {
+		t.Fatalf("first line = %q, want %q", core.Trim(line), "retry: 1234")
+	}
+}
+
+func waitForPeerCount(t *testing.T, hub *stream.Hub, expected int) {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if hub.PeerCount() == expected {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatalf("PeerCount() = %d, want %d", hub.PeerCount(), expected)
+}

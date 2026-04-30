@@ -1,58 +1,67 @@
 // SPDX-License-Identifier: EUPL-1.2
 
+// auth := stream.NewAPIKeyAuth(map[string]string{"sk-live": "user-42"})
+// request := httptest.NewRequest(http.MethodGet, "/stream/ws", nil)
+// request.Header.Set("Authorization", "Bearer sk-live")
+// result := auth.Authenticate(request)
 package stream
 
 import (
 	"net/http"
 
-	"dappco.re/go/core"
+	"dappco.re/go"
 )
 
-// Authenticator validates an HTTP request during the WebSocket upgrade or SSE
-// connection. Implementations may inspect headers, query parameters, or cookies.
+//	auth := stream.AuthenticatorFunc(func(request *http.Request) stream.AuthResult {
+//	    if request.Header.Get("X-Api-Key") == "sk-live" {
+//	        return stream.AuthResult{Valid: true, UserID: "user-42"}
+//	    }
+//	    return stream.AuthResult{Valid: false}
+//	})
 type Authenticator interface {
-	Authenticate(r *http.Request) AuthResult
+	Authenticate(request *http.Request) AuthResult
 }
 
-// AuthResult holds the outcome of an authentication attempt.
+//	result := stream.AuthResult{
+//	    Valid:  true,
+//	    UserID: "user-42",
+//	    Claims: map[string]any{"role": "admin"},
+//	}
 type AuthResult struct {
-	// Valid indicates whether authentication succeeded.
 	Valid bool
 
-	// UserID is the authenticated user's identifier.
 	UserID string
 
-	// Claims holds arbitrary metadata (roles, scopes, tenant ID).
+	// claims := result.Claims
+	// claims["role"] = "admin"
 	Claims map[string]any
 
-	// Error holds the reason for failure, if any.
 	Error error
 }
 
-// AuthenticatorFunc adapts a plain function to the Authenticator interface.
-//
-//	auth := stream.AuthenticatorFunc(func(r *http.Request) stream.AuthResult {
-//	    token := r.Header.Get("X-Api-Key")
-//	    if token == "" { return stream.AuthResult{Valid: false} }
-//	    return stream.AuthResult{Valid: true, UserID: lookupUser(token)}
+//	authenticator := stream.AuthenticatorFunc(func(request *http.Request) stream.AuthResult {
+//	    return stream.AuthResult{Valid: true, UserID: "user-42"}
 //	})
-type AuthenticatorFunc func(r *http.Request) AuthResult
+type AuthenticatorFunc func(request *http.Request) AuthResult
 
-// Authenticate calls f(r).
-func (f AuthenticatorFunc) Authenticate(r *http.Request) AuthResult {
-	return f(r)
+// request := httptest.NewRequest(http.MethodGet, "/stream/ws", nil)
+// result := authenticatorFunc.Authenticate(request)
+func (authenticatorFunc AuthenticatorFunc) Authenticate(request *http.Request) AuthResult {
+	if authenticatorFunc == nil || request == nil {
+		return AuthResult{Valid: false}
+	}
+	return normalizeAuthResult(authenticatorFunc(request))
 }
 
-// APIKeyAuthenticator validates Authorization: Bearer <key> against a static map.
-//
-//	auth := stream.NewAPIKeyAuth(map[string]string{"sk-prod-1": "user-42"})
+// auth := stream.NewAPIKeyAuth(map[string]string{"sk-live": "user-42"})
+// request := httptest.NewRequest(http.MethodGet, "/stream/ws", nil)
+// request.Header.Set("Authorization", "Bearer sk-live")
+// result := auth.Authenticate(request)
 type APIKeyAuthenticator struct {
 	Keys map[string]string
 }
 
-// NewAPIKeyAuth creates an API key authenticator from a key-to-user map.
-//
-//	auth := stream.NewAPIKeyAuth(map[string]string{"sk-prod-1": "user-42"})
+// auth := stream.NewAPIKeyAuth(map[string]string{"sk-live": "user-42"})
 func NewAPIKeyAuth(keys map[string]string) *APIKeyAuthenticator {
 	if keys == nil {
 		keys = map[string]string{}
@@ -64,101 +73,124 @@ func NewAPIKeyAuth(keys map[string]string) *APIKeyAuthenticator {
 	return &APIKeyAuthenticator{Keys: copied}
 }
 
-// Authenticate validates the request's Authorization Bearer token against the key map.
-func (a *APIKeyAuthenticator) Authenticate(r *http.Request) AuthResult {
-	if a == nil {
+// auth := stream.NewAPIKeyAuth(map[string]string{"sk-live": "user-42"})
+// request.Header.Set("Authorization", "Bearer sk-live")
+// result := auth.Authenticate(request)
+func (authenticator *APIKeyAuthenticator) Authenticate(request *http.Request) AuthResult {
+	if authenticator == nil || request == nil {
 		return AuthResult{Valid: false}
 	}
-	header := r.Header.Get("Authorization")
-	if header == "" {
-		return AuthResult{Valid: false, Error: ErrMissingAuthHeader}
+	token, result := bearerTokenFromRequest(request)
+	if !result.Valid {
+		return result
 	}
-	if !core.HasPrefix(header, "Bearer ") {
-		return AuthResult{Valid: false, Error: ErrMalformedAuthHeader}
-	}
-	token := core.TrimPrefix(header, "Bearer ")
-	if token == "" {
-		return AuthResult{Valid: false, Error: ErrMalformedAuthHeader}
-	}
-	userID, ok := a.Keys[token]
+	userID, ok := authenticator.Keys[token]
 	if !ok {
 		return AuthResult{Valid: false, Error: ErrInvalidAPIKey}
 	}
-	return AuthResult{Valid: true, UserID: userID}
+	return normalizeAuthResult(AuthResult{Valid: true, UserID: userID})
 }
 
-// BearerTokenAuth delegates bearer token validation to a caller-supplied function.
-//
-//	auth := &stream.BearerTokenAuth{
+//	authenticator := &stream.BearerTokenAuth{
 //	    Validate: func(token string) stream.AuthResult {
-//	        claims, err := jwt.Parse(token, keyFunc)
-//	        if err != nil { return stream.AuthResult{Valid: false, Error: err} }
-//	        return stream.AuthResult{Valid: true, UserID: claims.Subject}
+//	        if token == "sk-live" {
+//	            return stream.AuthResult{Valid: true, UserID: "user-42"}
+//	        }
+//	        return stream.AuthResult{Valid: false}
 //	    },
 //	}
 type BearerTokenAuth struct {
 	Validate func(token string) AuthResult
 }
 
-// Authenticate extracts the Bearer token and delegates to Validate.
-func (b *BearerTokenAuth) Authenticate(r *http.Request) AuthResult {
-	if b == nil || b.Validate == nil {
+// request := httptest.NewRequest(http.MethodGet, "/stream/ws", nil)
+// request.Header.Set("Authorization", "Bearer sk-live")
+// result := authenticator.Authenticate(request)
+func (authenticator *BearerTokenAuth) Authenticate(request *http.Request) AuthResult {
+	if authenticator == nil || authenticator.Validate == nil || request == nil {
 		return AuthResult{Valid: false}
 	}
-	header := r.Header.Get("Authorization")
-	if header == "" {
-		return AuthResult{Valid: false, Error: ErrMissingAuthHeader}
+	token, result := bearerTokenFromRequest(request)
+	if !result.Valid {
+		return result
 	}
-	if !core.HasPrefix(header, "Bearer ") {
-		return AuthResult{Valid: false, Error: ErrMalformedAuthHeader}
-	}
-	token := core.TrimPrefix(header, "Bearer ")
-	if token == "" {
-		return AuthResult{Valid: false, Error: ErrMalformedAuthHeader}
-	}
-	return b.Validate(token)
+	return normalizeAuthResult(authenticator.Validate(token))
 }
 
-// QueryTokenAuth extracts a ?token= query parameter and validates via caller function.
-// Use when browser clients cannot set headers (native WebSocket API).
-//
-//	auth := &stream.QueryTokenAuth{
-//	    Validate: func(token string) stream.AuthResult { ... },
+//	authenticator := &stream.QueryTokenAuth{
+//	    Validate: func(token string) stream.AuthResult {
+//	        if token == "sk-live" {
+//	            return stream.AuthResult{Valid: true, UserID: "user-42"}
+//	        }
+//	        return stream.AuthResult{Valid: false}
+//	    },
 //	}
 type QueryTokenAuth struct {
 	Validate func(token string) AuthResult
 }
 
-// Authenticate extracts the token query parameter and delegates to Validate.
-func (q *QueryTokenAuth) Authenticate(r *http.Request) AuthResult {
-	if q == nil || q.Validate == nil {
+// request := httptest.NewRequest(http.MethodGet, "/stream/ws?token=sk-live", nil)
+// result := authenticator.Authenticate(request)
+func (authenticator *QueryTokenAuth) Authenticate(request *http.Request) AuthResult {
+	if authenticator == nil || authenticator.Validate == nil || request == nil {
 		return AuthResult{Valid: false}
 	}
-	token := r.URL.Query().Get("token")
+	token := request.URL.Query().Get("token")
 	if token == "" {
 		return AuthResult{Valid: false}
 	}
-	return q.Validate(token)
+	return normalizeAuthResult(authenticator.Validate(token))
 }
 
-// ConnAuthenticator validates a raw connection handshake for TCP and ZMQ adapters.
-// The handshake is the first message received on the connection (up to 4 KB).
-//
 //	auth := stream.ConnAuthenticatorFunc(func(handshake []byte) stream.AuthResult {
-//	    var h tcp.Handshake
-//	    if r := core.JSONUnmarshal(handshake, &h); !r.OK {
-//	        return stream.AuthResult{Valid: false}
+//	    if string(handshake) == "hello" {
+//	        return stream.AuthResult{Valid: true, UserID: "peer-1"}
 //	    }
-//	    return verifyHMAC(h.Token, h.Timestamp)
+//	    return stream.AuthResult{Valid: false}
 //	})
 type ConnAuthenticator interface {
 	AuthenticateConn(handshake []byte) AuthResult
 }
 
-// ConnAuthenticatorFunc adapts a plain function to ConnAuthenticator.
+//	auth := stream.ConnAuthenticatorFunc(func(handshake []byte) stream.AuthResult {
+//	    if string(handshake) == "hello" {
+//	        return stream.AuthResult{Valid: true, UserID: "peer-1"}
+//	    }
+//	    return stream.AuthResult{Valid: false}
+//	})
 type ConnAuthenticatorFunc func(handshake []byte) AuthResult
 
-// AuthenticateConn calls f(handshake).
-func (f ConnAuthenticatorFunc) AuthenticateConn(handshake []byte) AuthResult {
-	return f(handshake)
+// result := auth.AuthenticateConn([]byte("hello"))
+func (connAuthenticatorFunc ConnAuthenticatorFunc) AuthenticateConn(handshake []byte) AuthResult {
+	if connAuthenticatorFunc == nil {
+		return AuthResult{Valid: false}
+	}
+	return normalizeAuthResult(connAuthenticatorFunc(handshake))
+}
+
+// token, result := bearerTokenFromRequest(request)
+func bearerTokenFromRequest(request *http.Request) (string, AuthResult) {
+	header := request.Header.Get("Authorization")
+	if header == "" {
+		return "", AuthResult{Valid: false, Error: ErrMissingAuthHeader}
+	}
+	if !core.HasPrefix(header, "Bearer ") {
+		return "", AuthResult{Valid: false, Error: ErrMalformedAuthHeader}
+	}
+	token := core.TrimPrefix(header, "Bearer ")
+	if token == "" {
+		return "", AuthResult{Valid: false, Error: ErrMalformedAuthHeader}
+	}
+	return token, AuthResult{Valid: true}
+}
+
+// result = normalizeAuthResult(result)
+func normalizeAuthResult(result AuthResult) AuthResult {
+	if !result.Valid {
+		return result
+	}
+	if result.Claims == nil {
+		result.Claims = map[string]any{}
+	}
+	return result
 }

@@ -1,21 +1,29 @@
 // SPDX-License-Identifier: EUPL-1.2
 
-// Package redis is the Redis pub/sub bridge for stream.Hub.
-// Enables cross-instance coordination: multiple Hub instances on different nodes
-// using the same Redis backend coordinate broadcasts and channel messages transparently.
+// bridge, err := redis.NewBridge(hub, redis.Config{Addr: "redis:6379", Prefix: "pool"})
+//
+//	if err != nil {
+//		return err
+//	}
+//
+// go bridge.Start(ctx)
 package redis
 
 import (
 	"context"
+	"crypto/rand"
 	"crypto/tls"
-	"strconv"
+	"encoding/hex"
 	"sync"
+	"time"
 
-	"dappco.re/go/core"
+	"github.com/redis/go-redis/v9"
+
+	"dappco.re/go"
 	"dappco.re/go/stream"
 )
 
-// Config configures the Redis bridge.
+// config := redis.Config{Addr: "127.0.0.1:6379", Prefix: "pool"}
 type Config struct {
 	Addr      string
 	Password  string
@@ -24,135 +32,26 @@ type Config struct {
 	TLSConfig *tls.Config
 }
 
-// Bridge connects a Hub to Redis pub/sub for cross-instance messaging.
+// bridge, err := redis.NewBridge(hub, redis.Config{Addr: "127.0.0.1:6379", Prefix: "pool"})
+//
+//	if err != nil {
+//	    return err
+//	}
+//
+// go bridge.Start(ctx)
+// defer bridge.Stop()
 type Bridge struct {
 	hub      *stream.Hub
 	config   Config
 	sourceID string
 
-	mu      sync.Mutex
-	running bool
-	stopCh  chan struct{}
-}
-
-type bridgeRegistry struct {
-	mu      sync.RWMutex
-	bridges map[string]map[*Bridge]struct{}
-}
-
-var registry = bridgeRegistry{bridges: map[string]map[*Bridge]struct{}{}}
-
-// NewBridge creates and validates the Redis connection. Does not start listening.
-func NewBridge(hub *stream.Hub, cfg Config) (*Bridge, error) {
-	if hub == nil {
-		return nil, core.E("stream.redis", "nil hub", nil)
-	}
-	if cfg.Addr == "" {
-		return nil, core.E("stream.redis", "empty address", nil)
-	}
-	if cfg.Prefix == "" {
-		cfg.Prefix = "stream"
-	}
-	return &Bridge{
-		hub:      hub,
-		config:   cfg,
-		sourceID: stream.NewPeer("redis").ID,
-		stopCh:   make(chan struct{}),
-	}, nil
-}
-
-// Start begins the Redis pub/sub listener. Blocks in a goroutine until Stop() or ctx cancel.
-func (b *Bridge) Start(ctx context.Context) error {
-	if b == nil {
-		return core.E("stream.redis", "nil bridge", nil)
-	}
-	b.mu.Lock()
-	if b.running {
-		b.mu.Unlock()
-		<-ctx.Done()
-		return nil
-	}
-	b.running = true
-	stopCh := b.stopCh
-	key := b.registryKey()
-	b.mu.Unlock()
-
-	registry.add(key, b)
-	defer registry.remove(key, b)
-
-	select {
-	case <-ctx.Done():
-	case <-stopCh:
-	}
-
-	b.mu.Lock()
-	b.running = false
-	b.mu.Unlock()
-	return nil
-}
-
-// Stop cleanly shuts down the bridge. Closes the pub/sub subscription and Redis client.
-func (b *Bridge) Stop() error {
-	if b == nil {
-		return nil
-	}
-	b.mu.Lock()
-	if !b.running {
-		b.mu.Unlock()
-		return nil
-	}
-	close(b.stopCh)
-	b.stopCh = make(chan struct{})
-	b.mu.Unlock()
-	return nil
-}
-
-// PublishToChannel publishes frame to a specific hub channel via Redis.
-func (b *Bridge) PublishToChannel(channel string, frame []byte) error {
-	if b == nil {
-		return core.E("stream.redis", "nil bridge", nil)
-	}
-	if !b.isRunning() {
-		return core.E("stream.redis", "bridge not started", nil)
-	}
-	registry.publish(b.registryKey(), channel, envelope{
-		SourceID: b.sourceID,
-		Frame:    append([]byte(nil), frame...),
-	})
-	return nil
-}
-
-// PublishBroadcast publishes frame as a broadcast via Redis.
-func (b *Bridge) PublishBroadcast(frame []byte) error {
-	if b == nil {
-		return core.E("stream.redis", "nil bridge", nil)
-	}
-	if !b.isRunning() {
-		return core.E("stream.redis", "bridge not started", nil)
-	}
-	registry.publish(b.registryKey(), "", envelope{
-		SourceID: b.sourceID,
-		Frame:    append([]byte(nil), frame...),
-	})
-	return nil
-}
-
-// SourceID returns the random instance identifier.
-func (b *Bridge) SourceID() string {
-	if b == nil {
-		return ""
-	}
-	return b.sourceID
-}
-
-func (b *Bridge) registryKey() string {
-	return b.config.Addr + "|" + strconv.Itoa(b.config.DB) + "|" + b.config.Prefix
-}
-
-func (b *Bridge) isRunning() bool {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	return b.running
+	mutex         sync.RWMutex
+	running       bool
+	cancel        context.CancelFunc
+	pubsub        *redis.PubSub
+	client        *redis.Client
+	publishStop   func()
+	broadcastStop func()
 }
 
 type envelope struct {
@@ -160,43 +59,274 @@ type envelope struct {
 	Frame    []byte `json:"f"`
 }
 
-func (r *bridgeRegistry) add(key string, bridge *Bridge) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if r.bridges[key] == nil {
-		r.bridges[key] = map[*Bridge]struct{}{}
+// bridge, err := redis.NewBridge(hub, config)
+func NewBridge(hub *stream.Hub, config Config) (*Bridge, error) {
+	if hub == nil {
+		return nil, core.E("stream.redis", "nil hub", nil)
 	}
-	r.bridges[key][bridge] = struct{}{}
+	if config.Addr == "" {
+		return nil, core.E("stream.redis", "empty address", nil)
+	}
+	if config.Prefix == "" {
+		config.Prefix = "stream"
+	}
+	client := newRedisClient(config)
+	defer client.Close()
+
+	pingContext, pingCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer pingCancel()
+	if err := client.Ping(pingContext).Err(); err != nil {
+		return nil, core.E("stream.redis", "redis ping failed", err)
+	}
+
+	return &Bridge{
+		hub:      hub,
+		config:   config,
+		sourceID: randomSourceID(),
+	}, nil
 }
 
-func (r *bridgeRegistry) remove(key string, bridge *Bridge) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if bridges := r.bridges[key]; bridges != nil {
-		delete(bridges, bridge)
-		if len(bridges) == 0 {
-			delete(r.bridges, key)
-		}
+// go bridge.Start(ctx)
+func (bridge *Bridge) Start(ctx context.Context) error {
+	if bridge == nil {
+		return core.E("stream.redis", "nil bridge", nil)
 	}
-}
-
-func (r *bridgeRegistry) publish(key, channel string, message envelope) {
-	r.mu.RLock()
-	bridges := r.bridges[key]
-	targets := make([]*Bridge, 0, len(bridges))
-	for bridge := range bridges {
-		targets = append(targets, bridge)
+	if ctx == nil {
+		ctx = context.Background()
 	}
-	r.mu.RUnlock()
 
-	for _, bridge := range targets {
-		if bridge == nil || bridge.sourceID == message.SourceID {
-			continue
-		}
+	bridge.mutex.Lock()
+	if bridge.running {
+		bridge.mutex.Unlock()
+		return nil
+	}
+	bridge.running = true
+	bridge.mutex.Unlock()
+
+	runContext, runCancel := context.WithCancel(ctx)
+	client := newRedisClient(bridge.config)
+	pubsub := client.PSubscribe(runContext, bridge.broadcastChannel(), bridge.channelPattern())
+	publishStop := bridge.hub.SubscribePublished(func(channel string, frame []byte) {
 		if channel == "" {
-			_ = bridge.hub.Broadcast(message.Frame)
+			return
+		}
+		if err := bridge.publishWithClient(client, bridge.channelKey(channel), frame); err != nil {
+			return
+		}
+	})
+	broadcastStop := bridge.hub.SubscribeBroadcast(func(frame []byte) {
+		if err := bridge.publishWithClient(client, bridge.broadcastChannel(), frame); err != nil {
+			return
+		}
+	})
+
+	bridge.mutex.Lock()
+	bridge.cancel = runCancel
+	bridge.client = client
+	bridge.pubsub = pubsub
+	bridge.publishStop = publishStop
+	bridge.broadcastStop = broadcastStop
+	bridge.mutex.Unlock()
+
+	defer func() {
+		bridge.mutex.Lock()
+		publishStop := bridge.publishStop
+		broadcastStop := bridge.broadcastStop
+		bridge.running = false
+		bridge.cancel = nil
+		bridge.client = nil
+		bridge.pubsub = nil
+		bridge.publishStop = nil
+		bridge.broadcastStop = nil
+		bridge.mutex.Unlock()
+		if publishStop != nil {
+			publishStop()
+		}
+		if broadcastStop != nil {
+			broadcastStop()
+		}
+		runCancel()
+		if err := pubsub.Close(); err != nil {
+			return
+		}
+		if err := client.Close(); err != nil {
+			return
+		}
+	}()
+
+	for {
+		message, err := pubsub.ReceiveMessage(runContext)
+		if err != nil {
+			if runContext.Err() != nil {
+				return nil
+			}
+			return err
+		}
+
+		var decoded envelope
+		if !core.JSONUnmarshal([]byte(message.Payload), &decoded).OK {
 			continue
 		}
-		_ = bridge.hub.Publish(channel, message.Frame)
+		if decoded.SourceID == bridge.sourceID {
+			continue
+		}
+
+		channel := bridge.channelFromRedis(message.Channel)
+		if channel == "" {
+			if err := bridge.hub.BroadcastFromBridge(decoded.Frame); err != nil {
+				return err
+			}
+			continue
+		}
+		if err := bridge.hub.PublishFromBridge(channel, decoded.Frame); err != nil {
+			return err
+		}
 	}
+}
+
+// defer bridge.Stop()
+func (bridge *Bridge) Stop() error {
+	if bridge == nil {
+		return nil
+	}
+
+	bridge.mutex.RLock()
+	running := bridge.running
+	cancel := bridge.cancel
+	pubsub := bridge.pubsub
+	client := bridge.client
+	publishStop := bridge.publishStop
+	broadcastStop := bridge.broadcastStop
+	bridge.mutex.RUnlock()
+
+	if !running {
+		return nil
+	}
+
+	if cancel != nil {
+		cancel()
+	}
+	if publishStop != nil {
+		publishStop()
+	}
+	if broadcastStop != nil {
+		broadcastStop()
+	}
+	var err error
+	if pubsub != nil {
+		err = pubsub.Close()
+	}
+	if client != nil {
+		if closeErr := client.Close(); closeErr != nil {
+			return core.ErrorJoin(err, closeErr)
+		}
+	}
+	return err
+}
+
+// _ = bridge.PublishToChannel("block", templateBytes)
+func (bridge *Bridge) PublishToChannel(channel string, frame []byte) error {
+	if bridge == nil {
+		return core.E("stream.redis", "nil bridge", nil)
+	}
+	if channel == "" {
+		return core.E("stream.redis", "empty channel", nil)
+	}
+
+	return bridge.publish(bridge.channelKey(channel), frame)
+}
+
+// _ = bridge.PublishBroadcast(shutdownFrame)
+func (bridge *Bridge) PublishBroadcast(frame []byte) error {
+	if bridge == nil {
+		return core.E("stream.redis", "nil bridge", nil)
+	}
+
+	return bridge.publish(bridge.broadcastChannel(), frame)
+}
+
+// id := bridge.SourceID()
+func (bridge *Bridge) SourceID() string {
+	if bridge == nil {
+		return ""
+	}
+	return bridge.sourceID
+}
+
+func (bridge *Bridge) publish(channel string, frame []byte) error {
+	bridge.mutex.RLock()
+	running := bridge.running
+	client := bridge.client
+	bridge.mutex.RUnlock()
+	if !running {
+		return core.E("stream.redis", "bridge not started", nil)
+	}
+	if client == nil {
+		client = newRedisClient(bridge.config)
+		defer client.Close()
+	}
+
+	return bridge.publishWithClient(client, channel, frame)
+}
+
+func (bridge *Bridge) publishWithClient(client *redis.Client, channel string, frame []byte) error {
+	if client == nil {
+		return core.E("stream.redis", "nil redis client", nil)
+	}
+
+	payload := envelope{
+		SourceID: bridge.sourceID,
+		Frame:    append([]byte(nil), frame...),
+	}
+	encoded := core.JSONMarshal(payload)
+	if !encoded.OK {
+		if err, ok := encoded.Value.(error); ok {
+			return err
+		}
+		return core.E("stream.redis", "failed to marshal envelope", nil)
+	}
+
+	publishContext, publishCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer publishCancel()
+	return client.Publish(publishContext, channel, encoded.Value).Err()
+}
+
+func (bridge *Bridge) broadcastChannel() string {
+	return bridge.config.Prefix + ":broadcast"
+}
+
+func (bridge *Bridge) channelKey(channel string) string {
+	return bridge.config.Prefix + ":channel:" + channel
+}
+
+func (bridge *Bridge) channelPattern() string {
+	return bridge.config.Prefix + ":channel:*"
+}
+
+func (bridge *Bridge) channelFromRedis(channel string) string {
+	if channel == bridge.broadcastChannel() {
+		return ""
+	}
+	return core.TrimPrefix(channel, bridge.config.Prefix+":channel:")
+}
+
+func newRedisClient(config Config) *redis.Client {
+	return redis.NewClient(&redis.Options{
+		Addr:      config.Addr,
+		Password:  config.Password,
+		DB:        config.DB,
+		TLSConfig: config.TLSConfig,
+	})
+}
+
+func randomSourceID() string {
+	var raw [16]byte
+	_, _ = rand.Read(raw[:])
+	raw[6] = (raw[6] & 0x0f) | 0x40
+	raw[8] = (raw[8] & 0x3f) | 0x80
+	return hex.EncodeToString(raw[:4]) + "-" +
+		hex.EncodeToString(raw[4:6]) + "-" +
+		hex.EncodeToString(raw[6:8]) + "-" +
+		hex.EncodeToString(raw[8:10]) + "-" +
+		hex.EncodeToString(raw[10:])
 }

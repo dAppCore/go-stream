@@ -1,15 +1,11 @@
 // SPDX-License-Identifier: EUPL-1.2
 
-// Package stream is the transport-agnostic event and data pipe for the CoreGO
-// ecosystem. It generalises WebSocket, SSE, Redis pub/sub, ZeroMQ, and raw TCP
-// behind a single Stream interface. Consumers never import a specific transport —
-// they call Stream. Transport adapters are wired at startup.
+// Package stream wires transport-agnostic hubs and peers together.
 //
 //	hub := stream.NewHub()
 //	go hub.Run(ctx)
-//	hub.Publish("hashrate", []byte(`{"h":123456}`))
-//	unsub := hub.Subscribe("block", func(f []byte) { handleBlock(f) })
-//	defer unsub()
+//	stop := stream.Pipe(hub, remoteHub)
+//	defer stop()
 package stream
 
 import (
@@ -23,59 +19,43 @@ import (
 	"time"
 )
 
+const defaultPeerSendBufferSize = 256
+
 // Stream is the transport-agnostic event and data pipe.
-// Consumers never import a specific adapter — they call Stream.
 //
-//	var s stream.Stream = hub
-//	s.Publish("hashrate", frame)
-//	s.Subscribe("block", handler)
+//	hub := stream.NewHub()
+//	var bus stream.Stream = hub
+//	_ = bus.Publish("hashrate", []byte(`{"h":123456}`))
+//	stop := bus.Pipe(remoteHub)
+//	defer stop()
 type Stream interface {
-	// Publish sends frame to all subscribers of channel.
-	// Returns core.E if the hub is not running.
-	//
-	//	hub.Publish("hashrate", []byte(`{"h":123456}`))
+	// _ = hub.Publish("hashrate", []byte(`{"h":123456}`))
 	Publish(channel string, frame []byte) error
 
-	// Subscribe registers handler for all frames arriving on channel.
-	// Returns an unsubscribe function. Safe to call from multiple goroutines.
-	//
-	//	unsub := hub.Subscribe("block", func(f []byte) { ... })
-	//	defer unsub()
+	// unsubscribe := hub.Subscribe("block", func(frame []byte) { handleBlock(frame) })
+	// defer unsubscribe()
 	Subscribe(channel string, handler func([]byte)) func()
 
-	// Broadcast sends frame to every connected peer regardless of subscriptions.
-	//
-	//	hub.Broadcast([]byte(`{"type":"shutdown"}`))
+	// _ = hub.Broadcast([]byte(`{"type":"shutdown"}`))
 	Broadcast(frame []byte) error
 
-	// Pipe connects this stream to dst: every frame published here is forwarded to dst.
-	// Returns a stop function.
-	//
-	//	stop := hub.Pipe(remoteHub)
-	//	defer stop()
-	Pipe(dst Stream) func()
+	// stop := localHub.Pipe(remoteHub)
+	// defer stop()
+	Pipe(destination Stream) func()
 
-	// Stats returns a snapshot of current hub state.
-	//
-	//	s := hub.Stats()
+	// stats := hub.Stats()
 	Stats() HubStats
 }
 
-// Frame is a raw byte payload delivered through the hub.
-// Adapters and consumers define their own serialisation over Frame.
+// frame := stream.Frame([]byte(`{"type":"event"}`))
 type Frame = []byte
 
-// Channel is a named topic string used for pub/sub routing.
+// channel := stream.Channel("hashrate")
 type Channel = string
 
-// Peer represents one connected endpoint. Created by a transport adapter.
-//
-//	peer := &stream.Peer{
-//	    ID:        uuid.New(),
-//	    UserID:    authResult.UserID,
-//	    Claims:    authResult.Claims,
-//	    Transport: "ws",
-//	}
+// peer := stream.NewPeer("ws")
+// peer.UserID = authResult.UserID
+// peer.Claims = authResult.Claims
 type Peer struct {
 	// ID is a random UUID assigned on creation.
 	ID string
@@ -92,92 +72,123 @@ type Peer struct {
 
 	send          chan []byte
 	subscriptions map[string]bool
-	mu            sync.RWMutex
+	closeHook     func()
+	mutex         sync.RWMutex
 	closeOnce     sync.Once
 }
 
-// NewPeer creates a peer with a generated identifier and a buffered send queue.
-//
-//	peer := stream.NewPeer("ws")
+// peer := stream.NewPeer("ws")
+// peer.UserID = "user-42"
 func NewPeer(transport string) *Peer {
 	return &Peer{
-		ID:            randomID(),
+		ID:            randomUUID(),
+		Claims:        map[string]any{},
 		Transport:     transport,
-		send:          make(chan []byte, 256),
+		send:          make(chan []byte, defaultPeerSendBufferSize),
 		subscriptions: map[string]bool{},
 	}
 }
 
-// Subscriptions returns a copy of this peer's current channel subscriptions.
-//
-//	channels := peer.Subscriptions()   // ["hashrate", "block"]
-func (p *Peer) Subscriptions() []string {
-	if p == nil {
+// channels := peer.Subscriptions() // ["hashrate", "block"]
+func (peer *Peer) Subscriptions() []string {
+	if peer == nil {
 		return nil
 	}
-	p.mu.RLock()
-	defer p.mu.RUnlock()
-	channels := make([]string, 0, len(p.subscriptions))
-	for channel := range p.subscriptions {
+	peer.mutex.RLock()
+	defer peer.mutex.RUnlock()
+	channels := make([]string, 0, len(peer.subscriptions))
+	for channel := range peer.subscriptions {
 		channels = append(channels, channel)
 	}
 	sort.Strings(channels)
 	return channels
 }
 
-// Send enqueues frame for delivery. Non-blocking: drops and returns false if buffer full.
-//
-//	ok := peer.Send(frame)
-func (p *Peer) Send(frame []byte) bool {
-	if p == nil {
+// ok := peer.Send([]byte("template"))
+func (peer *Peer) Send(frame []byte) bool {
+	if peer == nil {
 		return false
 	}
 	defer func() {
-		_ = recover()
+		if recovered := recover(); recovered != nil {
+			return
+		}
 	}()
-	p.mu.RLock()
-	defer p.mu.RUnlock()
-	if p.send == nil {
+	peer.mutex.RLock()
+	defer peer.mutex.RUnlock()
+	if peer.send == nil {
 		return false
 	}
 	payload := append([]byte(nil), frame...)
 	select {
-	case p.send <- payload:
+	case peer.send <- payload:
 		return true
 	default:
 		return false
 	}
 }
 
-// Close signals the transport adapter to shut down this connection.
-//
-//	peer.Close()
-func (p *Peer) Close() {
-	if p == nil {
+// peer := stream.NewPeer("ws")
+// peer.SetCloseHook(func() { _ = conn.Close() })
+// peer.Close()
+func (peer *Peer) Close() {
+	if peer == nil {
 		return
 	}
-	p.closeOnce.Do(func() {
-		p.mu.Lock()
-		defer p.mu.Unlock()
-		if p.send != nil {
-			close(p.send)
+	peer.closeOnce.Do(func() {
+		peer.mutex.Lock()
+		send := peer.send
+		closeHook := peer.closeHook
+		peer.closeHook = nil
+		peer.mutex.Unlock()
+		if send != nil {
+			close(send)
+		}
+		if closeHook != nil {
+			closeHook()
 		}
 	})
 }
 
-// SendQueue returns the peer's outgoing frame queue.
-//
-//	for frame := range peer.SendQueue() { ... }
-func (p *Peer) SendQueue() <-chan []byte {
-	if p == nil {
-		return nil
+// peer.SetCloseHook(func() { _ = conn.Close() })
+func (peer *Peer) SetCloseHook(closeFunc func()) {
+	if peer == nil {
+		return
 	}
-	p.mu.RLock()
-	defer p.mu.RUnlock()
-	return p.send
+	peer.mutex.Lock()
+	defer peer.mutex.Unlock()
+	peer.closeHook = closeFunc
 }
 
-// ConnectionState represents the lifecycle state of a reconnecting client.
+// SendQueue exposes the adapter-facing outbound queue.
+//
+//	go func() {
+//		for frame := range peer.SendQueue() {
+//			_ = frame
+//		}
+//	}()
+func (peer *Peer) SendQueue() <-chan []byte {
+	if peer == nil {
+		return nil
+	}
+	peer.mutex.RLock()
+	defer peer.mutex.RUnlock()
+	return peer.send
+}
+
+// switch client.State() {
+// case stream.StateConnected:
+//
+//	_ = client.Send(stream.Message{Type: stream.TypePing})
+//
+// case stream.StateConnecting:
+//
+//	time.Sleep(100 * time.Millisecond)
+//
+// default:
+//
+//		// disconnected
+//	}
 type ConnectionState int
 
 const (
@@ -186,26 +197,77 @@ const (
 	StateConnected
 )
 
-// Envelope wraps a frame with metadata for cross-instance transport.
+// state := stream.StateConnected
+// core.Print(nil, "connection state=%s", state.String())
+func (state ConnectionState) String() string {
+	switch state {
+	case StateConnecting:
+		return "connecting"
+	case StateConnected:
+		return "connected"
+	default:
+		return "disconnected"
+	}
+}
+
+//	envelope := stream.Envelope{
+//	    SourceID: "node-a",
+//	    Channel:  "block",
+//	    Frame:    []byte("template"),
+//	}
 type Envelope struct {
 	SourceID string
 	Channel  string
 	Frame    []byte
 }
 
-// Pipe connects src to dst: every frame published on src is forwarded to dst.
-// Returns a stop function. Safe to call from multiple goroutines.
+// Pipe connects src to dst.
 //
 //	stop := stream.Pipe(zmqHub, wsHub)
 //	defer stop()
+//
+// Published frames keep their channel. Broadcast frames stay broadcasts when the
+// source exposes that hook.
 func Pipe(src Stream, dst Stream) func() {
 	if src == nil || dst == nil || src == dst {
 		return func() {}
 	}
-	stop := src.Subscribe("*", func(frame []byte) {
-		_ = dst.Broadcast(frame)
+	type publishedFrameSource interface {
+		SubscribePublished(handler func(string, []byte)) func()
+	}
+	type broadcastFrameSource interface {
+		SubscribeBroadcast(handler func([]byte)) func()
+	}
+	stops := make([]func(), 0, 2)
+	if publisher, ok := src.(publishedFrameSource); ok {
+		stops = append(stops, onceFunction(publisher.SubscribePublished(func(channel string, frame []byte) {
+			if err := dst.Publish(channel, cloneFrame(frame)); err != nil {
+				return
+			}
+		})))
+	}
+	if broadcaster, ok := src.(broadcastFrameSource); ok {
+		stops = append(stops, onceFunction(broadcaster.SubscribeBroadcast(func(frame []byte) {
+			if err := dst.Broadcast(cloneFrame(frame)); err != nil {
+				return
+			}
+		})))
+	}
+	if len(stops) == 0 {
+		// Generic Stream implementations do not expose channel names, so fall back
+		// to publishing on the wildcard channel.
+		stop := src.Subscribe("*", func(frame []byte) {
+			if err := dst.Publish("*", cloneFrame(frame)); err != nil {
+				return
+			}
+		})
+		return onceFunction(stop)
+	}
+	return onceFunction(func() {
+		for index := len(stops) - 1; index >= 0; index-- {
+			stops[index]()
+		}
 	})
-	return stop
 }
 
 // Ensure Hub satisfies Stream at compile time.
@@ -219,9 +281,12 @@ var (
 	_ time.Duration
 )
 
-func randomID() string {
+// id := randomUUID() // "a1b2c3d4-e5f6-4a7b-8c9d-e0f1a2b3c4d5"
+func randomUUID() string {
 	var raw [16]byte
 	_, _ = rand.Read(raw[:])
+	raw[6] = (raw[6] & 0x0f) | 0x40
+	raw[8] = (raw[8] & 0x3f) | 0x80
 	return hex.EncodeToString(raw[:4]) + "-" +
 		hex.EncodeToString(raw[4:6]) + "-" +
 		hex.EncodeToString(raw[6:8]) + "-" +
@@ -229,6 +294,8 @@ func randomID() string {
 		hex.EncodeToString(raw[10:])
 }
 
+// wire := encodeTCPFrame("block", []byte("template"))
+// _ = conn.Write(wire)
 func encodeTCPFrame(channel string, frame []byte) []byte {
 	channelBytes := []byte(channel)
 	payloadLength := uint32(4 + len(channelBytes) + len(frame))
@@ -238,4 +305,25 @@ func encodeTCPFrame(channel string, frame []byte) []byte {
 	copy(output[8:8+len(channelBytes)], channelBytes)
 	copy(output[8+len(channelBytes):], frame)
 	return output
+}
+
+// copy := cloneFrame(original)
+func cloneFrame(frame []byte) []byte {
+	if len(frame) == 0 {
+		return nil
+	}
+	return append([]byte(nil), frame...)
+}
+
+// stop := onceFunction(func() { unsubscribe() })
+// stop() // executes once
+// stop() // no-op
+func onceFunction(handler func()) func() {
+	if handler == nil {
+		return func() {}
+	}
+	var once sync.Once
+	return func() {
+		once.Do(handler)
+	}
 }

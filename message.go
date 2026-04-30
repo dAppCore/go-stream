@@ -1,31 +1,55 @@
 // SPDX-License-Identifier: EUPL-1.2
 
+//	msg := stream.Message{
+//	    Type:      stream.TypeEvent,
+//	    Channel:   "hashrate",
+//	    Data:      map[string]any{"h": 1234567},
+//	    Timestamp: time.Now().UTC(),
+//	}
+//
+// frame, _ := core.JSONMarshal(msg)
+// hub.Publish("hashrate", frame.Value.([]byte))
 package stream
 
 import "time"
 
-// MessageType identifies the purpose of a WebSocket message.
-// Preserved from go-ws for backward compatibility with browser clients.
+// messageType := stream.TypeEvent
 type MessageType string
 
+// typ := stream.TypeEvent.String()
+// // typ == "event"
+func (messageType MessageType) String() string {
+	return string(messageType)
+}
+
 const (
-	TypeProcessOutput MessageType = "process_output" // real-time process output line
-	TypeProcessStatus MessageType = "process_status" // process status change (running/exited)
-	TypeEvent         MessageType = "event"          // generic named event
-	TypeError         MessageType = "error"          // error message
-	TypePing          MessageType = "ping"           // client → server keepalive
-	TypePong          MessageType = "pong"           // server → client keepalive response
-	TypeSubscribe     MessageType = "subscribe"      // client requests channel subscription
-	TypeUnsubscribe   MessageType = "unsubscribe"    // client cancels channel subscription
+	// message := stream.Message{Type: stream.TypeProcessOutput, ProcessID: "build-123"}
+	TypeProcessOutput MessageType = "process_output"
+	// message := stream.Message{Type: stream.TypeProcessStatus, ProcessID: "build-123"}
+	TypeProcessStatus MessageType = "process_status"
+	// message := stream.Message{Type: stream.TypeEvent, Channel: "hashrate"}
+	TypeEvent MessageType = "event"
+	// message := stream.Message{Type: stream.TypeError, Data: "unauthorised"}
+	TypeError MessageType = "error"
+	// message := stream.Message{Type: stream.TypePing, ProcessID: "client-1"}
+	TypePing MessageType = "ping"
+	// reply := stream.Message{Type: stream.TypePong, ProcessID: "client-1"}
+	TypePong MessageType = "pong"
+	// message := stream.Message{Type: stream.TypeSubscribe, Channel: "block"}
+	TypeSubscribe MessageType = "subscribe"
+	// message := stream.Message{Type: stream.TypeUnsubscribe, Channel: "block"}
+	TypeUnsubscribe MessageType = "unsubscribe"
 )
 
-// Message is the JSON envelope for WebSocket frames. Preserved from go-ws.
-//
 //	msg := stream.Message{
-//	    Type:    stream.TypeEvent,
-//	    Channel: "hashrate",
-//	    Data:    map[string]any{"h": 1234567},
+//	    Type:      stream.TypeEvent,
+//	    Channel:   "hashrate",
+//	    Data:      map[string]any{"h": 1234567},
+//	    Timestamp: time.Now().UTC(),
 //	}
+//
+// frame, _ := core.JSONMarshal(msg)
+// _ = frame
 type Message struct {
 	Type      MessageType `json:"type"`
 	Channel   string      `json:"channel,omitempty"`

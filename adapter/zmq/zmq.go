@@ -1,19 +1,32 @@
 // SPDX-License-Identifier: EUPL-1.2
 
-// Package zmq is the ZeroMQ transport adapter for stream.Hub.
-// High-throughput IPC for daemon block notifications and inter-process job broadcasts.
+//	adapter := zmq.New(zmq.Config{
+//		Mode:     zmq.ModePubSub,
+//		Endpoint: "tcp://127.0.0.1:5555",
+//		Role:     zmq.RoleSubscriber,
+//	})
+//
+// adapter.Mount(hub)
+// go adapter.Start(ctx)
+// defer adapter.Stop()
 package zmq
 
 import (
 	"context"
-	"strconv"
+	"net"
+	"net/url"
 	"sync"
+	"time"
 
-	"dappco.re/go/core"
+	"github.com/go-zeromq/zmq4"
+
+	"dappco.re/go"
 	"dappco.re/go/stream"
 )
 
-// Mode selects the ZMQ socket pattern.
+const maxHandshakeFrameSize = 4 << 10
+
+// mode := zmq.ModePubSub
 type Mode int
 
 const (
@@ -21,7 +34,19 @@ const (
 	ModePushPull
 )
 
-// Role is the ZMQ socket role.
+// core.Print(nil, "mode=%s", zmq.ModePubSub.String())
+func (mode Mode) String() string {
+	switch mode {
+	case ModePubSub:
+		return "pubsub"
+	case ModePushPull:
+		return "pushpull"
+	default:
+		return "unknown"
+	}
+}
+
+// role := zmq.RoleSubscriber
 type Role int
 
 const (
@@ -31,189 +56,379 @@ const (
 	RolePuller
 )
 
-// Config configures the ZMQ adapter.
+// core.Print(nil, "role=%s", zmq.RoleSubscriber.String())
+func (role Role) String() string {
+	switch role {
+	case RolePublisher:
+		return "publisher"
+	case RoleSubscriber:
+		return "subscriber"
+	case RolePusher:
+		return "pusher"
+	case RolePuller:
+		return "puller"
+	default:
+		return "unknown"
+	}
+}
+
+//	config := zmq.Config{
+//	    Mode:     zmq.ModePubSub,
+//	    Endpoint: "tcp://127.0.0.1:5555",
+//	    Role:     zmq.RoleSubscriber,
+//	}
 type Config struct {
 	Mode     Mode
 	Endpoint string
 	Role     Role
 	Topics   []string
+
+	// ConnAuthenticator validates the first received frame before normal dispatch.
+	// When nil, the adapter accepts the connection without handshake validation.
+	ConnAuthenticator stream.ConnAuthenticator
+
+	// HandshakeTimeout limits how long the adapter waits for the first frame when
+	// ConnAuthenticator is configured. Defaults to 5 seconds.
+	HandshakeTimeout time.Duration
 }
 
-// Adapter is the ZMQ transport adapter.
+// adapter := zmq.New(zmq.Config{Mode: zmq.ModePubSub, Endpoint: "tcp://127.0.0.1:5555", Role: zmq.RoleSubscriber})
 type Adapter struct {
 	hub    *stream.Hub
 	config Config
-	source string
 
-	mu      sync.Mutex
+	mutex   sync.RWMutex
 	running bool
-	stopCh  chan struct{}
+	socket  zmq4.Socket
+	cancel  context.CancelFunc
 }
 
-type zmqRegistry struct {
-	mu       sync.RWMutex
-	adapters map[string]map[*Adapter]struct{}
-}
-
-var registry = zmqRegistry{adapters: map[string]map[*Adapter]struct{}{}}
-
-// New creates a ZMQ adapter. Call Mount and Start before use.
+// adapter := zmq.New(zmq.Config{Mode: zmq.ModePubSub, Endpoint: "tcp://127.0.0.1:5555", Role: zmq.RoleSubscriber})
 func New(config Config) *Adapter {
-	return &Adapter{config: config, source: stream.NewPeer("zmq").ID, stopCh: make(chan struct{})}
+	if config.HandshakeTimeout == 0 {
+		config.HandshakeTimeout = 5 * time.Second
+	}
+	return &Adapter{config: config}
 }
 
-// Mount wires the adapter to a hub.
-func (a *Adapter) Mount(hub *stream.Hub) {
-	a.hub = hub
+// adapter.Mount(hub)
+func (adapter *Adapter) Mount(hub *stream.Hub) {
+	adapter.hub = hub
 }
 
-// Start opens the ZMQ socket and begins receive/dispatch. Blocks until ctx cancelled.
-func (a *Adapter) Start(ctx context.Context) error {
-	if a == nil {
+// go adapter.Start(ctx)
+func (adapter *Adapter) Start(ctx context.Context) error {
+	if adapter == nil {
 		return core.E("stream.zmq", "nil adapter", nil)
 	}
-	if a.config.Endpoint == "" {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if adapter.config.Endpoint == "" {
 		return core.E("stream.zmq", "empty endpoint", nil)
 	}
-	if a.hub == nil {
+	if adapter.hub == nil {
 		return core.E("stream.zmq", "stream hub not mounted", nil)
 	}
+	if err := adapter.validateRole(); err != nil {
+		return err
+	}
 
-	a.mu.Lock()
-	if a.running {
-		a.mu.Unlock()
-		<-ctx.Done()
+	runContext, runCancel := context.WithCancel(ctx)
+	socket, err := adapter.newSocket(runContext)
+	if err != nil {
+		runCancel()
+		return err
+	}
+	if err := adapter.connectSocket(socket); err != nil {
+		if closeErr := socket.Close(); closeErr != nil {
+			runCancel()
+			return core.ErrorJoin(err, closeErr)
+		}
+		runCancel()
+		return err
+	}
+
+	adapter.mutex.Lock()
+	if adapter.running {
+		adapter.mutex.Unlock()
+		if err := socket.Close(); err != nil {
+			runCancel()
+			return err
+		}
+		runCancel()
 		return nil
 	}
-	a.running = true
-	stopCh := a.stopCh
-	key := a.registryKey()
-	a.mu.Unlock()
+	adapter.running = true
+	adapter.socket = socket
+	adapter.cancel = runCancel
+	adapter.mutex.Unlock()
 
-	registry.add(key, a)
-	defer registry.remove(key, a)
+	defer func() {
+		adapter.mutex.Lock()
+		adapter.running = false
+		adapter.socket = nil
+		adapter.cancel = nil
+		adapter.mutex.Unlock()
+		runCancel()
+		if err := socket.Close(); err != nil {
+			return
+		}
+	}()
+
+	if !adapter.isReceiver() {
+		peer := adapter.registerPeer(socket, stream.AuthResult{})
+		if peer != nil {
+			defer adapter.hub.RemovePeer(peer)
+		}
+		<-runContext.Done()
+		return nil
+	}
+
+	authResult := stream.AuthResult{Valid: true}
+	if adapter.config.ConnAuthenticator != nil {
+		handshake, err := adapter.recvWithTimeout(runContext, socket, adapter.config.HandshakeTimeout)
+		if err != nil {
+			if err == context.Canceled {
+				return nil
+			}
+			return err
+		}
+		if len(handshake.Bytes()) > maxHandshakeFrameSize {
+			return stream.ErrAuthRejected
+		}
+		authResult = adapter.config.ConnAuthenticator.AuthenticateConn(handshake.Bytes())
+		if !authResult.Valid {
+			return stream.ErrAuthRejected
+		}
+	}
+	peer := adapter.registerPeer(socket, authResult)
+	if peer != nil {
+		defer adapter.hub.RemovePeer(peer)
+	}
+
+	for {
+		message, err := socket.Recv()
+		if err != nil {
+			if runContext.Err() != nil {
+				return nil
+			}
+			return err
+		}
+
+		channel, frame, ok := decodeMessage(message)
+		if !ok {
+			continue
+		}
+		if channel == "" {
+			if err := adapter.hub.Broadcast(frame); err != nil {
+				return err
+			}
+			continue
+		}
+		if err := adapter.hub.Publish(channel, frame); err != nil {
+			return err
+		}
+	}
+}
+
+func (adapter *Adapter) registerPeer(socket zmq4.Socket, authResult stream.AuthResult) *stream.Peer {
+	if adapter == nil || adapter.hub == nil {
+		return nil
+	}
+	peer := stream.NewPeer("zmq")
+	peer.UserID = authResult.UserID
+	if authResult.Claims != nil {
+		peer.Claims = authResult.Claims
+	}
+	if socket != nil {
+		peer.SetCloseHook(func() {
+			if err := socket.Close(); err != nil {
+				return
+			}
+		})
+	}
+	if err := adapter.hub.AddPeer(peer); err != nil {
+		return nil
+	}
+	return peer
+}
+
+// _ = adapter.Publish("block", templateBytes)
+func (adapter *Adapter) Publish(channel string, frame []byte) error {
+	if adapter == nil {
+		return core.E("stream.zmq", "nil adapter", nil)
+	}
+	if !adapter.isSender() {
+		return core.E("stream.zmq", "publish not supported for this role", nil)
+	}
+
+	adapter.mutex.RLock()
+	defer adapter.mutex.RUnlock()
+	if !adapter.running || adapter.socket == nil {
+		return core.E("stream.zmq", "adapter not started", nil)
+	}
+
+	return adapter.socket.Send(zmq4.NewMsg(encodeMessage(channel, frame)))
+}
+
+// defer adapter.Stop()
+func (adapter *Adapter) Stop() error {
+	if adapter == nil {
+		return nil
+	}
+
+	adapter.mutex.Lock()
+	cancel := adapter.cancel
+	socket := adapter.socket
+	adapter.running = false
+	adapter.cancel = nil
+	adapter.socket = nil
+	adapter.mutex.Unlock()
+
+	if cancel != nil {
+		cancel()
+	}
+	if socket != nil {
+		return socket.Close()
+	}
+	return nil
+}
+
+func (adapter *Adapter) validateRole() error {
+	switch adapter.config.Mode {
+	case ModePubSub:
+		if adapter.config.Role != RolePublisher && adapter.config.Role != RoleSubscriber {
+			return core.E("stream.zmq", "invalid pubsub role", nil)
+		}
+	case ModePushPull:
+		if adapter.config.Role != RolePusher && adapter.config.Role != RolePuller {
+			return core.E("stream.zmq", "invalid pushpull role", nil)
+		}
+	default:
+		return core.E("stream.zmq", "invalid mode", nil)
+	}
+	return nil
+}
+
+func (adapter *Adapter) newSocket(ctx context.Context) (zmq4.Socket, error) {
+	switch adapter.config.Role {
+	case RolePublisher:
+		return zmq4.NewPub(ctx), nil
+	case RoleSubscriber:
+		socket := zmq4.NewSub(ctx)
+		topics := adapter.config.Topics
+		if len(topics) == 0 {
+			topics = []string{""}
+		}
+		for _, topic := range topics {
+			if err := socket.SetOption(zmq4.OptionSubscribe, topic); err != nil {
+				return nil, err
+			}
+		}
+		return socket, nil
+	case RolePusher:
+		return zmq4.NewPush(ctx), nil
+	case RolePuller:
+		return zmq4.NewPull(ctx), nil
+	default:
+		return nil, core.E("stream.zmq", "invalid role", nil)
+	}
+}
+
+func (adapter *Adapter) connectSocket(socket zmq4.Socket) error {
+	if adapter.shouldListen() {
+		return socket.Listen(listenEndpoint(adapter.config.Endpoint))
+	}
+	return socket.Dial(adapter.config.Endpoint)
+}
+
+func (adapter *Adapter) shouldListen() bool {
+	if adapter.config.Mode == ModePushPull {
+		return adapter.config.Role == RolePusher
+	}
+	return adapter.config.Role == RolePublisher
+}
+
+func (adapter *Adapter) isSender() bool {
+	return adapter.config.Role == RolePublisher || adapter.config.Role == RolePusher
+}
+
+func (adapter *Adapter) isReceiver() bool {
+	return adapter.config.Role == RoleSubscriber || adapter.config.Role == RolePuller
+}
+
+func decodeMessage(message zmq4.Msg) (string, []byte, bool) {
+	payload := message.Bytes()
+	for index, value := range payload {
+		if value != 0 {
+			continue
+		}
+		channel := string(payload[:index])
+		frame := append([]byte(nil), payload[index+1:]...)
+		return channel, frame, true
+	}
+	return "", nil, false
+}
+
+func (adapter *Adapter) recvWithTimeout(ctx context.Context, socket zmq4.Socket, timeout time.Duration) (zmq4.Msg, error) {
+	if timeout <= 0 {
+		msg, err := socket.Recv()
+		return msg, err
+	}
+
+	type result struct {
+		message zmq4.Msg
+		err     error
+	}
+
+	receive := make(chan result, 1)
+	go func() {
+		msg, err := socket.Recv()
+		receive <- result{message: msg, err: err}
+	}()
+
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
 
 	select {
 	case <-ctx.Done():
-	case <-stopCh:
-	}
-
-	a.mu.Lock()
-	a.running = false
-	a.mu.Unlock()
-	return nil
-}
-
-// Publish sends frame with topic (channel name) via the ZMQ socket.
-func (a *Adapter) Publish(channel string, frame []byte) error {
-	if a == nil {
-		return core.E("stream.zmq", "nil adapter", nil)
-	}
-	if a.config.Role != RolePublisher && a.config.Role != RolePusher {
-		return core.E("stream.zmq", "publish not supported for this role", nil)
-	}
-	if !a.isRunning() {
-		return core.E("stream.zmq", "adapter not started", nil)
-	}
-	registry.publish(a.registryKey(), message{
-		SourceID: a.sourceID(),
-		Channel:  channel,
-		Frame:    append([]byte(nil), frame...),
-	})
-	return nil
-}
-
-// Stop shuts down the adapter.
-func (a *Adapter) Stop() error {
-	if a == nil {
-		return nil
-	}
-	a.mu.Lock()
-	if !a.running {
-		a.mu.Unlock()
-		return nil
-	}
-	close(a.stopCh)
-	a.stopCh = make(chan struct{})
-	a.mu.Unlock()
-	return nil
-}
-
-type message struct {
-	SourceID string
-	Channel  string
-	Frame    []byte
-}
-
-func (a *Adapter) registryKey() string {
-	return a.config.Endpoint + "|" + strconv.Itoa(int(a.config.Mode))
-}
-
-func (a *Adapter) sourceID() string {
-	return a.source
-}
-
-func (a *Adapter) isRunning() bool {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	return a.running
-}
-
-func (r *zmqRegistry) add(key string, adapter *Adapter) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if r.adapters[key] == nil {
-		r.adapters[key] = map[*Adapter]struct{}{}
-	}
-	r.adapters[key][adapter] = struct{}{}
-}
-
-func (r *zmqRegistry) remove(key string, adapter *Adapter) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if adapters := r.adapters[key]; adapters != nil {
-		delete(adapters, adapter)
-		if len(adapters) == 0 {
-			delete(r.adapters, key)
+		if err := socket.Close(); err != nil {
+			return zmq4.Msg{}, err
 		}
+		return zmq4.Msg{}, ctx.Err()
+	case outcome := <-receive:
+		return outcome.message, outcome.err
+	case <-timer.C:
+		if err := socket.Close(); err != nil {
+			return zmq4.Msg{}, err
+		}
+		return zmq4.Msg{}, stream.ErrHandshakeTimeout
 	}
 }
 
-func (r *zmqRegistry) publish(key string, message message) {
-	r.mu.RLock()
-	adapters := r.adapters[key]
-	targets := make([]*Adapter, 0, len(adapters))
-	for adapter := range adapters {
-		targets = append(targets, adapter)
-	}
-	r.mu.RUnlock()
+func encodeMessage(channel string, frame []byte) []byte {
+	output := make([]byte, 0, len(channel)+1+len(frame))
+	output = append(output, []byte(channel)...)
+	output = append(output, 0)
+	output = append(output, frame...)
+	return output
+}
 
-	for _, adapter := range targets {
-		if adapter == nil || adapter.sourceID() == message.SourceID {
-			continue
-		}
-		if adapter.config.Role != RoleSubscriber && adapter.config.Role != RolePuller {
-			continue
-		}
-		if len(adapter.config.Topics) > 0 && message.Channel != "" {
-			allowed := false
-			for _, topic := range adapter.config.Topics {
-				if topic == message.Channel {
-					allowed = true
-					break
-				}
-			}
-			if !allowed {
-				continue
-			}
-		}
-		if adapter.hub == nil {
-			continue
-		}
-		if message.Channel == "" {
-			_ = adapter.hub.Broadcast(message.Frame)
-			continue
-		}
-		_ = adapter.hub.Publish(message.Channel, message.Frame)
+func listenEndpoint(endpoint string) string {
+	parsed, err := url.Parse(endpoint)
+	if err != nil || parsed.Scheme != "tcp" {
+		return endpoint
 	}
+
+	host, port, err := net.SplitHostPort(parsed.Host)
+	if err != nil {
+		return endpoint
+	}
+	if host == "" || host == "*" {
+		return endpoint
+	}
+
+	parsed.Host = net.JoinHostPort("*", port)
+	return parsed.String()
 }

@@ -4,52 +4,64 @@ package stream
 
 import "time"
 
-// HubConfig controls hub behaviour and lifecycle callbacks.
-//
-//	cfg := stream.HubConfig{
+//	authoriser := stream.ChannelAuthoriser(func(peer *stream.Peer, channel string) bool {
+//	    return peer.Claims["role"] == "admin" || channel == "public"
+//	})
+type ChannelAuthoriser func(peer *Peer, channel string) bool
+
+//	config := stream.HubConfig{
 //	    HeartbeatInterval: 30 * time.Second,
-//	    OnConnect:         func(p *stream.Peer) { metrics.Inc("peers") },
-//	    ChannelAuthoriser: func(p *stream.Peer, ch string) bool {
-//	        return p.Claims["role"] == "admin" || ch == "public"
+//	    PongTimeout:       60 * time.Second,
+//	    WriteTimeout:      10 * time.Second,
+//	    OnConnect: func(peer *stream.Peer) {
+//	        metrics.Inc("peers")
 //	    },
 //	}
 type HubConfig struct {
-	// HeartbeatInterval is the server-side ping interval for WebSocket peers.
-	// Defaults to 30 seconds. Ignored by SSE and TCP adapters.
+	// config := stream.HubConfig{HeartbeatInterval: 30 * time.Second}
 	HeartbeatInterval time.Duration
 
-	// PongTimeout is the deadline after a ping before the WS connection is closed.
-	// Must be greater than HeartbeatInterval. Defaults to 60 seconds.
+	// config := stream.HubConfig{PongTimeout: 60 * time.Second}
 	PongTimeout time.Duration
 
-	// WriteTimeout is the per-write deadline for WS and TCP adapters.
-	// Defaults to 10 seconds.
+	// config := stream.HubConfig{WriteTimeout: 10 * time.Second}
 	WriteTimeout time.Duration
 
-	// OnConnect is called when a peer registers. Optional.
-	//
-	//	OnConnect: func(p *stream.Peer) { metrics.Inc("peers") },
+	// config := stream.HubConfig{OnConnect: func(peer *stream.Peer) { metrics.Inc("peers") }}
 	OnConnect func(peer *Peer)
 
-	// OnDisconnect is called when a peer unregisters. Optional.
+	// config := stream.HubConfig{OnDisconnect: func(peer *stream.Peer) { metrics.Dec("peers") }}
 	OnDisconnect func(peer *Peer)
 
-	// ChannelAuthoriser optionally decides whether a peer may subscribe to a channel.
-	// Return true to allow. When nil, all subscriptions are allowed.
-	//
-	//	ChannelAuthoriser: func(p *stream.Peer, ch string) bool {
-	//	    return p.Claims["role"] == "admin" || ch == "public"
-	//	},
-	ChannelAuthoriser func(peer *Peer, channel string) bool
+	// config := stream.HubConfig{ChannelAuthoriser: func(peer *stream.Peer, channel string) bool {
+	//     return peer.Claims["role"] == "admin" || channel == "public"
+	// }}
+	ChannelAuthoriser ChannelAuthoriser
 }
 
-// DefaultHubConfig returns sensible defaults.
-//
-//	cfg := stream.DefaultHubConfig()
+// config := stream.DefaultHubConfig()
 func DefaultHubConfig() HubConfig {
 	return HubConfig{
 		HeartbeatInterval: 30 * time.Second,
 		PongTimeout:       60 * time.Second,
 		WriteTimeout:      10 * time.Second,
 	}
+}
+
+// config = normalizeHubConfig(config)
+func normalizeHubConfig(config HubConfig) HubConfig {
+	defaults := DefaultHubConfig()
+	if config.HeartbeatInterval == 0 {
+		config.HeartbeatInterval = defaults.HeartbeatInterval
+	}
+	if config.PongTimeout == 0 {
+		config.PongTimeout = defaults.PongTimeout
+	}
+	if config.PongTimeout <= config.HeartbeatInterval {
+		config.PongTimeout = config.HeartbeatInterval * 2
+	}
+	if config.WriteTimeout == 0 {
+		config.WriteTimeout = defaults.WriteTimeout
+	}
+	return config
 }

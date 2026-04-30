@@ -1,45 +1,62 @@
 // SPDX-License-Identifier: EUPL-1.2
 
-// Package tcp is the raw TCP transport adapter for stream.Hub.
-// Length-prefixed framing over plain or TLS TCP. Used by go-p2p VPN tunnels
-// and go-proxy stratum sessions where WebSocket overhead is undesirable.
+// adapter := tcp.New(tcp.Config{Addr: ":9000"})
+// adapter.Mount(hub)
+// go adapter.Listen(ctx)
 package tcp
 
 import (
 	"context"
 	"crypto/tls"
 	"encoding/binary"
-	"errors"
 	"io"
 	"net"
 	"sync"
 	"time"
 
-	"dappco.re/go/core"
+	"dappco.re/go"
 	"dappco.re/go/stream"
 )
 
 // MaxFrameSize is the maximum allowed frame size in bytes.
 const MaxFrameSize = 65535
 
-// Config configures the TCP adapter.
+const maxHandshakeFrameSize = 4 << 10
+
+//	config := tcp.Config{
+//	    Addr:              ":9000",
+//	    ConnAuthenticator: auth,
+//	}
 type Config struct {
-	Addr              string
+	// tcp.New(tcp.Config{Addr: ":9000"})
+	Addr string
+
+	// tcp.New(tcp.Config{ConnAuthenticator: auth})
 	ConnAuthenticator stream.ConnAuthenticator
-	HandshakeTimeout  time.Duration
-	TLS               *tls.Config
+
+	// tcp.New(tcp.Config{HandshakeFrame: []byte("trusted")})
+	HandshakeFrame []byte
+
+	// tcp.New(tcp.Config{HandshakeChannel: "auth"})
+	HandshakeChannel string
+
+	// tcp.New(tcp.Config{HandshakeTimeout: 5 * time.Second})
+	HandshakeTimeout time.Duration
+
+	// tcp.New(tcp.Config{TLS: &tls.Config{}})
+	TLS *tls.Config
 }
 
-// Adapter is the raw TCP transport adapter.
+// adapter := tcp.New(tcp.Config{Addr: ":9000", ConnAuthenticator: auth})
 type Adapter struct {
 	hub    *stream.Hub
 	config Config
 
-	mu       sync.Mutex
+	mutex    sync.Mutex
 	listener net.Listener
 }
 
-// New creates a TCP adapter. Call Mount before Listen or Dial.
+// adapter := tcp.New(tcp.Config{Addr: ":9000", ConnAuthenticator: auth})
 func New(config Config) *Adapter {
 	if config.HandshakeTimeout == 0 {
 		config.HandshakeTimeout = 5 * time.Second
@@ -47,32 +64,46 @@ func New(config Config) *Adapter {
 	return &Adapter{config: config}
 }
 
-// Mount wires the adapter to a hub.
-func (a *Adapter) Mount(hub *stream.Hub) {
-	a.hub = hub
+// adapter.Mount(hub)
+func (adapter *Adapter) Mount(hub *stream.Hub) {
+	adapter.hub = hub
 }
 
-// Listen starts the TCP accept loop. Blocks until ctx cancelled.
-func (a *Adapter) Listen(ctx context.Context) error {
-	if a == nil {
-		return errors.New("nil adapter")
+// go adapter.Listen(ctx)
+func (adapter *Adapter) Listen(ctx context.Context) error {
+	if adapter == nil {
+		return core.E("stream.tcp", "nil adapter", nil)
 	}
-	if a.hub == nil {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if adapter.hub == nil {
 		return core.E("stream.tcp", "stream hub not mounted", nil)
 	}
-	if a.config.Addr == "" {
+	if adapter.config.Addr == "" {
 		return core.E("stream.tcp", "empty address", nil)
 	}
 
-	listener, err := a.listen()
+	listener, err := adapter.listen()
 	if err != nil {
 		return err
 	}
-	defer listener.Close()
+	defer func() {
+		if err := listener.Close(); err != nil {
+			return
+		}
+		adapter.mutex.Lock()
+		if adapter.listener == listener {
+			adapter.listener = nil
+		}
+		adapter.mutex.Unlock()
+	}()
 
 	go func() {
 		<-ctx.Done()
-		_ = listener.Close()
+		if err := listener.Close(); err != nil {
+			return
+		}
 	}()
 
 	for {
@@ -86,125 +117,210 @@ func (a *Adapter) Listen(ctx context.Context) error {
 			}
 			return err
 		}
-		go a.handleConn(ctx, conn, a.hub)
+		go adapter.handleConn(ctx, conn, adapter.hub)
 	}
 }
 
-// Dial connects to a remote TCP stream endpoint. Returns a Peer that can send/receive.
-func (a *Adapter) Dial(ctx context.Context, hub *stream.Hub) (*stream.Peer, error) {
-	if a == nil {
-		return nil, errors.New("nil adapter")
+// peer, err := adapter.Dial(ctx, hub)
+func (adapter *Adapter) Dial(ctx context.Context, hub *stream.Hub) (*stream.Peer, error) {
+	if adapter == nil {
+		return nil, core.E("stream.tcp", "nil adapter", nil)
+	}
+	if ctx == nil {
+		ctx = context.Background()
 	}
 	if hub == nil {
-		hub = a.hub
+		hub = adapter.hub
 	}
 	if hub == nil {
 		return nil, core.E("stream.tcp", "stream hub not mounted", nil)
 	}
-	conn, err := a.dial(ctx)
+	conn, err := adapter.dial(ctx)
 	if err != nil {
 		return nil, err
 	}
-	_, _ = conn.Write(encodeFrame("", nil))
+	if err := adapter.writeHandshake(conn); err != nil {
+		if closeErr := conn.Close(); closeErr != nil {
+			return nil, core.ErrorJoin(err, closeErr)
+		}
+		return nil, err
+	}
 	peer := stream.NewPeer("tcp")
-	_ = hub.AddPeer(peer)
-	_ = hub.SubscribePeer(peer, "*")
-	go a.pipePeer(ctx, conn, peer, hub)
+	peer.SetCloseHook(func() {
+		if err := conn.Close(); err != nil {
+			return
+		}
+	})
+	if !hub.Running() {
+		if err := conn.Close(); err != nil {
+			return nil, err
+		}
+		return nil, stream.ErrHubNotRunning
+	}
+	if err := hub.AddPeer(peer); err != nil {
+		if closeErr := conn.Close(); closeErr != nil {
+			return nil, core.ErrorJoin(err, closeErr)
+		}
+		return nil, err
+	}
+	if err := hub.SubscribePeer(peer, "*"); err != nil {
+		hub.RemovePeer(peer)
+		if closeErr := conn.Close(); closeErr != nil {
+			return nil, core.ErrorJoin(err, closeErr)
+		}
+		return nil, err
+	}
+	go adapter.pipePeer(ctx, conn, peer, hub)
 	return peer, nil
 }
 
-func (a *Adapter) listen() (net.Listener, error) {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	if a.listener != nil {
-		return a.listener, nil
+func (adapter *Adapter) listen() (net.Listener, error) {
+	adapter.mutex.Lock()
+	defer adapter.mutex.Unlock()
+	if adapter.listener != nil {
+		return adapter.listener, nil
 	}
 	var (
 		listener net.Listener
 		err      error
 	)
-	if a.config.TLS != nil {
-		listener, err = tls.Listen("tcp", a.config.Addr, a.config.TLS)
+	if adapter.config.TLS != nil {
+		listener, err = tls.Listen("tcp", adapter.config.Addr, adapter.config.TLS)
 	} else {
-		listener, err = net.Listen("tcp", a.config.Addr)
+		listener, err = net.Listen("tcp", adapter.config.Addr)
 	}
 	if err != nil {
 		return nil, err
 	}
-	a.listener = listener
+	adapter.listener = listener
 	return listener, nil
 }
 
-func (a *Adapter) dial(ctx context.Context) (net.Conn, error) {
+func (adapter *Adapter) dial(ctx context.Context) (net.Conn, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	dialer := &net.Dialer{}
-	if a.config.TLS != nil {
-		conn, err := dialer.DialContext(ctx, "tcp", a.config.Addr)
+	if adapter.config.TLS != nil {
+		conn, err := dialer.DialContext(ctx, "tcp", adapter.config.Addr)
 		if err != nil {
 			return nil, err
 		}
-		tlsConn := tls.Client(conn, a.config.TLS)
+		tlsConn := tls.Client(conn, adapter.config.TLS)
 		if err := tlsConn.HandshakeContext(ctx); err != nil {
-			_ = conn.Close()
+			if closeErr := conn.Close(); closeErr != nil {
+				return nil, core.ErrorJoin(err, closeErr)
+			}
 			return nil, err
 		}
 		return tlsConn, nil
 	}
-	return dialer.DialContext(ctx, "tcp", a.config.Addr)
+	return dialer.DialContext(ctx, "tcp", adapter.config.Addr)
 }
 
-func (a *Adapter) handleConn(ctx context.Context, conn net.Conn, hub *stream.Hub) {
+func (adapter *Adapter) handleConn(ctx context.Context, conn net.Conn, hub *stream.Hub) {
 	defer conn.Close()
+	stopClose := context.AfterFunc(ctx, func() {
+		if err := conn.Close(); err != nil {
+			return
+		}
+	})
+	defer stopClose()
 
-	_, handshake, err := readFrame(conn, a.config.HandshakeTimeout)
+	handshakeMaxSize := MaxFrameSize
+	if adapter.config.ConnAuthenticator != nil {
+		handshakeMaxSize = maxHandshakeFrameSize
+	}
+	channel, frame, err := readTCPFrame(conn, adapter.config.HandshakeTimeout, handshakeMaxSize)
 	if err != nil {
 		return
 	}
 
-	if auth := a.config.ConnAuthenticator; auth != nil {
-		result := auth.AuthenticateConn(handshake)
-		if !result.Valid {
+	authResult := stream.AuthResult{Valid: true}
+	if auth := adapter.config.ConnAuthenticator; auth != nil {
+		authResult = auth.AuthenticateConn(frame)
+		if !authResult.Valid {
 			return
 		}
 	}
 
 	peer := stream.NewPeer("tcp")
-	_ = hub.AddPeer(peer)
-	_ = hub.SubscribePeer(peer, "*")
+	peer.UserID = authResult.UserID
+	if authResult.Claims != nil {
+		peer.Claims = authResult.Claims
+	}
+	peer.SetCloseHook(func() {
+		if err := conn.Close(); err != nil {
+			return
+		}
+	})
+	if !hub.Running() {
+		return
+	}
+	if err := hub.AddPeer(peer); err != nil {
+		return
+	}
+	if err := hub.SubscribePeer(peer, "*"); err != nil {
+		hub.RemovePeer(peer)
+		return
+	}
 	defer hub.RemovePeer(peer)
 
-	go a.writePump(ctx, conn, peer)
+	go adapter.writePump(ctx, conn, peer, hub.Config().WriteTimeout)
+
+	if auth := adapter.config.ConnAuthenticator; auth == nil {
+		if err := dispatchTCPFrame(hub, peer, channel, frame); err != nil {
+			return
+		}
+	}
 
 	for {
-		channel, frame, err := readFrame(conn, 0)
+		channel, frame, err := readTCPFrame(conn, 0, MaxFrameSize)
 		if err != nil {
 			return
 		}
 		if channel == "" {
-			_ = hub.Broadcast(frame)
+			if err := hub.BroadcastFromPeer(peer, frame); err != nil {
+				return
+			}
 			continue
 		}
-		_ = hub.Publish(channel, frame)
+		if err := hub.PublishFromPeer(peer, channel, frame); err != nil {
+			return
+		}
 	}
 }
 
-func (a *Adapter) pipePeer(ctx context.Context, conn net.Conn, peer *stream.Peer, hub *stream.Hub) {
+func dispatchTCPFrame(hub *stream.Hub, peer *stream.Peer, channel string, frame []byte) error {
+	if channel == "" {
+		return hub.BroadcastFromPeer(peer, frame)
+	}
+	return hub.PublishFromPeer(peer, channel, frame)
+}
+
+func (adapter *Adapter) pipePeer(ctx context.Context, conn net.Conn, peer *stream.Peer, hub *stream.Hub) {
 	defer conn.Close()
-	go a.writePump(ctx, conn, peer)
+	stopClose := context.AfterFunc(ctx, func() {
+		if err := conn.Close(); err != nil {
+			return
+		}
+	})
+	defer stopClose()
+	go adapter.writePump(ctx, conn, peer, hub.Config().WriteTimeout)
 	for {
-		channel, frame, err := readFrame(conn, 0)
+		channel, frame, err := readTCPFrame(conn, 0, MaxFrameSize)
 		if err != nil {
 			hub.RemovePeer(peer)
 			return
 		}
-		if channel == "" {
-			_ = hub.Broadcast(frame)
-			continue
+		if err := dispatchTCPFrame(hub, peer, channel, frame); err != nil {
+			hub.RemovePeer(peer)
+			return
 		}
-		_ = hub.Publish(channel, frame)
 	}
 }
 
-func (a *Adapter) writePump(ctx context.Context, conn net.Conn, peer *stream.Peer) {
+func (adapter *Adapter) writePump(ctx context.Context, conn net.Conn, peer *stream.Peer, writeTimeout time.Duration) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -213,16 +329,27 @@ func (a *Adapter) writePump(ctx context.Context, conn net.Conn, peer *stream.Pee
 			if !ok {
 				return
 			}
-			if _, err := conn.Write(frame); err != nil {
+			if writeTimeout > 0 {
+				if err := conn.SetWriteDeadline(time.Now().Add(writeTimeout)); err != nil {
+					return
+				}
+			}
+			if err := writeAll(conn, frame); err != nil {
 				return
 			}
 		}
 	}
 }
 
-func readFrame(conn net.Conn, timeout time.Duration) (string, []byte, error) {
+func readTCPFrame(conn net.Conn, timeout time.Duration, maxFrameSize int) (string, []byte, error) {
 	if timeout > 0 {
-		_ = conn.SetReadDeadline(time.Now().Add(timeout))
+		if err := conn.SetReadDeadline(time.Now().Add(timeout)); err != nil {
+			return "", nil, err
+		}
+	} else {
+		if err := conn.SetReadDeadline(time.Time{}); err != nil {
+			return "", nil, err
+		}
 	}
 	var length uint32
 	if err := binary.Read(conn, binary.BigEndian, &length); err != nil {
@@ -231,7 +358,7 @@ func readFrame(conn net.Conn, timeout time.Duration) (string, []byte, error) {
 		}
 		return "", nil, err
 	}
-	if length > MaxFrameSize {
+	if maxFrameSize > 0 && length > uint32(maxFrameSize) {
 		return "", nil, core.E("stream.tcp", "frame too large", nil)
 	}
 	payload := make([]byte, length)
@@ -250,7 +377,7 @@ func readFrame(conn net.Conn, timeout time.Duration) (string, []byte, error) {
 	return channel, frame, nil
 }
 
-func encodeFrame(channel string, frame []byte) []byte {
+func encodeTCPFrame(channel string, frame []byte) []byte {
 	channelBytes := []byte(channel)
 	payloadLength := uint32(4 + len(channelBytes) + len(frame))
 	buffer := make([]byte, 4+payloadLength)
@@ -260,12 +387,34 @@ func encodeFrame(channel string, frame []byte) []byte {
 	copy(buffer[8+len(channelBytes):], frame)
 	return buffer
 }
+
+func writeAll(conn net.Conn, payload []byte) error {
+	for len(payload) > 0 {
+		written, err := conn.Write(payload)
+		if err != nil {
+			return err
+		}
+		if written <= 0 {
+			return io.ErrShortWrite
+		}
+		payload = payload[written:]
+	}
+	return nil
+}
+
+func (adapter *Adapter) writeHandshake(conn net.Conn) error {
+	if conn == nil {
+		return core.E("stream.tcp", "nil connection", nil)
+	}
+	if len(adapter.config.HandshakeFrame) == 0 && adapter.config.HandshakeChannel == "" {
+		return nil
+	}
+	return writeAll(conn, encodeTCPFrame(adapter.config.HandshakeChannel, adapter.config.HandshakeFrame))
+}
+
 func isClosedNetworkError(err error) bool {
 	if err == nil {
 		return false
 	}
-	if errors.Is(err, net.ErrClosed) {
-		return true
-	}
-	return false
+	return err == net.ErrClosed
 }

@@ -2,17 +2,18 @@
 
 package stream
 
-// HubStats is a snapshot of hub state at a point in time.
-//
-//	s := hub.Stats()
-//	log.Printf("peers=%d channels=%d", s.Peers, s.Channels)
+// stats := hub.Stats()
+// core.Print("stream", "peers=%d channels=%d", stats.Peers, stats.Channels)
 type HubStats struct {
-	// Peers is the number of currently connected peers across all transports.
+	// stats := hub.Stats()
+	// core.Print("stream", "peers=%d", stats.Peers)
 	Peers int `json:"peers"`
 
-	// Channels is the number of active named channels with at least one subscriber.
+	// stats := hub.Stats()
+	// core.Print("stream", "channels=%d", stats.Channels)
 	Channels int `json:"channels"`
 
-	// SubscriberCount maps channel name to subscriber count.
+	// stats := hub.Stats()
+	// count := stats.SubscriberCount["hashrate"]
 	SubscriberCount map[string]int `json:"subscriber_count"`
 }

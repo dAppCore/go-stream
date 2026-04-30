@@ -1,33 +1,49 @@
 // SPDX-License-Identifier: EUPL-1.2
 
-// Package sse is the Server-Sent Events transport adapter for stream.Hub.
-// Lightweight server-push over HTTP/1.1 - no upgrade required.
-// Used by core/api for live stats, agent event streams, and /live_stats endpoints.
+// adapter := sse.New(sse.Config{HeartbeatInterval: 15 * time.Second})
+// adapter.Mount(hub)
+// http.Handle("/stream/events", adapter.Handler())
 package sse
 
 import (
-	"fmt"
+	"bytes"
+	"io"
 	"net/http"
+	"strconv"
+	"sync"
 	"time"
 
-	"dappco.re/go/core"
 	"dappco.re/go/stream"
 )
 
-// Config configures the SSE adapter.
+//	config := sse.Config{
+//	    Authenticator:     stream.NewAPIKeyAuth(map[string]string{"sk-live": "user-42"}),
+//	    HeartbeatInterval: 15 * time.Second,
+//	    RetryMs:           3000,
+//	}
 type Config struct {
-	Authenticator     stream.Authenticator
+	// sse.New(sse.Config{Authenticator: stream.NewAPIKeyAuth(keys)})
+	Authenticator stream.Authenticator
+
+	// sse.New(sse.Config{OnAuthFailure: func(r *http.Request, result stream.AuthResult) { ... }})
+	OnAuthFailure func(r *http.Request, result stream.AuthResult)
+
+	// sse.New(sse.Config{HeartbeatInterval: 15 * time.Second})
 	HeartbeatInterval time.Duration
-	RetryMs           int
+
+	// sse.New(sse.Config{RetryMs: 3000})
+	RetryMs int
 }
 
-// Adapter is the SSE transport adapter for a stream.Hub.
+// adapter := sse.New(sse.Config{})
+// adapter.Mount(hub)
+// http.Handle("/stream/events", adapter.Handler())
 type Adapter struct {
 	hub    *stream.Hub
 	config Config
 }
 
-// New creates an SSE adapter. Call Mount before serving requests.
+// adapter := sse.New(sse.Config{HeartbeatInterval: 15 * time.Second})
 func New(config Config) *Adapter {
 	if config.HeartbeatInterval == 0 {
 		config.HeartbeatInterval = 15 * time.Second
@@ -38,35 +54,51 @@ func New(config Config) *Adapter {
 	return &Adapter{config: config}
 }
 
-// Mount wires the adapter to a hub. Must be called before Handler().
-func (a *Adapter) Mount(hub *stream.Hub) {
-	a.hub = hub
+// adapter.Mount(hub)
+func (adapter *Adapter) Mount(hub *stream.Hub) {
+	adapter.hub = hub
 }
 
-// Handler returns an http.HandlerFunc that accepts SSE connections.
-func (a *Adapter) Handler() http.HandlerFunc {
+// http.Handle("/stream/events", adapter.Handler())
+// http.Get("http://127.0.0.1:8080/stream/events?channel=hashrate")
+func (adapter *Adapter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	adapter.serve(w, r, r.URL.Query()["channel"])
+}
+
+// http.Handle("/stream/events", adapter.Handler())
+// http.Get("http://127.0.0.1:8080/stream/events?channel=hashrate")
+func (adapter *Adapter) Handler() http.HandlerFunc {
+	return adapter.ServeHTTP
+}
+
+// http.Handle("/stream/hashrate", adapter.HandlerForChannel("hashrate"))
+func (adapter *Adapter) HandlerForChannel(channel string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		a.serve(w, r, r.URL.Query()["channel"])
+		adapter.serve(w, r, []string{channel})
 	}
 }
 
-// HandlerForChannel returns a handler that auto-subscribes all connections to channel.
-func (a *Adapter) HandlerForChannel(channel string) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		a.serve(w, r, []string{channel})
-	}
-}
-
-func (a *Adapter) serve(w http.ResponseWriter, r *http.Request, channels []string) {
-	if a.hub == nil {
+func (adapter *Adapter) serve(w http.ResponseWriter, r *http.Request, channels []string) {
+	if adapter.hub == nil {
 		http.Error(w, "stream hub not mounted", http.StatusInternalServerError)
 		return
 	}
 
-	result := stream.AuthResult{Valid: true}
-	if a.config.Authenticator != nil {
-		result = a.config.Authenticator.Authenticate(r)
-		if !result.Valid {
+	config := adapter.config
+	if config.HeartbeatInterval == 0 {
+		config.HeartbeatInterval = 15 * time.Second
+	}
+	if config.RetryMs == 0 {
+		config.RetryMs = 3000
+	}
+
+	authResult := stream.AuthResult{Valid: true}
+	if adapter.config.Authenticator != nil {
+		authResult = adapter.config.Authenticator.Authenticate(r)
+		if !authResult.Valid {
+			if adapter.config.OnAuthFailure != nil {
+				adapter.config.OnAuthFailure(r, authResult)
+			}
 			http.Error(w, "unauthorised", http.StatusUnauthorized)
 			return
 		}
@@ -84,41 +116,85 @@ func (a *Adapter) serve(w http.ResponseWriter, r *http.Request, channels []strin
 	header.Set("X-Accel-Buffering", "no")
 
 	peer := stream.NewPeer("sse")
-	peer.UserID = result.UserID
-	peer.Claims = result.Claims
-	_ = a.hub.AddPeer(peer)
-	defer a.hub.RemovePeer(peer)
+	peer.UserID = authResult.UserID
+	if authResult.Claims != nil {
+		peer.Claims = authResult.Claims
+	}
+	done := make(chan struct{})
+	var doneOnce sync.Once
+	peer.SetCloseHook(func() {
+		doneOnce.Do(func() {
+			close(done)
+		})
+	})
 
 	for _, channel := range channels {
 		if channel == "" {
 			continue
 		}
-		_ = a.hub.SubscribePeer(peer, channel)
+		if err := adapter.hub.CanSubscribePeer(peer, channel); err != nil {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
 	}
 
-	_, _ = fmt.Fprintf(w, "retry: %d\n\n", a.config.RetryMs)
+	if !adapter.hub.Running() {
+		http.Error(w, "stream hub not running", http.StatusInternalServerError)
+		return
+	}
+
+	for _, channel := range channels {
+		if channel == "" {
+			continue
+		}
+		if err := adapter.hub.SubscribePeer(peer, channel); err != nil {
+			http.Error(w, "stream hub not running", http.StatusInternalServerError)
+			return
+		}
+	}
+
+	header.Set("Connection", "keep-alive")
+
+	_, _ = io.WriteString(w, "retry: "+strconv.Itoa(config.RetryMs)+"\n\n")
 	flusher.Flush()
 
-	ticker := time.NewTicker(a.config.HeartbeatInterval)
+	if err := adapter.hub.AddPeer(peer); err != nil {
+		return
+	}
+	defer adapter.hub.RemovePeer(peer)
+
+	ticker := time.NewTicker(config.HeartbeatInterval)
 	defer ticker.Stop()
 
-	done := r.Context().Done()
+	requestDone := r.Context().Done()
 	for {
 		select {
 		case <-done:
+			return
+		case <-requestDone:
 			return
 		case frame, ok := <-peer.SendQueue():
 			if !ok {
 				return
 			}
-			_, _ = fmt.Fprintf(w, "data: %s\n\n", frame)
+			writeEventFrame(w, frame)
 			flusher.Flush()
 		case <-ticker.C:
-			_, _ = fmt.Fprint(w, ": ping\n\n")
+			writeHeartbeatFrame(w)
 			flusher.Flush()
 		}
 	}
 }
 
-var _ time.Duration
-var _ = core.E
+func writeEventFrame(writer io.Writer, frame []byte) {
+	for _, line := range bytes.Split(frame, []byte{'\n'}) {
+		_, _ = io.WriteString(writer, "data: ")
+		_, _ = writer.Write(line)
+		_, _ = io.WriteString(writer, "\n")
+	}
+	_, _ = io.WriteString(writer, "\n")
+}
+
+func writeHeartbeatFrame(writer io.Writer) {
+	_, _ = io.WriteString(writer, ": ping\n\n")
+}
