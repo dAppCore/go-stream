@@ -11,9 +11,7 @@
 # Output of go coverage
 *.out
 
-# Go workspace
-go.work
-go.work.sum
+# Go workspace caches
 .gomodcache/
 .gopath/
 .gopath2/
