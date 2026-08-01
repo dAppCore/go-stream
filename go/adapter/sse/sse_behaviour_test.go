@@ -81,8 +81,7 @@ func TestSse_StreamsEventFrame_Behaviour(t *core.T) {
 	server := httptest.NewServer(adapter.HandlerForChannel("hashrate"))
 	defer server.Close()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 	request, _ := http.NewRequestWithContext(ctx, http.MethodGet, server.URL, nil)
 	response, err := http.DefaultClient.Do(request)
 	core.AssertNoError(t, err, "request opens")
@@ -121,8 +120,7 @@ func TestSse_ForbiddenChannel_Behaviour(t *core.T) {
 	hub := stream.NewHubWithConfig(stream.HubConfig{
 		ChannelAuthoriser: func(*stream.Peer, string) bool { return false },
 	})
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 	go hub.Run(ctx)
 	deadline := time.Now().Add(2 * time.Second)
 	for !hub.Running() && time.Now().Before(deadline) {

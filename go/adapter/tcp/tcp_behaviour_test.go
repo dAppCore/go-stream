@@ -54,19 +54,19 @@ func waitFor(t *core.T, condition func() bool) {
 
 func TestTcp_Guards_Behaviour(t *core.T) {
 	var nilAdapter *Adapter
-	core.AssertFalse(t, nilAdapter.Listen(context.Background()).OK, "nil adapter Listen fails")
-	core.AssertFalse(t, nilAdapter.Dial(context.Background(), nil).OK, "nil adapter Dial fails")
+	core.AssertFalse(t, nilAdapter.Listen(t.Context()).OK, "nil adapter Listen fails")
+	core.AssertFalse(t, nilAdapter.Dial(t.Context(), nil).OK, "nil adapter Dial fails")
 
 	unmounted := New(Config{Addr: ":0"})
-	core.AssertFalse(t, unmounted.Listen(context.Background()).OK, "unmounted hub Listen fails")
+	core.AssertFalse(t, unmounted.Listen(t.Context()).OK, "unmounted hub Listen fails")
 
 	noAddr := New(Config{})
 	hub := stream.NewHub()
 	noAddr.Mount(hub)
-	core.AssertFalse(t, noAddr.Listen(context.Background()).OK, "empty addr Listen fails")
+	core.AssertFalse(t, noAddr.Listen(t.Context()).OK, "empty addr Listen fails")
 
 	dialNoHub := New(Config{Addr: "127.0.0.1:0"})
-	core.AssertFalse(t, dialNoHub.Dial(context.Background(), nil).OK, "Dial without hub fails")
+	core.AssertFalse(t, dialNoHub.Dial(t.Context(), nil).OK, "Dial without hub fails")
 }
 
 func TestTcp_EncodeDecodeSymmetry_Behaviour(t *core.T) {
@@ -141,8 +141,7 @@ func TestTcp_ListenDialRoundTrip_Behaviour(t *core.T) {
 	core.AssertTrue(t, bindR.OK, "listener binds")
 	addr := bindR.Value.(net.Listener).Addr().String()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 	go listener.Listen(ctx)
 
 	clientHub, stopClient := startHub(t)
@@ -203,8 +202,7 @@ func TestTcp_ConnAuthenticatorRejects_Behaviour(t *core.T) {
 	core.AssertTrue(t, bindR.OK, "listener binds")
 	addr := bindR.Value.(net.Listener).Addr().String()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 	go listener.Listen(ctx)
 
 	// Dial raw and send a bad handshake — the server must drop us.
@@ -245,7 +243,7 @@ func TestTcp_Reconnect_MaxRetriesGivesUp_Behaviour(t *core.T) {
 		InitialBackoff: time.Millisecond,
 		MaxRetries:     1,
 	})
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
 	defer cancel()
 	r := client.Connect(ctx)
 	core.AssertFalse(t, r.OK, "exhausted retries returns failure")
@@ -260,7 +258,7 @@ func TestTcp_Reconnect_CloseStopsConnect_Behaviour(t *core.T) {
 		time.Sleep(20 * time.Millisecond)
 		client.Close()
 	}()
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
 	defer cancel()
 	r := client.Connect(ctx)
 	core.AssertTrue(t, r.OK, "Close ends the reconnect loop cleanly")
@@ -277,8 +275,7 @@ func TestTcp_Reconnect_ConnectAndReceive_Behaviour(t *core.T) {
 	core.AssertTrue(t, bindR.OK, "listener binds")
 	addr := bindR.Value.(net.Listener).Addr().String()
 
-	listenCtx, listenCancel := context.WithCancel(context.Background())
-	defer listenCancel()
+	listenCtx := t.Context()
 	go listener.Listen(listenCtx)
 
 	var mutex sync.Mutex
@@ -297,7 +294,7 @@ func TestTcp_Reconnect_ConnectAndReceive_Behaviour(t *core.T) {
 		},
 	})
 
-	connectCtx, connectCancel := context.WithCancel(context.Background())
+	connectCtx, connectCancel := context.WithCancel(t.Context())
 	go client.Connect(connectCtx)
 
 	// Wait for connect, then the server pushes a frame on the wildcard.
@@ -336,9 +333,9 @@ func TestTcp_NextBackoff_Behaviour(t *core.T) {
 }
 
 func TestTcp_SleepContext_Behaviour(t *core.T) {
-	core.AssertTrue(t, sleepContext(context.Background(), 0).OK, "zero duration returns immediately")
+	core.AssertTrue(t, sleepContext(t.Context(), 0).OK, "zero duration returns immediately")
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	core.AssertFalse(t, sleepContext(ctx, time.Second).OK, "cancelled context aborts sleep")
 }

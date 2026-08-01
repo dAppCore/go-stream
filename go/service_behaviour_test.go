@@ -42,7 +42,7 @@ func TestService_HandlePublish_Behaviour(t *core.T) {
 	})
 	defer unsub()
 
-	r := svc.handlePublish(context.Background(), core.NewOptions(
+	r := svc.handlePublish(t.Context(), core.NewOptions(
 		core.Option{Key: "channel", Value: "alerts"},
 		core.Option{Key: "frame", Value: []byte("msg")},
 	))
@@ -50,26 +50,26 @@ func TestService_HandlePublish_Behaviour(t *core.T) {
 	waitFor(t, func() bool { mutex.Lock(); defer mutex.Unlock(); return got == "msg" })
 
 	// String frames are coerced to bytes.
-	r = svc.handlePublish(context.Background(), core.NewOptions(
+	r = svc.handlePublish(t.Context(), core.NewOptions(
 		core.Option{Key: "channel", Value: "alerts"},
 		core.Option{Key: "frame", Value: "stringframe"},
 	))
 	core.AssertTrue(t, r.OK, "string frame coerced")
 
 	// Missing channel rejected.
-	r = svc.handlePublish(context.Background(), core.NewOptions(
+	r = svc.handlePublish(t.Context(), core.NewOptions(
 		core.Option{Key: "frame", Value: []byte("x")},
 	))
 	core.AssertFalse(t, r.OK, "missing channel rejected")
 
 	// Missing frame rejected.
-	r = svc.handlePublish(context.Background(), core.NewOptions(
+	r = svc.handlePublish(t.Context(), core.NewOptions(
 		core.Option{Key: "channel", Value: "alerts"},
 	))
 	core.AssertFalse(t, r.OK, "missing frame rejected")
 
 	// Wrong frame type rejected.
-	r = svc.handlePublish(context.Background(), core.NewOptions(
+	r = svc.handlePublish(t.Context(), core.NewOptions(
 		core.Option{Key: "channel", Value: "alerts"},
 		core.Option{Key: "frame", Value: 42},
 	))
@@ -84,13 +84,13 @@ func TestService_HandleBroadcast_Behaviour(t *core.T) {
 	svc.Hub.AddPeer(peer)
 	waitFor(t, func() bool { return svc.Hub.PeerCount() == 1 })
 
-	r := svc.handleBroadcast(context.Background(), core.NewOptions(
+	r := svc.handleBroadcast(t.Context(), core.NewOptions(
 		core.Option{Key: "frame", Value: []byte("ping")},
 	))
 	core.AssertTrue(t, r.OK, "broadcast handler succeeds")
 	core.AssertEqual(t, "ping", string(drainNext(t, peer)), "peer received broadcast")
 
-	r = svc.handleBroadcast(context.Background(), core.NewOptions())
+	r = svc.handleBroadcast(t.Context(), core.NewOptions())
 	core.AssertFalse(t, r.OK, "missing frame rejected")
 }
 
@@ -103,14 +103,14 @@ func TestService_HandleSendChannel_Behaviour(t *core.T) {
 	svc.Hub.SubscribePeer(peer, "alerts")
 	waitFor(t, func() bool { return svc.Hub.PeerCount() == 1 })
 
-	r := svc.handleSendChannel(context.Background(), core.NewOptions(
+	r := svc.handleSendChannel(t.Context(), core.NewOptions(
 		core.Option{Key: "channel", Value: "alerts"},
 		core.Option{Key: "frame", Value: []byte("hello")},
 	))
 	core.AssertTrue(t, r.OK, "send_channel handler succeeds")
 	core.AssertEqual(t, "hello", string(drainNext(t, peer)), "peer received frame")
 
-	r = svc.handleSendChannel(context.Background(), core.NewOptions(
+	r = svc.handleSendChannel(t.Context(), core.NewOptions(
 		core.Option{Key: "frame", Value: []byte("x")},
 	))
 	core.AssertFalse(t, r.OK, "missing channel rejected")
@@ -120,16 +120,16 @@ func TestService_HandleStatsRunningConfig_Behaviour(t *core.T) {
 	svc, stop := startedService(t)
 	defer stop()
 
-	statsR := svc.handleStats(context.Background(), core.NewOptions())
+	statsR := svc.handleStats(t.Context(), core.NewOptions())
 	core.AssertTrue(t, statsR.OK, "stats handler succeeds")
 	_, ok := statsR.Value.(HubStats)
 	core.AssertTrue(t, ok, "stats value is HubStats")
 
-	runningR := svc.handleRunning(context.Background(), core.NewOptions())
+	runningR := svc.handleRunning(t.Context(), core.NewOptions())
 	core.AssertTrue(t, runningR.OK, "running handler succeeds")
 	core.AssertEqual(t, true, runningR.Value.(bool), "hub reports running")
 
-	configR := svc.handleConfig(context.Background(), core.NewOptions())
+	configR := svc.handleConfig(t.Context(), core.NewOptions())
 	core.AssertTrue(t, configR.OK, "config handler succeeds")
 	_, ok = configR.Value.(HubConfig)
 	core.AssertTrue(t, ok, "config value is HubConfig")
@@ -137,12 +137,12 @@ func TestService_HandleStatsRunningConfig_Behaviour(t *core.T) {
 
 func TestService_HandlersNilSafe_Behaviour(t *core.T) {
 	var s *Service
-	core.AssertFalse(t, s.handlePublish(context.Background(), core.NewOptions()).OK, "nil publish")
-	core.AssertFalse(t, s.handleBroadcast(context.Background(), core.NewOptions()).OK, "nil broadcast")
-	core.AssertFalse(t, s.handleSendChannel(context.Background(), core.NewOptions()).OK, "nil send_channel")
-	core.AssertFalse(t, s.handleStats(context.Background(), core.NewOptions()).OK, "nil stats")
-	core.AssertFalse(t, s.handleRunning(context.Background(), core.NewOptions()).OK, "nil running")
-	core.AssertFalse(t, s.handleConfig(context.Background(), core.NewOptions()).OK, "nil config")
+	core.AssertFalse(t, s.handlePublish(t.Context(), core.NewOptions()).OK, "nil publish")
+	core.AssertFalse(t, s.handleBroadcast(t.Context(), core.NewOptions()).OK, "nil broadcast")
+	core.AssertFalse(t, s.handleSendChannel(t.Context(), core.NewOptions()).OK, "nil send_channel")
+	core.AssertFalse(t, s.handleStats(t.Context(), core.NewOptions()).OK, "nil stats")
+	core.AssertFalse(t, s.handleRunning(t.Context(), core.NewOptions()).OK, "nil running")
+	core.AssertFalse(t, s.handleConfig(t.Context(), core.NewOptions()).OK, "nil config")
 }
 
 func TestService_FrameBytes_Behaviour(t *core.T) {

@@ -114,20 +114,20 @@ func TestZmq_ListenEndpoint_Behaviour(t *core.T) {
 
 func TestZmq_Guards_Behaviour(t *core.T) {
 	var nilAdapter *Adapter
-	core.AssertFalse(t, nilAdapter.Start(context.Background()).OK, "nil adapter start fails")
+	core.AssertFalse(t, nilAdapter.Start(t.Context()).OK, "nil adapter start fails")
 	core.AssertTrue(t, nilAdapter.Stop().OK, "nil adapter stop is a no-op success")
 	core.AssertFalse(t, nilAdapter.Publish("block", []byte("x")).OK, "nil adapter publish fails")
 
 	noEndpoint := New(Config{Mode: ModePubSub, Role: RolePublisher})
 	noEndpoint.Mount(stream.NewHub())
-	core.AssertFalse(t, noEndpoint.Start(context.Background()).OK, "empty endpoint fails")
+	core.AssertFalse(t, noEndpoint.Start(t.Context()).OK, "empty endpoint fails")
 
 	unmounted := New(Config{Mode: ModePubSub, Role: RolePublisher, Endpoint: "tcp://127.0.0.1:0"})
-	core.AssertFalse(t, unmounted.Start(context.Background()).OK, "unmounted hub fails")
+	core.AssertFalse(t, unmounted.Start(t.Context()).OK, "unmounted hub fails")
 
 	badRole := New(Config{Mode: ModePubSub, Role: RolePusher, Endpoint: "tcp://127.0.0.1:0"})
 	badRole.Mount(stream.NewHub())
-	core.AssertFalse(t, badRole.Start(context.Background()).OK, "invalid role fails")
+	core.AssertFalse(t, badRole.Start(t.Context()).OK, "invalid role fails")
 }
 
 func TestZmq_PublishBeforeStart_Behaviour(t *core.T) {
@@ -140,10 +140,10 @@ func TestZmq_PublishBeforeStart_Behaviour(t *core.T) {
 
 func TestZmq_RecvWithTimeout_Behaviour(t *core.T) {
 	adapter := New(Config{Mode: ModePubSub, Role: RoleSubscriber, Endpoint: "tcp://127.0.0.1:0"})
-	socket := zmq4.NewSub(context.Background())
+	socket := zmq4.NewSub(t.Context())
 	defer socket.Close()
 	// No peer connected, so Recv never delivers — the timeout branch fires.
-	r := adapter.recvWithTimeout(context.Background(), socket, 50*time.Millisecond)
+	r := adapter.recvWithTimeout(t.Context(), socket, 50*time.Millisecond)
 	core.AssertFalse(t, r.OK, "timed-out recv fails")
 	core.AssertErrorIs(t, r.Value.(error), stream.ErrHandshakeTimeout, "carries ErrHandshakeTimeout")
 }
@@ -156,8 +156,7 @@ func TestZmq_PubSubRoundTrip_Behaviour(t *core.T) {
 
 	publisher := New(Config{Mode: ModePubSub, Role: RolePublisher, Endpoint: endpoint})
 	publisher.Mount(stream.NewHub())
-	pubCtx, pubCancel := context.WithCancel(context.Background())
-	defer pubCancel()
+	pubCtx := t.Context()
 	go publisher.Start(pubCtx)
 	// Wait for the publisher socket to be live.
 	deadline := time.Now().Add(2 * time.Second)
@@ -173,8 +172,7 @@ func TestZmq_PubSubRoundTrip_Behaviour(t *core.T) {
 
 	subscriber := New(Config{Mode: ModePubSub, Role: RoleSubscriber, Endpoint: endpoint})
 	subscriber.Mount(subscriberHub)
-	subCtx, subCancel := context.WithCancel(context.Background())
-	defer subCancel()
+	subCtx := t.Context()
 	go subscriber.Start(subCtx)
 
 	// Give the subscriber time to connect, then publish repeatedly to

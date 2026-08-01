@@ -99,8 +99,7 @@ func TestWs_ForbiddenChannel_Behaviour(t *core.T) {
 	hub := stream.NewHubWithConfig(stream.HubConfig{
 		ChannelAuthoriser: func(*stream.Peer, string) bool { return false },
 	})
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 	go hub.Run(ctx)
 	waitFor(t, func() bool { return hub.Running() })
 
@@ -218,7 +217,7 @@ func TestWs_Reconnect_SendBeforeConnect_Behaviour(t *core.T) {
 	core.AssertFalse(t, nilClient.Send(stream.Message{}).OK, "nil client send fails")
 	core.AssertEqual(t, stream.StateDisconnected, nilClient.State(), "nil client disconnected")
 	core.AssertTrue(t, nilClient.Close().OK, "nil client close ok")
-	core.AssertFalse(t, nilClient.Connect(context.Background()).OK, "nil client connect fails")
+	core.AssertFalse(t, nilClient.Connect(t.Context()).OK, "nil client connect fails")
 }
 
 func TestWs_Reconnect_ConnectReceiveClose_Behaviour(t *core.T) {
@@ -244,7 +243,7 @@ func TestWs_Reconnect_ConnectReceiveClose_Behaviour(t *core.T) {
 		},
 	})
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	go client.Connect(ctx)
 	waitFor(t, func() bool { mutex.Lock(); defer mutex.Unlock(); return connected })
 	waitFor(t, func() bool { return client.State() == stream.StateConnected })
@@ -268,7 +267,7 @@ func TestWs_Reconnect_MaxRetriesGivesUp_Behaviour(t *core.T) {
 		InitialBackoff: time.Millisecond,
 		MaxRetries:     1,
 	})
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
 	defer cancel()
 	core.AssertFalse(t, client.Connect(ctx).OK, "exhausted retries returns failure")
 }
@@ -280,8 +279,8 @@ func TestWs_NextBackoff_Behaviour(t *core.T) {
 }
 
 func TestWs_SleepContext_Behaviour(t *core.T) {
-	core.AssertTrue(t, sleepContext(context.Background(), 0).OK, "zero duration returns immediately")
-	ctx, cancel := context.WithCancel(context.Background())
+	core.AssertTrue(t, sleepContext(t.Context(), 0).OK, "zero duration returns immediately")
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	core.AssertFalse(t, sleepContext(ctx, time.Second).OK, "cancelled context aborts sleep")
 }

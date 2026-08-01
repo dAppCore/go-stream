@@ -7,7 +7,6 @@
 package ws
 
 import (
-	"context"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -56,8 +55,7 @@ func TestWsCompat_HandlerNilGuards_Behaviour(t *core.T) {
 
 func TestWsCompat_HubHandlerServesWebSocket_Behaviour(t *core.T) {
 	hub := NewHub()
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 	go hub.Run(ctx)
 	deadline := time.Now().Add(2 * time.Second)
 	for !hub.Running() && time.Now().Before(deadline) {

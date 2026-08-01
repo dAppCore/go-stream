@@ -236,7 +236,7 @@ func TestStream_Hub_OnConnectDisconnectFire_Behaviour(t *core.T) {
 		OnDisconnect: func(*Peer) { mutex.Lock(); disconnects++; mutex.Unlock() },
 	}
 	hub := NewHubWithConfig(config)
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	go hub.Run(ctx)
 	waitFor(t, func() bool { return hub.Running() })
 
@@ -314,7 +314,7 @@ func TestStream_Hub_AllPeersSorted_Behaviour(t *core.T) {
 func TestStream_Peer_SendBackpressureAndClose_Behaviour(t *core.T) {
 	peer := NewPeer("ws")
 	// Fill the buffer (defaultPeerSendBufferSize) then expect a drop.
-	for i := 0; i < defaultPeerSendBufferSize; i++ {
+	for range defaultPeerSendBufferSize {
 		core.AssertTrue(t, peer.Send([]byte("x")), "send within buffer succeeds")
 	}
 	core.AssertFalse(t, peer.Send([]byte("overflow")), "send fails when buffer full (backpressure)")
@@ -349,7 +349,7 @@ func TestStream_Peer_NilReceiver_Behaviour(t *core.T) {
 	core.AssertFalse(t, peer.Send([]byte("x")), "nil peer send fails")
 	core.AssertNil(t, peer.Subscriptions(), "nil peer has no subscriptions")
 	core.AssertNil(t, peer.SendQueue(), "nil peer has no queue")
-	peer.Close()        // no panic
+	peer.Close()                 // no panic
 	peer.SetCloseHook(func() {}) // no panic
 }
 

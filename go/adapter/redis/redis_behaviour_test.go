@@ -8,8 +8,6 @@
 package redis
 
 import (
-	"context"
-
 	core "dappco.re/go"
 	"dappco.re/go/stream"
 )
@@ -63,7 +61,7 @@ func TestRedis_PublishBeforeStart_Behaviour(t *core.T) {
 
 func TestRedis_NilBridge_Behaviour(t *core.T) {
 	var bridge *Bridge
-	core.AssertFalse(t, bridge.Start(context.Background()).OK, "nil bridge start fails")
+	core.AssertFalse(t, bridge.Start(t.Context()).OK, "nil bridge start fails")
 	core.AssertTrue(t, bridge.Stop().OK, "nil bridge stop is a no-op success")
 	core.AssertFalse(t, bridge.PublishToChannel("block", []byte("x")).OK, "nil bridge publish fails")
 	core.AssertFalse(t, bridge.PublishBroadcast([]byte("x")).OK, "nil bridge broadcast fails")
