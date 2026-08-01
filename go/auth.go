@@ -7,6 +7,7 @@
 package stream
 
 import (
+	"maps"
 	"net/http"
 
 	"dappco.re/go"
@@ -67,9 +68,7 @@ func NewAPIKeyAuth(keys map[string]string) *APIKeyAuthenticator {
 		keys = map[string]string{}
 	}
 	copied := make(map[string]string, len(keys))
-	for key, userID := range keys {
-		copied[key] = userID
-	}
+	maps.Copy(copied, keys)
 	return &APIKeyAuthenticator{Keys: copied}
 }
 
