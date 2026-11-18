@@ -2,7 +2,7 @@
 
 package stream
 
-import core "dappco.re/go"
+import core "github.com/dappcore/go"
 
 func TestAuth_AuthenticatorFunc_Authenticate_Good(t *core.T) {
 	subject := AuthenticatorFunc.Authenticate

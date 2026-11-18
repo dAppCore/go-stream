@@ -14,9 +14,9 @@ import (
 
 	"github.com/gorilla/websocket"
 
-	core "dappco.re/go"
-	"dappco.re/go/stream"
-	adapterredis "dappco.re/go/stream/adapter/redis"
+	core "github.com/dappcore/go"
+	"github.com/dappcore/go-stream/go"
+	adapterredis "github.com/dappcore/go-stream/go/adapter/redis"
 )
 
 func TestWsCompat_Constructors_Behaviour(t *core.T) {

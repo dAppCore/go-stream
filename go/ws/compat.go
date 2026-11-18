@@ -9,10 +9,10 @@ import (
 	"net/http"
 	"sync"
 
-	"dappco.re/go"
-	"dappco.re/go/stream"
-	adapterredis "dappco.re/go/stream/adapter/redis"
-	adapterws "dappco.re/go/stream/adapter/ws"
+	"github.com/dappcore/go"
+	"github.com/dappcore/go-stream/go"
+	adapterredis "github.com/dappcore/go-stream/go/adapter/redis"
+	adapterws "github.com/dappcore/go-stream/go/adapter/ws"
 )
 
 // Stream preserves the transport-agnostic stream interface for legacy callers.

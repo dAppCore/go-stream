@@ -2,7 +2,7 @@
 
 package stream
 
-import core "dappco.re/go"
+import core "github.com/dappcore/go"
 
 func TestMessage_MessageType_String_Good(t *core.T) {
 	subject := MessageType.String

@@ -2,10 +2,10 @@
 
 ## Identity
 
-**Module:** `dappco.re/go/core/stream`
+**Module:** `github.com/dappcore/go-stream/go`
 **Repository:** `core/go-stream`
 **Tier:** lib (foundation — consumers import this, this never imports consumers)
-**Supersedes:** `dappco.re/go/ws` (`core/go-ws`)
+**Supersedes:** `github.com/dappcore/go-ws/go` (`core/go-ws`)
 **Licence:** EUPL-1.2
 
 ## What This Is

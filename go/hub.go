@@ -12,7 +12,7 @@ import (
 	"sort"
 	"sync"
 
-	"dappco.re/go"
+	"github.com/dappcore/go"
 )
 
 const defaultHubQueueSize = 256

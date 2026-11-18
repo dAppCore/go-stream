@@ -2,7 +2,7 @@
 
 package tcp
 
-import core "dappco.re/go"
+import core "github.com/dappcore/go"
 
 func TestReconnect_NewReconnectingTCP_Good(t *core.T) {
 	subject := NewReconnectingTCP

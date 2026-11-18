@@ -8,6 +8,6 @@ project:
   type: go
 
 go:
-  module: dappco.re/go/stream
+  module: github.com/dappcore/go-stream/go
   subtree: go
   go_version: "1.26.0"

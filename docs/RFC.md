@@ -1,5 +1,5 @@
 ---
-module: dappco.re/go/core/stream
+module: github.com/dappcore/go-stream/go
 repo: core/go-stream
 lang: go
 tier: lib
@@ -19,9 +19,9 @@ tags:
 
 > An agent should be able to implement this library from this document alone.
 
-**Module:** `dappco.re/go/core/stream`
+**Module:** `github.com/dappcore/go-stream/go`
 **Repository:** `core/go-stream`
-**Supersedes:** `dappco.re/go/ws` (`core/go-ws`)
+**Supersedes:** `github.com/dappcore/go-ws/go` (`core/go-ws`)
 **Files:** 18
 
 ---
@@ -1186,7 +1186,7 @@ go-ws callers migrate to go-stream as follows:
 
 | go-ws | go-stream |
 |-------|-----------|
-| `import "dappco.re/go/ws"` | `import "dappco.re/go/core/stream"` + `"dappco.re/go/core/stream/adapter/ws"` |
+| `import "github.com/dappcore/go-ws/go"` | `import "github.com/dappcore/go-stream/go"` + `"github.com/dappcore/go-stream/go/adapter/ws"` |
 | `ws.NewHub()` | `stream.NewHub()` |
 | `ws.NewHubWithConfig(ws.HubConfig{...})` | `stream.NewHubWithConfig(stream.HubConfig{...})` |
 | `hub.Handler()` | `wsAdapter.Handler()` (after `wsAdapter.Mount(hub)`) |

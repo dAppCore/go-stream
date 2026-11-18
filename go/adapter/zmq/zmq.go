@@ -20,8 +20,8 @@ import (
 
 	"github.com/go-zeromq/zmq4"
 
-	"dappco.re/go"
-	"dappco.re/go/stream"
+	"github.com/dappcore/go"
+	"github.com/dappcore/go-stream/go"
 )
 
 const maxHandshakeFrameSize = 4 << 10

@@ -2,7 +2,7 @@
 
 package ws
 
-import core "dappco.re/go"
+import core "github.com/dappcore/go"
 
 func TestCompat_NewRedisBridge_Good(t *core.T) {
 	subject := NewRedisBridge

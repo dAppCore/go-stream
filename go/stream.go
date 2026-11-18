@@ -18,7 +18,7 @@ import (
 	"sync"
 	"time"
 
-	"dappco.re/go"
+	"github.com/dappcore/go"
 )
 
 const defaultPeerSendBufferSize = 256

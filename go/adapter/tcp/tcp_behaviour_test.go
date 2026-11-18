@@ -12,8 +12,8 @@ import (
 	"sync"
 	"time"
 
-	core "dappco.re/go"
-	"dappco.re/go/stream"
+	core "github.com/dappcore/go"
+	"github.com/dappcore/go-stream/go"
 )
 
 // startHub runs a hub and returns it with a stop function.

@@ -8,8 +8,8 @@
 package redis
 
 import (
-	core "dappco.re/go"
-	"dappco.re/go/stream"
+	core "github.com/dappcore/go"
+	"github.com/dappcore/go-stream/go"
 )
 
 func TestRedis_NewBridge_Guards_Behaviour(t *core.T) {

@@ -12,8 +12,8 @@ import (
 	"sync"
 	"time"
 
-	"dappco.re/go"
-	"dappco.re/go/stream"
+	"github.com/dappcore/go"
+	"github.com/dappcore/go-stream/go"
 )
 
 //	config := sse.Config{

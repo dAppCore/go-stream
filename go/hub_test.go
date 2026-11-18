@@ -2,7 +2,7 @@
 
 package stream
 
-import core "dappco.re/go"
+import core "github.com/dappcore/go"
 
 func TestHub_NewHub_Good(t *core.T) {
 	subject := NewHub

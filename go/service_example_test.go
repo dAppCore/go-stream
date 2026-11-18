@@ -5,8 +5,8 @@ package stream_test
 import (
 	"context"
 
-	core "dappco.re/go"
-	"dappco.re/go/stream"
+	core "github.com/dappcore/go"
+	"github.com/dappcore/go-stream/go"
 )
 
 // ExampleNewService constructs the stream service factory through
