@@ -2,7 +2,7 @@
 
 package zmq
 
-import core "dappco.re/go"
+import core "github.com/dappcore/go"
 
 func TestZmq_Mode_String_Good(t *core.T) {
 	subject := Mode.String

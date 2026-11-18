@@ -19,8 +19,8 @@ import (
 
 	"github.com/redis/go-redis/v9"
 
-	"dappco.re/go"
-	"dappco.re/go/stream"
+	"github.com/dappcore/go"
+	"github.com/dappcore/go-stream/go"
 )
 
 // config := redis.Config{Addr: "127.0.0.1:6379", Prefix: "pool"}

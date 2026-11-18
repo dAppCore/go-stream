@@ -13,7 +13,7 @@ import (
 	"sync"
 	"time"
 
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 )
 
 // runHub starts a hub event loop and returns a stop function that

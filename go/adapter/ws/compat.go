@@ -5,9 +5,9 @@
 package ws
 
 import (
-	"dappco.re/go"
-	"dappco.re/go/stream"
-	"dappco.re/go/stream/adapter/redis"
+	"github.com/dappcore/go"
+	"github.com/dappcore/go-stream/go"
+	"github.com/dappcore/go-stream/go/adapter/redis"
 )
 
 // Stream preserves the transport-agnostic stream interface for legacy callers.

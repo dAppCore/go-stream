@@ -12,8 +12,8 @@ import (
 
 	"github.com/go-zeromq/zmq4"
 
-	core "dappco.re/go"
-	"dappco.re/go/stream"
+	core "github.com/dappcore/go"
+	"github.com/dappcore/go-stream/go"
 )
 
 // runHub starts a hub and returns it with a stop function.

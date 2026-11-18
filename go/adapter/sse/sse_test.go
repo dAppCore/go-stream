@@ -2,7 +2,7 @@
 
 package sse
 
-import core "dappco.re/go"
+import core "github.com/dappcore/go"
 
 func TestSse_New_Good(t *core.T) {
 	subject := New

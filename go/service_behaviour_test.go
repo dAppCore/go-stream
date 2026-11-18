@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	core "dappco.re/go"
+	core "github.com/dappcore/go"
 )
 
 // startedService builds a Service, runs its hub, and returns it with a

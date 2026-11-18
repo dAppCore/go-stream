@@ -2,7 +2,7 @@
 
 package ws
 
-import core "dappco.re/go"
+import core "github.com/dappcore/go"
 
 func TestWs_New_Good(t *core.T) {
 	subject := New

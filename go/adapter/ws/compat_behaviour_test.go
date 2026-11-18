@@ -8,9 +8,9 @@ package ws
 import (
 	"time"
 
-	core "dappco.re/go"
-	"dappco.re/go/stream"
-	"dappco.re/go/stream/adapter/redis"
+	core "github.com/dappcore/go"
+	"github.com/dappcore/go-stream/go"
+	"github.com/dappcore/go-stream/go/adapter/redis"
 )
 
 func TestWsAdapterCompat_Constructors_Behaviour(t *core.T) {

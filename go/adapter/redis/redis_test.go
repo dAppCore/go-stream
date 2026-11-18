@@ -2,7 +2,7 @@
 
 package redis
 
-import core "dappco.re/go"
+import core "github.com/dappcore/go"
 
 func TestRedis_NewBridge_Good(t *core.T) {
 	subject := NewBridge

@@ -10,7 +10,7 @@ import (
 	"maps"
 	"net/http"
 
-	"dappco.re/go"
+	"github.com/dappcore/go"
 )
 
 //	auth := stream.AuthenticatorFunc(func(request *http.Request) stream.AuthResult {
